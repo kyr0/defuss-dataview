@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fix `setParent` throwing on class-instance rows; the row is copied like `updateRows` and 0.3.1 do, nested dot-path containers stay plain-only.
+- Fix views throwing once a selection exists when row IDs are not JSON values (e.g. BigInt); such rows are reported unselected.
+- Fix `npm run check` / `prepublishOnly` failing on macOS in the isolated tarball consumer check.
+- Add `make verify` (lint, test, coverage, e2e) and a matching CI workflow; lint now denies warnings.
+
 ## 0.4.0
 
 - Fix nontermination on parent cycles, disconnected cycle loss, deep-tree stack overflow and wide-tree spread overflow.
