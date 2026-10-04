@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, writeFile, mkdir, rm, lstat } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, rm, lstat, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,8 @@ await mkdir(join(root, 'artifacts'), { recursive: true });
 const [packed] = JSON.parse(npm(['pack', '--ignore-scripts', '--json', '--pack-destination', 'artifacts']));
 assert(!packed.files.some(file => /^(?:src|tests|node_modules|coverage|artifacts)\//.test(file.path)), 'Unexpected source/development files in npm package');
 const tarball = join(root, 'artifacts', packed.filename);
-const consumer = await mkdtemp(join(tmpdir(), 'defuss-dataview-consumer-'));
+// VERIFIED: canonicalize; esbuild reports symlink-resolved inputs (macOS /var -> /private/var).
+const consumer = await realpath(await mkdtemp(join(tmpdir(), 'defuss-dataview-consumer-')));
 try {
   await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-consumer', version: '1.0.0', private: true, type: 'module' }));
   npm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], consumer);
