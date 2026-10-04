@@ -28,7 +28,8 @@ export function setField<T extends DataviewRow>(row: T, field: string, value: un
   let current: unknown = row;
   for (const part of parts) {
     if (current === undefined || current === null) current = /^(0|[1-9]\d*)$/.test(part) ? [] : {};
-    if (typeof current !== 'object' || (!Array.isArray(current) && Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null)) {
+    // VERIFIED: the row itself may be a class instance: it is spread like updateRows does; nested containers must be plain.
+    if (typeof current !== 'object' || (current !== row && !Array.isArray(current) && Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null)) {
       throw new TypeError('Parent paths require plain objects or arrays.');
     }
     if (Array.isArray(current) && (!/^(0|[1-9]\d*)$/.test(part) || Number(part) > 4294967294)) throw new TypeError('Array paths require valid nonnegative indices.');

@@ -173,4 +173,10 @@ describe('grid counts, validation and immutable moves', () => {
     expect(changed[0].links[1]).toBe(rows[0].links[1]); expect(changed[0].other).toBe(rows[0].other);
     expect(() => setParent(rows, 1, 99, 'id', 'links.bad.parent')).toThrow('Array');
   });
+  it('moves class-instance rows like updateRows and 0.3.1 do', () => {
+    class Node { constructor(public id: number, public parentId: number | null) {} }
+    const rows = [new Node(1, null), new Node(2, null)] as Array<Node & Record<string, unknown>>;
+    const changed = setParent(rows, 2, 1);
+    expect(changed[1].parentId).toBe(1); expect(rows[1].parentId).toBeNull(); expect(changed[0]).toBe(rows[0]);
+  });
 });
