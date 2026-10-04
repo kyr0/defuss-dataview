@@ -23,7 +23,32 @@
     {
       "path": "tests/fixtures/upstream-src/view-meta.ts",
       "sha256": "e7bbfc5e0bc4c76d79f5aa8f0d4c71e6d47518a6ba5b18e139e62cbe586d4ab5"
+    },
+    {
+      "path": "tests/fixtures/upstream-README.md",
+      "sha256": "4b463f4f56191788e85085547188015a68d767f2f830cd53cf023f1efe966c97"
     }
   ],
-  "originalTests": []
+  "originalTests": [
+    {
+      "path": "src/data-patch.test.ts",
+      "sha256": "1076644f519469f92d665e060375b62167b9a3b1e110a2222aa224a3e740b2f2"
+    },
+    {
+      "path": "src/dataview.test.ts",
+      "sha256": "766fa5b5ef7a314b925bd73dcdbeacf6d2dca6ebe7b168fa1cbd2826374b9feb"
+    },
+    {
+      "path": "src/index.test.ts",
+      "sha256": "bf00450375b0e6469bf985d33ace8db58fb8bd40774b442ed46978b951e53c17"
+    },
+    {
+      "path": "src/readme-examples.test.ts",
+      "sha256": "c34df4f1041bcc1da15f9427c4bcadff8e9c5df4f633db9545572e2cf0fb9279"
+    },
+    {
+      "path": "src/view-meta.test.ts",
+      "sha256": "d40eae9d23a2ebf93826ecb6b5c25d6973766a2b2cb201b4ce1219d7d2ce97d2"
+    }
+  ]
 }
