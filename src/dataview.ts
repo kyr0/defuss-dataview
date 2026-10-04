@@ -1,5 +1,5 @@
 import { compileAccessor } from './fields.js';
-import { idKey, rowIdKey } from './identity.js';
+import { idKey, selectionKey } from './identity.js';
 import { compileQuery } from './query.js';
 import { evaluateTree } from './tree.js';
 import type { DataviewEntry, DataviewResult, DataviewRow, DataviewState } from './types.js';
@@ -15,7 +15,7 @@ function evaluateFlat<T extends DataviewRow>(rows: readonly T[], view: DataviewS
   let matchedRows = 0;
   function append(row: T) {
     if (matchedRows >= offset && matchedRows < end) {
-      const key = selected.size ? rowIdKey(getId(row)) : undefined;
+      const key = selected.size ? selectionKey(getId(row)) : undefined;
       entries.push({ row, meta: {
         depth: 0, hasChildren: false, isExpanded: false, isMatch: true,
         isSelected: key !== undefined && selected.has(key), parentId: null,

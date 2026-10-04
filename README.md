@@ -148,7 +148,7 @@ All 67 original tests remain byte-for-byte unchanged and pass. Deliberate correc
 
 - **Explicit `expandedIds: []` now collapses all.** Omit it, or set `expandAll: true`, to open all. Old saved descriptors normalized by 0.3.1 cannot distinguish omitted from explicit empty lists; migrate those intentionally.
 - Cycles terminate and no longer disappear beside other roots; deep/wide trees no longer depend on recursion or spread argument limits.
-- Object/array IDs now use structural JSON identity consistently; unsupported/lossy IDs fail instead of colliding.
+- Object/array IDs now use structural JSON identity consistently; unsupported/lossy IDs fail instead of colliding. Row IDs that are not JSON values (e.g. BigInt) are reported unselected rather than failing selection lookup.
 - Inherited properties and unsafe/malformed paths no longer match. Data-patch field arguments now honor the same dot paths as queries.
 - No-op patches/meta updates preserve references. View extension fields are retained.
 - Mixed-type ordering is explicit and transitive for ordinary scalar data; NaN/invalid dates tie stably. Invalid/nullish relational cells no longer match.

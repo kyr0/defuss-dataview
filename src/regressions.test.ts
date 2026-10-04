@@ -179,4 +179,10 @@ describe('grid counts, validation and immutable moves', () => {
     const changed = setParent(rows, 2, 1);
     expect(changed[1].parentId).toBe(1); expect(rows[1].parentId).toBeNull(); expect(changed[0]).toBe(rows[0]);
   });
+  it('treats non-JSON row IDs as unselected instead of throwing once a selection exists', () => {
+    const rows = [{ id: 1n, parentId: null }, { id: 2, parentId: null }];
+    for (const view of [createDataview({ meta: { selectedRowIds: [2] } }), createDataview({ sorters: [{ field: 'id' }], meta: { selectedRowIds: [2] } })]) {
+      expect(applyDataview(rows, view).filter(entry => entry.meta.isSelected).map(entry => entry.row.id)).toEqual([2]);
+    }
+  });
 });

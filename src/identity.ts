@@ -43,5 +43,9 @@ export function uniqueIds(values: readonly unknown[]): DataviewJsonValue[] {
   return result;
 }
 export const rowIdKey = (value: unknown): string | undefined => value == null ? undefined : idKey(value);
+/** VERIFIED: selected IDs are validated JSON, so a row ID without a JSON key can never be selected. */
+export function selectionKey(value: unknown): string | undefined {
+  try { return rowIdKey(value); } catch (error) { if (error instanceof TypeError) return undefined; throw error; }
+}
 export const sameIds = (left: readonly DataviewJsonValue[], right: readonly DataviewJsonValue[]): boolean =>
   left.length === right.length && left.every((value, index) => idKey(value) === idKey(right[index]));

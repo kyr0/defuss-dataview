@@ -1,5 +1,5 @@
 import { compileAccessor } from './fields.js';
-import { idKey, rowIdKey } from './identity.js';
+import { idKey, rowIdKey, selectionKey } from './identity.js';
 import { compileQuery } from './query.js';
 import type { DataviewEntry, DataviewJsonValue, DataviewRow, DataviewState } from './types.js';
 
@@ -97,11 +97,11 @@ export function evaluateTree<T extends DataviewRow>(rows: readonly T[], view: Da
     const canDescend = isOpen && (tree.maxDepth === undefined || depth < tree.maxDepth);
     if (included[index]) {
       if (visibleRows >= offset && visibleRows < end) {
-        const selectionKey = selected.size ? rowIdKey(getSelectionId(rows[index])) : undefined;
+        const selectedKey = selected.size ? selectionKey(getSelectionId(rows[index])) : undefined;
         entries.push({ row: rows[index], meta: {
           depth, hasChildren, isExpanded: hasChildren && canDescend,
           isMatch: matched[index] === 1,
-          isSelected: selectionKey !== undefined && selected.has(selectionKey),
+          isSelected: selectedKey !== undefined && selected.has(selectedKey),
           parentId: (parents[index] ?? null) as DataviewJsonValue | null,
         } });
       }
