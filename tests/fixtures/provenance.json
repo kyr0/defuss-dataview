@@ -1,0 +1,29 @@
+{
+  "repository": "https://github.com/kyr0/defuss",
+  "path": "packages/dataview",
+  "commit": "50aae32aa9aea45612510703e75875ed98aa6386",
+  "version": "0.3.1",
+  "fixtures": [
+    {
+      "path": "tests/fixtures/upstream-src/data-patch.ts",
+      "sha256": "fe3f903f1d8cd6a5f721fe3ee13e4c7f03d6491cc58707c08f294b19f259717c"
+    },
+    {
+      "path": "tests/fixtures/upstream-src/dataview.ts",
+      "sha256": "465e17e382c5c92265080fbdd9348664afd6bbcfce4dbe8435f60d78900908cf"
+    },
+    {
+      "path": "tests/fixtures/upstream-src/index.ts",
+      "sha256": "34337615bb1996e0d5e79de75c342a81489ffad1967f8736ea2e92b18414b787"
+    },
+    {
+      "path": "tests/fixtures/upstream-src/types.ts",
+      "sha256": "14df7c0495d8d5e45c33638ce82982274934bc9652903ce2f54b1c51fb2d6cb0"
+    },
+    {
+      "path": "tests/fixtures/upstream-src/view-meta.ts",
+      "sha256": "e7bbfc5e0bc4c76d79f5aa8f0d4c71e6d47518a6ba5b18e139e62cbe586d4ab5"
+    }
+  ],
+  "originalTests": []
+}

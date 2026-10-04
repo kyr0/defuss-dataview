@@ -1,0 +1,88 @@
+{
+  "name": "defuss-dataview",
+  "version": "0.4.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "description": "Isomorphic functional data view (filters, sorters, paging, meta UI state) for table and tree grids.",
+  "keywords": [
+    "dataview",
+    "filter",
+    "sort",
+    "paging",
+    "query",
+    "data-view",
+    "isomorphic",
+    "functional",
+    "typescript",
+    "datagrid",
+    "table",
+    "treegrid",
+    "tree"
+  ],
+  "repository": {
+    "url": "git+https://github.com/kyr0/defuss.git",
+    "type": "git",
+    "directory": "packages/dataview"
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "node scripts/clean.mjs dist && pkgroll --sourcemap && node scripts/browser.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tests/types/tsconfig.json",
+    "lint": "oxlint src tests scripts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --reporter=default --reporter=json --outputFile=artifacts/unit-results.json",
+    "test:browser": "playwright test",
+    "e2e": "npm run test:browser",
+    "test:package": "node scripts/package-tests.mjs",
+    "benchmark": "node --import tsx src/dataview.benchmark.ts",
+    "audit:upstream": "node scripts/audit-upstream.mjs",
+    "benchmark:compare": "node scripts/benchmark-compare.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check": "npm run lint && npm run typecheck && npm run build && npm run test:coverage && npm run test:browser && npm run test:package && npm run verify",
+    "prepublishOnly": "npm run check",
+    "dev": "node scripts/serve.mjs"
+  },
+  "author": "Aron Homberg <info@aron-homberg.de>",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist",
+    "README.md",
+    "ARCH.md",
+    "CHANGELOG.md",
+    "RELEASE.md",
+    "NOTICE",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": "^18.17.1 || ^20.3.0 || >=21.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.19.15",
+    "@vitest/coverage-v8": "4.0.17",
+    "esbuild": "0.27.4",
+    "oxlint": "1.81.0",
+    "pkgroll": "2.28.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "4.0.17"
+  }
+}

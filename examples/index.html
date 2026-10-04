@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>defuss-dataview · table and tree</title>
+<style>
+  :root{font:16px/1.5 system-ui,sans-serif;color-scheme:light dark}body{max-width:850px;margin:5vh auto;padding:24px}h1{letter-spacing:-.04em}button,input,select{font:inherit;padding:.35em .7em}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{text-align:left;border-bottom:1px solid #8885;padding:.6em}tr[aria-selected=true]{background:#518fda33}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}#counts{font-variant-numeric:tabular-nums}#errors{color:#d66}
+</style>
+<body><h1>One descriptor. Table or tree.</h1><p>Filter, sort, select, page and expand. The query state survives reload as JSON; rows remain unchanged.</p>
+<div class="controls"><label>View <select id="mode"><option value="flat">Table</option><option value="tree">Tree</option></select></label><label>Search <input id="search" type="search"></label><button id="sort">Reverse name order</button><button id="collapse">Collapse all</button><button id="expand">Expand all</button></div>
+<table><thead><tr><th scope="col">Name</th><th scope="col">Score</th><th scope="col">Selection</th></tr></thead><tbody id="rows"></tbody></table>
+<div class="controls"><button id="previous">Previous</button><output id="counts" aria-live="polite"></output><button id="next">Next</button></div><p id="errors" role="status"></p>
+<script type="module">
+import { createDataview, evaluateDataview, toggleSelectedRow, toggleExpanded, setExpandedIds } from '../dist/browser.min.mjs';
+const rows = [
+  { id: 1, parentId: null, name: 'Engineering', score: 90 },
+  { id: 2, parentId: 1, name: 'Frontend', score: 70 },
+  { id: 3, parentId: 1, name: 'Backend', score: 80 },
+  { id: 4, parentId: 3, name: 'Storage', score: 95 },
+  { id: 5, parentId: null, name: 'Operations', score: 85 },
+  { id: 6, parentId: 5, name: 'Reliability', score: 88 },
+  { id: 7, parentId: 5, name: 'Security', score: 92 },
+];
+const query = selector => document.querySelector(selector);
+const key = 'defuss-dataview:example';
+let view = createDataview({ pageSize: 3, sorters: [{ field: 'name', direction: 'asc' }] });
+try { const stored = localStorage.getItem(key); if (stored) view = createDataview(JSON.parse(stored)); }
+catch { query('#errors').textContent = 'Saved state unavailable; using defaults.'; }
+function render() {
+  const result = evaluateDataview(rows, view);
+  query('#rows').replaceChildren();
+  query('#mode').value = view.tree ? 'tree' : 'flat';
+  query('#search').value = view.filters[0]?.value ?? '';
+  for (const { row, meta } of result.entries) {
+    const tr = document.createElement('tr'); tr.dataset.id = String(row.id); tr.setAttribute('aria-selected', String(meta.isSelected));
+    const name = document.createElement('td'); name.style.paddingLeft = `${12 + meta.depth * 22}px`;
+    if (meta.hasChildren) {
+      const button = document.createElement('button'); button.textContent = meta.isExpanded ? '−' : '+';
+      button.setAttribute('aria-label', `Toggle ${row.name}`); button.setAttribute('aria-expanded', String(meta.isExpanded));
+      button.onclick = () => update(toggleExpanded(view, row.id)); name.append(button, ' ');
+    }
+    name.append(document.createTextNode(row.name));
+    const score = document.createElement('td'); score.textContent = String(row.score);
+    const selection = document.createElement('td'), button = document.createElement('button');
+    button.textContent = meta.isSelected ? 'Deselect' : 'Select'; button.onclick = () => update(toggleSelectedRow(view, row.id)); selection.append(button);
+    tr.append(name, score, selection); query('#rows').append(tr);
+  }
+  query('#counts').textContent = `${result.visibleRows} visible / ${result.matchedRows} matches / ${result.totalRows} total · page ${result.pageCount ? result.page + 1 : 0} of ${result.pageCount}`;
+  query('#previous').disabled = !result.hasPreviousPage; query('#next').disabled = !result.hasNextPage;
+  query('#collapse').disabled = query('#expand').disabled = !view.tree;
+  globalThis.demo = { rows, get view() { return view; }, result, update };
+}
+function update(next) { view = next; try { localStorage.setItem(key, JSON.stringify(view)); } catch { query('#errors').textContent = 'Changes remain in memory; saving is unavailable.'; } render(); }
+query('#mode').onchange = event => update(createDataview({ ...view, page: 0, tree: event.target.value === 'tree' ? { idField: 'id', parentIdField: 'parentId' } : undefined }));
+query('#search').oninput = event => update(createDataview({ ...view, page: 0, filters: event.target.value ? [{ field: 'name', op: 'contains', value: event.target.value }] : [] }));
+query('#sort').onclick = () => update(createDataview({ ...view, page: 0, sorters: [{ field: 'name', direction: view.sorters[0]?.direction === 'asc' ? 'desc' : 'asc' }] }));
+query('#previous').onclick = () => update(createDataview({ ...view, page: view.page - 1 }));
+query('#next').onclick = () => update(createDataview({ ...view, page: view.page + 1 }));
+query('#collapse').onclick = () => update(createDataview({ ...setExpandedIds(view, []), page: 0 }));
+query('#expand').onclick = () => update(createDataview({ ...view, page: 0, tree: { ...view.tree, expandAll: true, collapsedIds: [] } }));
+render();
+</script></body></html>
