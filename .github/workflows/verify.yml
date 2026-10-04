@@ -1,0 +1,20 @@
+# defuss-vae CI: the same bootstrap and verbs as local development, so CI cannot drift from `make verify`.
+name: verify
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Release tooling targets Node 22/24 (RELEASE.md); the runner default may differ.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # setup installs a missing uv/bun with the official installers; later steps get their dirs on PATH.
+      - run: make setup && printf '%s\n' "$HOME/.local/bin" "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      # Chromium system libraries need root; make setup stays sudo-free for local use.
+      - run: npx playwright install-deps chromium
+      - run: make verify

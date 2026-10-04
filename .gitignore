@@ -6,3 +6,13 @@ test-results/
 playwright-report/
 tmp/
 *.tgz
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+var/*
+output/*
+input/*
+.DS_Store

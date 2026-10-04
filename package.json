@@ -31,7 +31,7 @@
     "clean": "node scripts/clean.mjs",
     "build": "node scripts/clean.mjs dist && pkgroll --sourcemap && node scripts/browser.mjs",
     "typecheck": "tsc --noEmit && tsc -p tests/types/tsconfig.json",
-    "lint": "oxlint src tests scripts",
+    "lint": "oxlint --deny-warnings src tests scripts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --reporter=default --reporter=json --outputFile=artifacts/unit-results.json",
     "test:browser": "playwright test",
