@@ -10,7 +10,7 @@ Version **0.4.0** improves upstream 0.3.1 while retaining every existing exporte
 npm install defuss-dataview
 ```
 
-Before publication, install the included `artifacts/defuss-dataview-0.4.0.tgz` instead. Runtime Node engine requirements are unchanged from 0.3.1; use Node 22 or 24 for development/release tooling.
+Runtime Node engine requirements are unchanged from 0.3.1; use Node 22 or 24 for development/release tooling.
 
 ## Filter, sort, page
 

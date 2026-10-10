@@ -11,7 +11,7 @@ npm run check
 npm publish --access public
 ```
 
-Run from the extracted `defuss-dataview` directory. npm authentication, authorization for the existing package name and any required OTP are handled by npm. `prepublishOnly` repeats the full check. Package 0.3.1 was the registry latest during preparation; 0.4.0 must still be unused when publishing. No credentials are included.
+Run from the extracted `defuss-dataview` directory. npm authentication, authorization for the existing package name and any required OTP are handled by npm. `prepublishOnly` repeats the full check. 0.4.0 was published on 2026-10-04 from commit `669ab2c`; a further release needs a new, unused version (see "For a subsequent version" below). No credentials are included.
 
 `npm run check` creates `artifacts/defuss-dataview-0.4.0.tgz` and a report with its integrity hash after installation into a separate temporary consumer. It verifies both JS formats, both NodeNext declaration formats, Bundler resolution without DOM types, SSR imports and browser bundling. The full ZIP additionally carries source/tests/scripts; the npm tarball contains only built distribution, package metadata and documentation/licenses.
 

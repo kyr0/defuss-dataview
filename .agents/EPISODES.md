@@ -11,3 +11,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-04T10:19:56Z s=cd9fdf13 LESSON commit hook checks the whole Bash command before it runs → `vae.py gate` AND `git commit` REQUIRE separate tool calls; fingerprint is relative to HEAD → gate again after EVERY commit
 2026-10-04T10:20:38Z s=cd9fdf13 FINDING tests/fixtures/provenance.json|originalTests learn=test: appending a line to src/index.test.ts makes npm run verify fail 'Upstream evidence changed'; reverting passes
 2026-10-04T10:20:38Z s=cd9fdf13 DONE fp=c3bd0a800a4f cov=99.7% paths=tests/fixtures/provenance.json
+2026-10-10T12:54:27Z s=4c6f18dd DONE fp=4844ea408464 cov=? paths=CHANGELOG.md,README.md,RELEASE.md
+2026-10-10T12:54:27Z s=4c6f18dd FINDING CHANGELOG.md:5 P07/B02 learn=none: One-off wording in a release note; nothing recurring to check mechanically.
+2026-10-10T12:54:27Z s=4c6f18dd FINDING CHANGELOG.md:10 P09/L09 learn=none: Wording; the behavior itself is covered by src/regressions.test.ts.

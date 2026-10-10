@@ -1,24 +1,20 @@
 # Changelog
 
-## Unreleased
-
-- Fix `setParent` throwing on class-instance rows; the row is copied like `updateRows` and 0.3.1 do, nested dot-path containers stay plain-only.
-- Fix views throwing once a selection exists when row IDs are not JSON values (e.g. BigInt); such rows are reported unselected.
-- Fix `npm run check` / `prepublishOnly` failing on macOS in the isolated tarball consumer check.
-- Add `make verify` (lint, test, coverage, e2e) and a matching CI workflow; lint now denies warnings.
-
 ## 0.4.0
+
+Published to npm on 2026-10-04 from commit `669ab2c`. That tarball's own CHANGELOG lists the `setParent`, non-JSON row ID, macOS tarball-check and `make verify` entries under "Unreleased"; they are part of 0.4.0.
 
 - Fix nontermination on parent cycles, disconnected cycle loss, deep-tree stack overflow and wide-tree spread overflow.
 - Make ancestor inclusion linear in hierarchy size; allocate paged tree metadata only for returned entries.
 - Distinguish omitted expansion from an explicit empty list; preserve default-all toggles through `expandAll`/`collapsedIds`.
-- Use consistent structural JSON identifiers across selection, expansion, parent linking and patches.
-- Honor dot-path ID/parent fields in data patches; reject unsafe/inherited traversal and cyclic moves.
+- Use consistent structural JSON identifiers across selection, expansion, parent linking and patches. Rows whose IDs are not JSON values (e.g. BigInt) are reported unselected.
+- Honor dot-path ID/parent fields in data patches; reject unsafe/inherited traversal and cyclic moves. `setParent` still copies class-instance rows like 0.3.1 and `updateRows`; only nested dot-path containers must be plain objects or arrays.
 - Preserve array/row/view identity on no-ops and retain view extension fields.
 - Stabilize NaN/invalid-date ties, define consistent mixed-type ordering, exclude invalid relational cells and reject unsafe paging integers.
 - Add `evaluateDataview` with exact match/visibility/page counts; retain `applyDataview`'s array contract.
 - Retain all 67 original tests, original benchmarks, public functions, runtime engine range and dual ESM/CommonJS packaging.
-- Add regression/differential tests, browser and module-worker tests, standalone configuration/lockfile, tarball consumer checks, audit evidence, release workflow and documentation.
+- Add regression/differential tests, browser and module-worker tests, standalone configuration/lockfile, tarball consumer checks (also on macOS), audit evidence, release workflow and documentation.
+- Add `make verify` (lint, test, coverage, e2e) and a matching CI workflow; lint denies warnings.
 
 ## 0.3.1
 
