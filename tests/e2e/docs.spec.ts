@@ -56,6 +56,7 @@ test.describe('landing page', () => {
     }
     expect(await page.evaluate(() => history.length)).toBe(before);
     expect(page.url()).toMatch(/#install$/);
+    await expect(page.getByRole('link', { name: 'defuss-dataview on npm' })).toHaveAttribute('href', 'https://www.npmjs.com/package/defuss-dataview');
   });
 
   test('the theme switch repaints the page and the demo frame, and survives a reload', async ({ page }) => {
@@ -99,6 +100,9 @@ test.describe('landing page', () => {
     await expect(explorerCount(page, 'pageCount')).toHaveText(String(Math.ceil(high.length / 20)));
     expect(await names()).toEqual(high.slice(0, 20).map((row) => row.name));
     expect(await page.locator('#ex-rows input').count(), 'only the rows on screen exist as inputs').toBeLessThan(200);
+    await page.locator('#explorer summary', { hasText: 'Normalized state' }).click();
+    await expect(page.locator('#ex-state .mk-code-block-k').first()).toHaveText('"filters"'); // highlighted, like the request
+    await expect(page.locator('#ex-state')).toContainText('"pageSize": 20');
 
     // the pager writes the page into the request and applies it
     await page.locator('#ex-pager .pagination-next').click();

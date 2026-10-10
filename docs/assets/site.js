@@ -255,7 +255,7 @@ function apply() {
     counts.replaceChildren();
     df$.shadcn.dataGrid.setSource(grid, [], { cells });
     $('ex-pages').hidden = true;
-    $('ex-state').textContent = '';
+    $('ex-state').replaceChildren();
     stale.textContent = '';
     return;
   }
@@ -270,7 +270,7 @@ function apply() {
   grid.style.setProperty('--dv-result-rows', String(Math.min(Math.max(records.length, 3), 12)));
   df$.shadcn.dataGrid.setSource(grid, records, { cells });
   showPages(view, result);
-  $('ex-state').textContent = JSON.stringify(view, null, 2);
+  $('ex-state').replaceChildren(...jsonLines(JSON.stringify(view, null, 2)));
 }
 $('ex-apply').addEventListener('click', apply);
 

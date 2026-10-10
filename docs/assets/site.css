@@ -105,7 +105,7 @@
   .dv-result-grid { height: calc((var(--dv-result-rows, 3) + 1) * var(--data-grid-row-height, 36px) + 3rem); }
   .dv-result-grid .data-grid-content[data-kind="true"] { color: light-dark(#15803d, #4ade80); }
   .dv-result-grid .data-grid-content[data-kind="false"] { color: var(--muted-foreground); }
-  .dv-json { margin: 0; padding: .75rem 1rem; max-height: 20rem; overflow: auto; border-radius: var(--radius-md); background: var(--muted); font: .75rem/1.5 var(--font-mono); white-space: pre; }
+  .dv-state pre { max-height: 20rem; overflow: auto; }
 
   .dv-dl { display: grid; gap: .5rem; margin: 0; }
   .dv-dl > div { display: grid; grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr); gap: .75rem; align-items: baseline; padding-block: .375rem; border-block-end: 1px dashed var(--border); }

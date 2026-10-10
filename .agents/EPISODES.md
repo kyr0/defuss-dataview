@@ -37,3 +37,5 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T15:08:39Z s=4c6f18dd FINDING docs/index.html:#perf lead L09 learn=none: Wording.
 2026-10-10T15:26:44Z s=4c6f18dd DONE fp=bd9832212de3 cov=99.7% paths=AGENTS.md,CHANGELOG.md,Makefile,README.md(+17)
 2026-10-10T15:26:44Z s=4c6f18dd FINDING docs/assets/json.js learn=test: docs.spec.ts asserts highlighted keys in the editor and the inspector.
+2026-10-10T15:44:32Z s=4c6f18dd DONE fp=4369bc56f4e8 cov=99.7% paths=AGENTS.md,CHANGELOG.md,Makefile,README.md(+17)
+2026-10-10T15:45:49Z s=4c6f18dd DONE fp=b63d252446ee cov=99.7% paths=AGENTS.md,CHANGELOG.md,Makefile,README.md(+17)
