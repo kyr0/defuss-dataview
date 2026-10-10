@@ -39,3 +39,20 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T15:26:44Z s=4c6f18dd FINDING docs/assets/json.js learn=test: docs.spec.ts asserts highlighted keys in the editor and the inspector.
 2026-10-10T15:44:32Z s=4c6f18dd DONE fp=4369bc56f4e8 cov=99.7% paths=AGENTS.md,CHANGELOG.md,Makefile,README.md(+17)
 2026-10-10T15:45:49Z s=4c6f18dd DONE fp=b63d252446ee cov=99.7% paths=AGENTS.md,CHANGELOG.md,Makefile,README.md(+17)
+2026-10-10T16:12:11Z s=792882e7 DONE fp=898e82788445 cov=? paths=README.md
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:55 L03 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:56 L03 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:363 L09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:271 L09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:289 T07 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:28 P08 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:32 A01 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:122 A01 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:199 P01 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:201 P09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:96 P09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:257 L01 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:377 B09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:12:11Z s=792882e7 FINDING README.md:335 B02 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
+2026-10-10T16:16:08Z s=792882e7 DONE fp=bfa5032bf83f cov=? paths=README.md
+2026-10-10T16:16:08Z s=792882e7 FINDING README.md:13 A04 learn=none: Human editorial choice, not a defect.
