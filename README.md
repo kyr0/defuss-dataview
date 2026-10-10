@@ -4,6 +4,8 @@ Isomorphic functional filters, sorting, pagination, tree traversal and UI metada
 
 Version **0.4.0** improves upstream 0.3.1 while retaining every existing exported function and the array return contract of `applyDataview`. Read the [migration notes](#migration-from-031) before upgrading: a few incorrect behaviors are intentionally corrected.
 
+`docs/` holds the project website: a query explorer and a live demo of defuss-shadcn's Big Data components, which query through this package. `npm run dev` serves it locally (see below); `docs/CNAME` names its GitHub Pages domain.
+
 ## Install
 
 ```sh
@@ -137,7 +139,8 @@ Run the complete interactive example after building:
 
 ```sh
 npm run dev
-# http://127.0.0.1:4179
+# http://127.0.0.1:4179        the example
+# http://127.0.0.1:4179/docs/  the website, which loads the newest published release from jsDelivr
 ```
 
 The example implements sorting, search, paging, selection, tree expansion and JSON descriptor restoration. Its real Chromium tests also execute a 30,000-level hierarchy inside a module worker.

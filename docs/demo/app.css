@@ -1,0 +1,59 @@
+/* Ledger's layout. Colours, radii and fonts come from defuss-shadcn tokens; the warn/failed hues have no token and stay
+   literals here, as the defuss-shadcn rules ask. */
+@layer components {
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; line-height: 1.5; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+  .dv-icon { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* one viewport-high frame: the center column flexes, every component fills what its toolbar leaves */
+  .dv-app { height: 100dvh; }
+  .dv-center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .dv-bar { display: flex; align-items: center; gap: .75rem; padding: .5rem .75rem; border-block-end: 1px solid var(--border); }
+  .dv-brand { display: inline-flex; align-items: center; gap: .5rem; font-weight: 600; }
+  .dv-brand .dv-icon { color: var(--chart-2); }
+  .dv-bar-note { margin: 0 auto 0 0; font-size: .75rem; color: var(--muted-foreground); }
+  .dv-tabs { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: .625rem; padding: .625rem .75rem .75rem; }
+  .dv-tabs .tab-list { flex: none; max-width: 100%; overflow-x: auto; }
+  .dv-panel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: .625rem; }
+  .dv-panel[hidden] { display: none !important; }
+  .dv-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+  .dv-toolbar .select { width: auto; }
+  .dv-hint { flex: 1 1 16rem; margin: 0; font-size: .75rem; color: var(--muted-foreground); text-wrap: pretty; }
+  .dv-fill { flex: 1 1 0; min-height: 14rem; }
+  .dv-filter { width: min(16rem, 100%); }
+  .dv-filter-narrow { width: 9rem; }
+  .dv-search { display: flex; flex-direction: column; gap: .75rem; max-width: 34rem; padding-block: .5rem; }
+
+  /* cells and rows the demo renders itself */
+  .dv-status[data-status="failed"] { color: var(--destructive); border-color: color-mix(in oklch, var(--destructive) 45%, transparent); }
+  .dv-status[data-status="refunded"] { color: var(--muted-foreground); }
+  #logs .virtual-list-row { justify-content: flex-start; gap: .75rem; }
+  .dv-level { flex: none; min-width: 3.25rem; padding: 0 .375rem; border-radius: var(--radius-sm); font: 600 .6875rem/1.7 var(--font-mono);
+    text-align: center; text-transform: uppercase; background: var(--muted); color: var(--muted-foreground); }
+  .dv-level[data-level="warn"] { background: color-mix(in oklch, #f59e0b 22%, transparent); color: color-mix(in oklch, #b45309 70%, var(--foreground)); }
+  .dv-level[data-level="error"] { background: color-mix(in oklch, var(--destructive) 18%, transparent); color: var(--destructive); }
+  .dv-time { flex: none; font: .75rem var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+  .dv-message { min-width: 0; overflow: hidden; font-size: .8125rem; white-space: nowrap; text-overflow: ellipsis; }
+
+  /* inspector */
+  /* the panel body scrolls as a whole: its parts keep their height instead of shrinking to fit */
+  .dv-inspector { display: flex; flex-direction: column; gap: .75rem; overflow: auto; }
+  .dv-inspector > * { flex: none; }
+  .dv-component { margin: 0; font-size: .875rem; }
+  .dv-component code { font-family: var(--font-mono); font-size: .75rem; color: var(--muted-foreground); }
+  .dv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); gap: .5rem 1rem; }
+  .dv-stats .statistic-value, .dv-timing .statistic-value { font-size: 1.125rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .dv-timing .statistic-description { overflow-wrap: anywhere; }
+  .dv-label { margin: .25rem 0 0; font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-foreground); }
+  .dv-presets { display: flex; flex-wrap: wrap; gap: .375rem; }
+  /* the query as a Code Example block: the block's own token colours on its dark surface, in both themes */
+  .dv-query pre { min-height: 12rem; max-height: 20rem; overflow: auto; font-size: .75rem; }
+  .dv-json-literal { color: oklch(0.82 0.12 70); } /* the hue the landing page's request editor uses */
+  .dv-caption code { font-family: var(--font-mono); font-size: .9em; }
+  .dv-caption { margin: 0; font-size: .75rem; color: var(--muted-foreground); text-wrap: pretty; }
+
+  @media (max-width: 40rem) { .dv-bar-note { display: none; } .dv-bar .btn { margin-inline-start: auto; } }
+  @media (forced-colors: active) { .dv-level { border: 1px solid CanvasText; } }
+  @media (prefers-contrast: more) { .dv-hint, .dv-caption, .dv-time { color: var(--foreground); } }
+}

@@ -1,4 +1,4 @@
-.PHONY: setup clean build check test coverage test-browser e2e typecheck lint benchmark bench metrics benchmark-compare audit verify release-verify test-package dev pack start stop restart status log
+.PHONY: setup clean build check test coverage test-browser e2e typecheck lint benchmark bench metrics benchmark-compare audit verify release-verify test-package dev pack site-metrics start stop restart status log
 setup:
 	npm ci
 	npx playwright install chromium
@@ -41,6 +41,9 @@ test-package:
 	npm run test:package
 dev:
 	npm run dev
+# The website's measured numbers: coverage and test counts from fresh runs, then the scaling benchmarks of dist/.
+site-metrics: build coverage test-browser
+	node scripts/site-metrics.mjs
 pack: check
 	@echo 'Verified npm tarball is in artifacts/'
 start stop restart status log: ; @echo "∅ $@: no service"

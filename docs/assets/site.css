@@ -1,0 +1,221 @@
+/* Page layout and composition, adapted from the defuss-dom-router site. Colours, radii and shadows come from
+   defuss-shadcn tokens; the explorer's true/false hues have no token and stay literals here. */
+@layer components {
+  /* the base reset the defuss-shadcn docs site applies, which its Landing Page blocks assume */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; line-height: 1.6; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+  /* the header is a direct child of the page, so it stays sticky over every section, not only the hero. position makes
+     the page the containing block of absolute descendants (sr-only labels), so the clip holds them too: with reduced
+     motion no section has a transform that would contain them, and a phone then scrolled sideways. */
+  .dv-page { position: relative; overflow-x: clip; }
+  .dv-main { display: flex; flex-direction: column; gap: clamp(5rem, 11vw, 9rem); padding-block-end: clamp(5rem, 11vw, 9rem); }
+  .dv-section { width: 100%; max-width: 76rem; padding-inline: 1rem; scroll-margin-top: 5rem; }
+  /* section links move focus to the section (tabindex -1) for screen readers; it is not a control, so no ring */
+  .dv-page [tabindex="-1"]:focus, .dv-page[tabindex="-1"]:focus { outline: none; }
+  .dv-icon { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dv-icon-fill { fill: currentColor; stroke: none; }
+  .dv-brand-icon { color: var(--chart-2); }
+  .dv-ext { width: .75em; height: .75em; margin-inline-start: .15em; vertical-align: -.05em; opacity: .75; }
+  .mk-hero-note a, .mk-footer-copy a, .mk-section-header-desc a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  :where(.dv-main) :not(pre) > code { font-family: var(--font-mono); font-size: .875em; }
+  .mk-hero-desc code { padding: .05em .3em; border-radius: var(--radius-sm); background: color-mix(in oklch, var(--muted) 80%, transparent); }
+
+  /* hero */
+  .dv-flip { margin: 0; font-size: clamp(1.25rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  .dv-accent { background: linear-gradient(90deg, var(--chart-2), var(--chart-4)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .dv-intro { display: grid; gap: 2rem 2.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    width: 100%; max-width: 64rem; margin: clamp(5.5rem, 13vw, 10rem) auto 0; padding-inline: 1.25rem; text-align: start; }
+  .dv-intro-item { display: flex; flex-direction: column; gap: .5rem; }
+  .dv-intro-icon { display: grid; place-items: center; width: 4.5rem; height: 4.5rem; border-radius: var(--radius-xl); font-size: 2.25rem;
+    color: var(--foreground); background: color-mix(in oklch, var(--chart-2) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--chart-2) 35%, transparent); }
+  .dv-intro h3 { margin: .25rem 0 0; font-size: .9375rem; font-weight: 600; }
+  .dv-intro p { margin: 0; font-size: .8125rem; line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+  .dv-intro strong { color: var(--foreground); font-weight: 600; }
+
+  /* flythrough: the stage is viewport-high (the animation spans exactly the pinned stretch) and only its middle
+     28rem band shows, so its empty top and bottom are pulled into the neighbouring gaps */
+  .dv-flythrough { padding-inline: 1rem; margin-block: calc(-1 * clamp(4rem, 12vh, 9rem)); }
+  .dv-flythrough .parallax-stage { clip-path: inset(max(0px, calc((100dvh - 28rem) / 2)) 0 round var(--radius-xl)); }
+  .dv-fly-word { margin: 0; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #9db2ff, #7cf0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* the demo window */
+  .dv-window {
+    display: flex; flex-direction: column; gap: .75rem; margin-block-start: 2.5rem; padding: clamp(.5rem, 1.5vw, .875rem);
+    background-color: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-2xl),
+      0 30px 80px -30px color-mix(in oklch, var(--chart-2) 45%, transparent);
+  }
+  .dv-frame { height: clamp(36rem, 82vh, 50rem); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
+  .dv-frame .iframe { height: 100%; margin: 0; }
+  .dv-window-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding-inline: .25rem; }
+  .dv-window-note { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: .8125rem; color: var(--muted-foreground); }
+  .dv-window-actions { display: flex; gap: .5rem; }
+
+  /* how it works */
+  .dv-how-grid { display: grid; gap: 2.5rem 3rem; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; margin-block-start: clamp(2rem, 5vw, 3.5rem); }
+  .dv-how-grid .mk-process-step-title { font-size: 1rem; }
+  /* the row shapes read as units; phones wrap them, they would not fit */
+  @media (min-width: 40rem) { .dv-how-grid .mk-process-step-desc code, .dv-type .card-description code { white-space: nowrap; } }
+  @media (max-width: 60rem) { .dv-how-grid { grid-template-columns: minmax(0, 1fr); } }
+  /* wider boxes and gaps than the defaults (10.5rem, 4rem, 2.5rem): createDataview() and the wire labels need the room */
+  .dv-flow { --diagram-node-w: 12.5rem; --diagram-gap-x: 5.5rem; --diagram-gap-y: 3.5rem; margin-block-start: clamp(3rem, 6vw, 4.5rem); }
+  .dv-flow-detail { display: block; min-height: 3rem; margin-block-start: .75rem; font-size: .875rem; color: var(--muted-foreground); text-wrap: pretty; }
+
+  /* query explorer: three stacked steps in one card, so the rows and the result get the full width */
+  .dv-explorer { display: flex; flex-direction: column; margin-block-start: 2.5rem; padding: 0; gap: 0; overflow: hidden;
+    box-shadow: var(--shadow-xl), 0 30px 80px -40px color-mix(in oklch, var(--chart-2) 45%, transparent); }
+  .dv-step { display: flex; flex-direction: column; gap: .875rem; min-width: 0; padding: clamp(1rem, 2.5vw, 1.75rem); }
+  .dv-step + .dv-step { border-block-start: 1px solid var(--border); }
+  .dv-step-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+  .dv-step-title { display: flex; align-items: center; gap: .625rem; margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .dv-step-number { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 999px; font-size: .8125rem;
+    background: var(--primary); color: var(--primary-foreground); }
+  .dv-step-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .dv-step-hint { margin: 0; font-size: .8125rem; color: var(--muted-foreground); text-wrap: pretty; }
+  /* the rows editor: a head and a Virtual List on one column template, scrolling sideways together on a phone */
+  .dv-rows-editor { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  .dv-rows-scroll { min-width: 36rem; }
+  .dv-row-cells { display: grid; grid-template-columns: minmax(4.5rem, .7fr) minmax(4.5rem, .7fr) minmax(10rem, 2fr) minmax(5rem, .8fr) minmax(4.5rem, .6fr) 2rem;
+    gap: .5rem; align-items: center; width: 100%; padding-inline: .75rem; }
+  .dv-rows-head { padding-block: .5rem; border-block-end: 1px solid var(--border); background: var(--muted); font: 500 .75rem var(--font-mono); color: var(--muted-foreground); }
+  .dv-rows-list { --virtual-list-row-height: 42px; height: 22rem; border: 0; border-radius: 0; }
+  .dv-rows-list .virtual-list-row { padding: 0; }
+  .dv-row-cells .input { min-width: 0; font-family: var(--font-mono); }
+  .dv-pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+  .dv-pages .pagination { margin: 0; }
+  .dv-examples { display: flex; flex-wrap: wrap; gap: .375rem; }
+
+  /* the request editor: a transparent textarea over the Code Example block's lines, both on the block's metrics */
+  .dv-editor-tools { display: flex; gap: .125rem; }
+  .dv-editor-body { position: relative; height: 16rem; }
+  .dv-editor .dv-editor-view, .dv-editor-input { position: absolute; inset: 0; margin: 0; }
+  .dv-editor .dv-editor-view { overflow: hidden; pointer-events: none; }
+  .dv-editor-input { width: 100%; height: 100%; padding: 1rem; border: 0; outline: none; resize: none; overflow: auto; white-space: pre; tab-size: 2;
+    background: transparent; color: transparent; caret-color: oklch(0.92 0 0); font-family: var(--font-mono); font-size: .8125rem; line-height: 1.7; }
+  .dv-editor-input::selection { background: oklch(0.6 0.12 250 / .45); color: transparent; }
+  .dv-editor:has(.dv-editor-input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .dv-json-literal { color: oklch(0.82 0.12 70); }
+  .dv-apply { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+  .dv-stale { color: var(--foreground); font-weight: 500; }
+
+  .dv-counts { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr)); }
+  .dv-counts .statistic-value { font-size: 1.375rem; font-variant-numeric: tabular-nums; }
+  .dv-step .alert { margin: 0; }
+  /* as tall as the entries (3 to 12 rows) plus the head and the footer */
+  .dv-result-grid { height: calc((var(--dv-result-rows, 3) + 1) * var(--data-grid-row-height, 36px) + 3rem); }
+  .dv-result-grid .data-grid-content[data-kind="true"] { color: light-dark(#15803d, #4ade80); }
+  .dv-result-grid .data-grid-content[data-kind="false"] { color: var(--muted-foreground); }
+  .dv-json { margin: 0; padding: .75rem 1rem; max-height: 20rem; overflow: auto; border-radius: var(--radius-md); background: var(--muted); font: .75rem/1.5 var(--font-mono); white-space: pre; }
+
+  .dv-dl { display: grid; gap: .5rem; margin: 0; }
+  .dv-dl > div { display: grid; grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr); gap: .75rem; align-items: baseline; padding-block: .375rem; border-block-end: 1px dashed var(--border); }
+  .dv-dl > div:last-child { border-block-end: 0; }
+  .dv-dl dt { font-size: .8125rem; color: var(--muted-foreground); }
+  .dv-dl dd { margin: 0; font-size: .875rem; overflow-wrap: anywhere; }
+
+  /* API */
+  .dv-api { margin-block-start: 2.5rem; }
+  .dv-api .tab-list { max-width: 100%; overflow-x: auto; margin-block-end: 1.5rem; }
+  .dv-api .tab-content { display: flex; flex-direction: column; gap: 1.5rem; }
+  .dv-api .tab-content[hidden] { display: none !important; }
+  .dv-api-lead { margin: 0; max-width: 52rem; color: var(--muted-foreground); }
+  .dv-table .table-cell:first-child code { white-space: nowrap; }
+  .dv-table .table-cell { vertical-align: top; }
+  .dv-accordion { max-width: 56rem; }
+  .dv-accordion .accordion-content p { margin: 0; color: var(--muted-foreground); }
+  .dv-types { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); }
+  .dv-type .card-title code { font-size: 1rem; }
+
+  /* numbers */
+  .mk-stats-desc a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .mk-stat-value .badge { vertical-align: middle; }
+  .dv-metrics { margin: 0; align-self: center; display: flex; flex-direction: column; gap: .5rem; aspect-ratio: auto; overflow: visible; background: none; }
+  .dv-metrics .mockup-code { margin: 0; }
+  .dv-figcaption { font-size: .75rem; color: var(--muted-foreground); }
+  /* benchmark charts: two series each, the theme blue then the dataviz reference orange, stepped for the dark surface */
+  .dv-perf { --dv-series-1: var(--chart-2); --dv-series-2: #eb6834;
+    display: flex; flex-direction: column; gap: 1.25rem; margin-block-start: clamp(2.5rem, 5vw, 3.5rem); }
+  :root.dark .dv-perf { --dv-series-2: #d95926; }
+  .dv-perf-title { margin: 0; font-size: 1.25rem; font-weight: 600; }
+  .dv-perf-lead { margin: 0; max-width: 52rem; color: var(--muted-foreground); text-wrap: pretty; }
+  .dv-perf-charts { display: grid; gap: 1.5rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); }
+  .dv-perf-charts .chart-frame { min-width: 0; margin: 0; }
+  .dv-perf-table td:nth-child(n+3) { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* install: one leaf-cornered panel on a faint dot pattern */
+  .dv-use {
+    --shape-round: 3rem; --shape-ink: color-mix(in oklch, var(--foreground) 9%, transparent); --shape-pattern: 18px;
+    display: flex; flex-direction: column; gap: 2rem; padding: clamp(1.5rem, 4vw, 3rem); border: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--card) 75%, transparent);
+    box-shadow: var(--shadow-xl), 0 30px 80px -40px color-mix(in oklch, var(--chart-2) 45%, transparent);
+  }
+  .dv-ways { display: flex; gap: 2.5rem; }
+  .dv-way { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1.25rem; }
+  .dv-way-title { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: 1.25rem; font-weight: 600; }
+  .dv-way-desc { margin: 0; color: var(--muted-foreground); text-wrap: pretty; }
+  .dv-use .mk-code-block { margin: 0; }
+  /* the block's CSS-only tabs know npm / pnpm / bun; these are this page's own tab values */
+  .mk-code-block:has(input[value="grid"]:checked) [data-tab="grid"], .mk-code-block:has(input[value="tree"]:checked) [data-tab="tree"],
+  .mk-code-block:has(input[value="worker"]:checked) [data-tab="worker"], .mk-code-block:has(input[value="shadcn"]:checked) [data-tab="shadcn"] { display: block; }
+  /* half-width columns: wrap instead of cutting, with continuation lines hanging past the number column */
+  .dv-use .mk-code-block code > span { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .dv-use .mk-code-block pre[data-numbers] code > span { padding-inline-start: 3rem; text-indent: -3rem; }
+  .dv-usage { display: flex; flex-direction: column; gap: 1.25rem; }
+  .dv-sep-horizontal { display: none; }
+  .dv-sep-wide { width: 100%; margin: 0; }
+  @media (max-width: 56rem) {
+    .dv-ways { flex-direction: column; }
+    .dv-sep-vertical { display: none; }
+    .dv-sep-horizontal { display: block; width: 100%; margin: 0; }
+  }
+  .dv-prompt { position: relative; }
+  .dv-prompt .mockup-code { margin: 0; }
+  .dv-prompt-copy { position: absolute; inset-block-start: .3rem; inset-inline-end: .5rem; }
+
+  /* defuss-vae CTA: a leaf-cornered card; portrait + question, then the pitch, then the action with its note */
+  .dv-consult { --shape-round: 3rem; overflow: hidden; border: 1px solid var(--border); background-color: var(--card);
+    box-shadow: var(--shadow-xl), 0 30px 80px -40px color-mix(in oklch, var(--chart-2) 45%, transparent); }
+  .dv-consult .mk-cta, .dv-consult .mk-cta[data-variant] { background: transparent; }
+  .dv-consult .mk-cta[data-variant] .mk-cta-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 1.25rem 2rem; text-align: start;
+    padding: clamp(1.5rem, 3vw, 2.25rem) clamp(1.5rem, 3vw, 2.5rem); background: transparent; border-radius: 0; }
+  .dv-consult .mk-cta[data-variant] .mk-cta-copy { display: contents; }
+  .dv-consult .dv-cta-head { grid-column: 1; display: flex; align-items: center; gap: 1.25rem; }
+  .dv-consult .mk-cta[data-variant] .mk-cta-title { margin: 0; font-size: clamp(1.25rem, 2.2vw, 1.625rem); }
+  .dv-consult .mk-cta[data-variant] .mk-cta-desc { grid-column: 2; margin: 0; font-size: .9375rem; }
+  .dv-consult .mk-cta-desc a { color: var(--foreground); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+  .dv-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: 3; justify-content: flex-end; }
+  .dv-consult .dv-consult-actions { flex-direction: column; align-items: flex-end; gap: .625rem; }
+  .dv-consult .dv-consult-note { max-width: 17rem; margin: 0; font-size: .8125rem; line-height: 1.45; text-align: end; color: var(--muted-foreground); text-wrap: pretty; }
+  .dv-cta-portrait { width: 4rem; flex: none; }
+  .dv-cta-portrait img { display: block; width: 100%; height: auto; }
+  @media (max-width: 56rem) {
+    .dv-consult .mk-cta[data-variant] .mk-cta-inner { grid-template-columns: minmax(0, 1fr); }
+    .dv-consult .dv-cta-head, .dv-consult .mk-cta[data-variant] .mk-cta-desc, .dv-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: auto; justify-content: flex-start; }
+    .dv-consult .dv-consult-actions { align-items: flex-start; }
+    .dv-consult .dv-consult-note { text-align: start; }
+  }
+
+  /* footer ad: a leaf-cornered panel with a squircle portrait in a gold halo */
+  .dv-ad {
+    --shape-round: 2rem; display: flex; flex-direction: column; gap: .875rem; padding: 1.25rem;
+    border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    background: linear-gradient(135deg, color-mix(in oklch, var(--chart-2) 16%, var(--card)), var(--card) 65%);
+  }
+  .dv-ad-head { display: flex; align-items: center; gap: .875rem; }
+  .dv-ad-portrait { width: 5.5rem; flex: none; }
+  .dv-ad-portrait img { display: block; width: 100%; height: auto; }
+  .dv-ad-name { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--foreground); }
+  .dv-ad-role { margin: 0; font-size: .8125rem; line-height: 1.5; color: var(--muted-foreground); }
+  .dv-ad .btn { align-self: flex-start; }
+  @media (min-width: 64rem) { .dv-footer-nav.mk-footer-nav { grid-template-columns: 1fr 1fr 1fr 1.8fr; } }
+
+  @media (prefers-contrast: more) {
+    .dv-intro p, .dv-way-desc, .dv-api-lead, .dv-step-hint { color: var(--foreground); }
+  }
+  @media (forced-colors: active) {
+    .dv-accent, .dv-fly-word { color: CanvasText; background: none; }
+    .dv-result-grid .data-grid-content[data-kind] { color: CanvasText; }
+    .dv-editor-input { color: CanvasText; }
+    .dv-editor .dv-editor-view { visibility: hidden; }
+  }
+}

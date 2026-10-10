@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ledger · defuss-dataview Big Data demo</title>
+  <meta name="description" content="defuss-shadcn's Big Data components - Data Grid, tree grid, Data Tree, Virtual List and Autocomplete - querying up to a million generated records through defuss-dataview.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2'/%3E%3Cpath d='M3 9h18M3 15h18M9 3v18'/%3E%3C/svg%3E">
+  <script>
+    // Before paint, before df$ exists (defuss-shadcn Dark Mode guide): the saved choice, else the OS default.
+    // Inside the landing page's frame, the landing page repaints this root when its own switch changes.
+    let saved = '';
+    try {
+      const raw = JSON.parse(localStorage.getItem('defuss-shadcn-theme'));
+      saved = raw && raw.format === 'defuss-store' ? raw.value : raw;
+    } catch {}
+    if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    }
+  </script>
+  <!-- defuss-shadcn from jsDelivr at an exact release, pinned by Subresource Integrity. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/core.min.css" integrity="sha384-XTkN5+CRRKO70LZ4OcV6O+kj6BY5lxdsRQ02oMz3kDCm9kd4B+16jbojkbgrbL0e" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.css" integrity="sha384-3N21mZZQYTo6BWRxl629QHRrstw0IXVKRonDLdRbrYlODgFskMA/kODfnDX/gNk4" crossorigin="anonymous">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<svg class="sr-only" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.9-1.9"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></symbol>
+</svg>
+
+<div class="border-layout dv-app" data-frame="none" data-center-min="300">
+  <main class="border-layout-center dv-center">
+    <header class="dv-bar">
+      <span class="dv-brand"><svg class="dv-icon" aria-hidden="true"><use href="#i-logo"/></svg>Ledger</span>
+      <p class="dv-bar-note">Seeded, generated data · every query runs in this browser</p>
+      <button type="button" class="btn" data-variant="ghost" data-size="sm" id="reload" title="The components keep their view in session storage, so sort and filters survive a reload">
+        <svg class="dv-icon" aria-hidden="true"><use href="#i-reload"/></svg>Reload
+      </button>
+    </header>
+
+    <div class="tabs dv-tabs">
+      <div class="tab-list" role="tablist" aria-label="Big Data components" id="dv-tablist" data-size="sm">
+        <button class="tab-trigger" role="tab" aria-selected="true" aria-controls="panel-orders" id="tab-orders">Orders (Grid)</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="panel-files" id="tab-files" tabindex="-1">File explorer (Tree)</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="panel-taxonomy" id="tab-taxonomy" tabindex="-1">Taxonomy (Tree)</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="panel-logs" id="tab-logs" tabindex="-1">Logs (Grid)</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="panel-search" id="tab-search" tabindex="-1">Search (Combobox)</button>
+      </div>
+
+      <div class="tab-content dv-panel" role="tabpanel" id="panel-orders" aria-labelledby="tab-orders">
+        <div class="dv-toolbar">
+          <div class="toggle-group" role="group" aria-label="Number of orders" data-type="single" data-variant="outline" data-size="sm" id="orders-size">
+            <button class="toggle" aria-pressed="false" value="10000">10k</button>
+            <button class="toggle" aria-pressed="true" value="100000">100k</button>
+            <button class="toggle" aria-pressed="false" value="1000000">1M</button>
+          </div>
+          <select class="select" id="orders-paging" data-size="sm" aria-label="Paging">
+            <option value="virtual">Scroll every row</option>
+            <option value="pages">Pages of 50</option>
+            <option value="infinite">Load as you scroll</option>
+          </select>
+          <p class="dv-hint">Click a header to sort, Shift+click to add it. The pin locks a column. Shift+click selects a range of rows.</p>
+        </div>
+        <div class="data-grid dv-fill" id="orders" aria-label="Orders" data-select="multiple" data-page-size="50" data-empty-text="No order matches these filters.">
+          <div class="data-grid-viewport">
+            <div class="data-grid-head">
+              <div class="data-grid-row">
+                <div class="data-grid-header" data-field="id" data-type="number" data-format="" data-width="6rem" data-locked>ID</div>
+                <div class="data-grid-header" data-field="customer" data-width="minmax(11rem, 1fr)" data-filter="text">Customer</div>
+                <div class="data-grid-header" data-field="region" data-width="7rem" data-filter="select" data-options="EU,US,APAC,LATAM">Region</div>
+                <div class="data-grid-header" data-field="product" data-width="9rem" data-filter="select">Product</div>
+                <div class="data-grid-header" data-field="amount" data-type="number" data-format="currency:EUR" data-width="9rem" data-filter="number">Amount</div>
+                <div class="data-grid-header" data-field="date" data-format="date" data-width="8rem">Date</div>
+                <div class="data-grid-header" data-field="status" data-width="7.5rem" data-filter="select" data-options="Paid,Pending,Refunded,Failed">Status</div>
+              </div>
+            </div>
+            <div class="data-grid-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content dv-panel" role="tabpanel" id="panel-files" aria-labelledby="tab-files" hidden>
+        <div class="dv-toolbar">
+          <button type="button" class="btn" data-variant="outline" data-size="sm" id="files-expand"><svg class="dv-icon" aria-hidden="true"><use href="#i-expand"/></svg>Expand all</button>
+          <button type="button" class="btn" data-variant="outline" data-size="sm" id="files-collapse"><svg class="dv-icon" aria-hidden="true"><use href="#i-collapse"/></svg>Collapse all</button>
+          <p class="dv-hint">A tree grid: filtering keeps the folders on the way to every match. → opens a folder, ← closes it.</p>
+        </div>
+        <div class="data-grid dv-fill" id="files" aria-label="Files" data-parent-field="parentId" data-select="single" data-empty-text="No file or folder matches.">
+          <div class="data-grid-viewport">
+            <div class="data-grid-head">
+              <div class="data-grid-row">
+                <div class="data-grid-header" data-field="name" data-width="minmax(16rem, 1fr)" data-filter="text">Name</div>
+                <div class="data-grid-header" data-field="kind" data-width="6.5rem" data-filter="select" data-options="Folder,File">Kind</div>
+                <div class="data-grid-header" data-field="size" data-type="number" data-format="number" data-width="8rem" data-filter="number">Bytes</div>
+                <div class="data-grid-header" data-field="modified" data-format="date" data-width="8rem">Modified</div>
+              </div>
+            </div>
+            <div class="data-grid-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content dv-panel" role="tabpanel" id="panel-taxonomy" aria-labelledby="tab-taxonomy" hidden>
+        <div class="dv-toolbar">
+          <input class="input dv-filter" type="search" data-size="sm" data-tree-filter="taxonomy" aria-label="Filter the taxonomy" placeholder="Filter, e.g. steel">
+          <button type="button" class="btn" data-variant="outline" data-size="sm" id="taxonomy-expand"><svg class="dv-icon" aria-hidden="true"><use href="#i-expand"/></svg>Expand all</button>
+          <button type="button" class="btn" data-variant="outline" data-size="sm" id="taxonomy-collapse"><svg class="dv-icon" aria-hidden="true"><use href="#i-collapse"/></svg>Collapse all</button>
+        </div>
+        <div class="data-tree dv-fill" id="taxonomy" aria-label="Product taxonomy" data-label-field="name" data-empty-text="No category matches."></div>
+      </div>
+
+      <div class="tab-content dv-panel" role="tabpanel" id="panel-logs" aria-labelledby="tab-logs" hidden>
+        <div class="dv-toolbar">
+          <input class="input dv-filter" type="search" data-size="sm" data-virtual-list-filter="logs" data-field="message" aria-label="Filter messages" placeholder="Message, e.g. /login">
+          <input class="input dv-filter-narrow" type="text" data-size="sm" data-virtual-list-filter="logs" data-field="ms" data-kind="number" aria-label="Duration in ms, e.g. > 500" placeholder="ms, e.g. > 500">
+          <select class="select" data-size="sm" data-virtual-list-sort="logs" aria-label="Sort the log">
+            <option value="">Time order</option>
+            <option value="ms:desc">Slowest first</option>
+            <option value="status:desc">Status, highest first</option>
+          </select>
+        </div>
+        <div class="virtual-list dv-fill" id="logs" aria-label="Request log" data-empty-text="No log line matches."></div>
+      </div>
+
+      <div class="tab-content dv-panel" role="tabpanel" id="panel-search" aria-labelledby="tab-search" hidden>
+        <div class="dv-search">
+          <div class="autocomplete" id="place" data-search-field="search" data-sort="population:desc" data-debounce="150" data-page-size="20" data-empty-text="No place like that.">
+            <label class="label" for="place-input">Place</label>
+            <input class="input autocomplete-input" id="place-input" type="text" placeholder="Search 100,000 places, e.g. ber" autocomplete="off" spellcheck="false">
+            <input type="hidden" name="place" class="autocomplete-value">
+          </div>
+          <p class="dv-hint">Each keystroke sends one dataview request to a module worker that answers with defuss-dataview, after a simulated network latency of <span id="latency">150</span>&nbsp;ms. Typing again aborts the request in flight; scrolling to the end of the list asks for the next page.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="resizer border-layout-east" data-min="220">
+    <section class="card panel" id="inspector" style="width:23rem" aria-labelledby="inspector-title">
+      <header class="panel-header">
+        <svg class="panel-icon dv-icon" aria-hidden="true"><use href="#i-scan"/></svg>
+        <h2 class="panel-title" id="inspector-title">Inspector</h2>
+        <div class="panel-tools">
+          <label class="swap panel-minimize">
+            <input type="checkbox" aria-label="Minimize the inspector">
+            <span class="swap-off"><svg class="dv-icon" aria-hidden="true"><use href="#i-up"/></svg></span>
+            <span class="swap-on"><svg class="dv-icon" aria-hidden="true"><use href="#i-down"/></svg></span>
+          </label>
+        </div>
+      </header>
+      <div class="panel-body dv-inspector">
+        <p class="dv-component"><strong id="ins-component">Data Grid</strong> · <code id="ins-api">df$.shadcn.dataGrid</code></p>
+        <div class="dv-stats" id="ins-stats"></div>
+        <div class="statistic dv-timing">
+          <p class="statistic-title">Last measured call</p>
+          <p class="statistic-value" id="ins-ms">–</p>
+          <p class="statistic-description" id="ins-ms-what">Use an example query or change the size.</p>
+        </div>
+        <h3 class="dv-label" id="ins-presets-label">Example queries</h3>
+        <div class="dv-presets" id="ins-presets" role="group" aria-labelledby="ins-presets-label"></div>
+        <h3 class="dv-label" id="ins-query-label">The query the component holds</h3>
+        <figure class="mk-code-block dv-query" data-variant="file" aria-labelledby="ins-query-label">
+          <div class="mk-code-block-head"><span class="mk-code-block-file">el.api.getState().config</span></div>
+          <pre tabindex="0" aria-labelledby="ins-query-label"><code id="ins-query"></code></pre>
+        </figure>
+        <p class="dv-caption" id="ins-query-note">Filters and sorters use defuss-dataview's own shapes. Text filters match case-insensitively: the component runs them itself and hands defuss-dataview the matching IDs as one <code>in</code> filter. defuss-dataview's own string operators are case-sensitive.</p>
+        <h3 class="dv-label">Selected record</h3>
+        <div class="property-grid" id="ins-record" aria-label="Selected record" data-readonly data-headless data-frame="none" data-empty-text="Select a row."></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script type="module" src="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.js" integrity="sha384-Lk87A4KViuU62PT7Hy5Qw2DHzw0iEtvi2huW/2h9963U/cZLBARdRf7LZMCsirTa" crossorigin="anonymous"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add the project website in `docs/` for GitHub Pages: a landing page with an animated flow diagram, a query explorer over 10,000 editable rows, measured coverage, test counts and scaling benchmarks (`make site-metrics`), and a demo of defuss-shadcn 0.9.8's Big Data components on up to 1,000,000 generated rows. Unit and Chromium tests cover it.
+- `scripts/serve.mjs` answers a directory with its `index.html`; the Playwright suite uses `PORT` like the dev server, and a free port while 4179 is busy.
+
 ## 0.4.0
 
 Published to npm on 2026-10-04 from commit `669ab2c`. That tarball's own CHANGELOG lists the `setParent`, non-JSON row ID, macOS tarball-check and `make verify` entries under "Unreleased"; they are part of 0.4.0.

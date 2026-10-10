@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>defuss-dataview · one JSON descriptor for big data tables and trees</title>
+  <meta name="description" content="Isomorphic filters, sorting, paging, tree traversal and UI metadata for table and tree grids: one JSON descriptor, exact counts, zero dependencies, 4.6 kB gzip. The query engine behind defuss-shadcn's Big Data components.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2'/%3E%3Cpath d='M3 9h18M3 15h18M9 3v18'/%3E%3C/svg%3E">
+  <script>
+    // Before paint, before df$ exists (defuss-shadcn Dark Mode guide): the saved choice, else the OS default.
+    let saved = '';
+    try {
+      const raw = JSON.parse(localStorage.getItem('defuss-shadcn-theme'));
+      saved = raw && raw.format === 'defuss-store' ? raw.value : raw;
+    } catch {}
+    if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    }
+  </script>
+  <!-- defuss-dataview: the newest published release from jsDelivr, checked against its hash before it runs. -->
+  <script type="importmap">
+    {
+      "imports": { "defuss-dataview": "https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs" },
+      "integrity": { "https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs": "sha384-0IouHJZBV5KbHLxZssSnyRJHXfDiocaEDcMQtIQTtISenm3I6/2yuKaqXAewyJoq" }
+    }
+  </script>
+  <!-- defuss-shadcn from jsDelivr at an exact release, pinned by Subresource Integrity. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/core.min.css" integrity="sha384-XTkN5+CRRKO70LZ4OcV6O+kj6BY5lxdsRQ02oMz3kDCm9kd4B+16jbojkbgrbL0e" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/theme/utils/shapes.min.css" integrity="sha384-Ql86bF5zW5vFVk35X7GH6sUNZRTsmU93YO1iJBw/sYwgnlr4sgF+hBn1S5vDPI2G" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.css" integrity="sha384-3N21mZZQYTo6BWRxl629QHRrstw0IXVKRonDLdRbrYlODgFskMA/kODfnDX/gNk4" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<svg class="sr-only" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m7-7-7 7-7-7"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M21 12h-8M21 6H8M21 18h-8M3 6v4c0 1.1.9 2 2 2h3M3 10v6c0 1.1.9 2 2 2h3"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-feather" viewBox="0 0 24 24"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22M17.5 15H9"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6m8 14h8"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2m16 0h2m-7-1v2m-6-2v2"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12m0 0 8.7-5M12 12 3.3 7"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M10 12.5 8 15l2 2.5m4-5 2 2.5-2 2.5M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+  <symbol id="i-linkedin" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4M18 2l4 4-4 4"/><path d="M2 18h1.97a4 4 0 0 0 3.3-1.7l5.45-8.6a4 4 0 0 1 3.3-1.7H22M2 6h1.97a4 4 0 0 1 3.3 1.7l.4.6M22 18h-6.04a4 4 0 0 1-3.3-1.8l-.36-.54"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9z"/></symbol>
+</svg>
+
+<div id="top" class="dv-page">
+  <header class="mk-header" data-variant="floating">
+    <div class="mk-header-inner">
+      <a href="#top" class="mk-header-brand"><svg class="dv-icon dv-brand-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-header-name">defuss-dataview</span></a>
+      <nav class="mk-header-nav" aria-label="Main">
+        <ul class="nav-menu-list">
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#demo">Demo</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#how">How it works</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#explorer">Explorer</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#api">API</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#install">Install</a></li>
+        </ul>
+      </nav>
+      <div class="mk-header-actions">
+        <label class="swap" data-variant="rotate" data-size="sm">
+          <input type="checkbox" id="theme-toggle" aria-label="Dark mode">
+          <span class="swap-on"><svg class="dv-icon" aria-hidden="true"><use href="#i-moon"/></svg></span>
+          <span class="swap-off"><svg class="dv-icon" aria-hidden="true"><use href="#i-sun"/></svg></span>
+        </label>
+        <a class="btn mk-header-wide" data-variant="ghost" data-size="icon" href="https://github.com/kyr0/defuss-dataview" aria-label="defuss-dataview on GitHub"><svg class="dv-icon" aria-hidden="true"><use href="#i-github"/></svg></a>
+        <a class="btn mk-header-wide" data-size="sm" href="#install">Install</a>
+        <button type="button" class="btn mk-header-menu" data-variant="ghost" data-size="icon" data-sheet-trigger="dv-menu" aria-haspopup="dialog" aria-label="Open menu"><svg class="dv-icon" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      </div>
+    </div>
+    <dialog id="dv-menu" class="sheet" data-side="right" role="dialog" aria-modal="true" aria-labelledby="dv-menu-title">
+      <div class="sheet-content">
+        <div class="sheet-header">
+          <h2 class="sheet-title" id="dv-menu-title">defuss-dataview</h2>
+        </div>
+        <div class="sheet-body">
+          <p class="mk-header-sheet-label">This page</p>
+          <ul class="mk-header-sheet-nav">
+            <li><a href="#demo" data-sheet-close>Demo <small>Five Big Data components, up to a million rows</small></a></li>
+            <li><a href="#how" data-sheet-close>How it works</a></li>
+            <li><a href="#explorer" data-sheet-close>Query explorer</a></li>
+            <li><a href="#api" data-sheet-close>API</a></li>
+            <li><a href="#install" data-sheet-close>Install</a></li>
+          </ul>
+        </div>
+        <div class="sheet-footer mk-header-sheet-actions">
+          <a class="btn" data-variant="outline" href="https://github.com/kyr0/defuss-dataview"><svg class="dv-icon" aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+        </div>
+      </div>
+    </dialog>
+  </header>
+
+  <main class="dv-main">
+
+  <section class="parallax" aria-label="Introduction" style="padding-block:clamp(4rem, 10vw, 7rem) 1rem">
+    <div class="parallax-layer" data-depth="far" aria-hidden="true">
+      <div class="pattern-grid" style="width:100%;height:100%;--shape-ink:color-mix(in oklch, var(--foreground) 7%, transparent);--shape-pattern:32px;mask-image:radial-gradient(55% 60% at 50% 45%, #000, transparent 75%)"></div>
+    </div>
+    <div class="parallax-layer" data-depth="mid" aria-hidden="true" style="--parallax-speed:22%;mask-image:linear-gradient(#000 55%, transparent 92%)">
+      <div class="corner-blob" style="position:absolute;inset-block-start:10%;inset-inline-start:8%;width:min(22rem, 45%);aspect-ratio:1;background:color-mix(in oklch, var(--chart-2) 45%, transparent);filter:blur(60px);opacity:.55"></div>
+      <div class="corner-blob-3" style="position:absolute;inset-block-start:28%;inset-inline-end:6%;width:min(18rem, 40%);aspect-ratio:1;background:color-mix(in oklch, var(--chart-4) 40%, transparent);filter:blur(60px);opacity:.5"></div>
+    </div>
+    <div class="parallax-content">
+      <section class="mk-hero" style="width:100%">
+        <div class="mk-hero-copy">
+          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.4.0</span>Zero dependencies · 4.6&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <h1 class="mk-hero-title">Filter, sort and page big data grids &amp; trees using <strong>one JSON descriptor</strong> that</h1>
+          <p class="dv-flip"><span class="text-rotate"><span>
+              <span class="dv-accent">runs in a page, worker or server</span>
+              <span class="dv-accent">turns a table into a tree</span>
+              <span class="dv-accent">counts rows, matches and pages</span>
+              <span class="dv-accent">never mutates your rows</span>
+              <span class="dv-accent">terminates on cyclic trees</span>
+          </span></span></p>
+          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler.</p>
+          <div class="mk-hero-actions">
+            <a class="btn" data-size="lg" href="#demo">Try the live demo<svg class="dv-icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
+            <a class="btn" data-variant="outline" data-size="lg" href="#explorer">Run a descriptor</a>
+          </div>
+          <p class="mk-hero-note">Built by <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (kyr0)<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> – Open Source (<a href="https://github.com/kyr0/defuss-dataview/blob/main/LICENSE" target="_blank" rel="noopener">MIT<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>)</p>
+        </div>
+      </section>
+      <div class="dv-intro" id="intro">
+        <section class="dv-intro-item" aria-labelledby="intro-1">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-braces"/></svg></span>
+          <h3 id="intro-1">One descriptor</h3>
+          <p><code>createDataview()</code> validates filters, sorters, paging, tree options and UI metadata once and returns <strong>plain JSON state</strong> you can store, send to a server or restore after a reload.</p>
+        </section>
+        <section class="dv-intro-item" aria-labelledby="intro-2">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-tree"/></svg></span>
+          <h3 id="intro-2">Table or tree</h3>
+          <p>Add <code>tree: { idField, parentIdField }</code> and the same query walks a hierarchy: matches keep their ancestors, siblings sort among themselves, and expansion is <strong>explicit state</strong>.</p>
+        </section>
+        <section class="dv-intro-item" aria-labelledby="intro-3">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-hash"/></svg></span>
+          <h3 id="intro-3">Exact counts</h3>
+          <p><code>evaluateDataview()</code> returns the page plus <code>totalRows</code>, <code>matchedRows</code>, <code>visibleRows</code>, <code>pageCount</code> and paging flags, so a grid <strong>never infers counts</strong> from a page's length.</p>
+        </section>
+        <section class="dv-intro-item" aria-labelledby="intro-4">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-lock"/></svg></span>
+          <h3 id="intro-4">Your rows stay yours</h3>
+          <p>It never sorts or mutates the backing array, entries keep <strong>row object identity</strong>, and the patch helpers return the same array when nothing changes.</p>
+        </section>
+        <section class="dv-intro-item" aria-labelledby="intro-5">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-feather"/></svg></span>
+          <h3 id="intro-5">Zero dependencies</h3>
+          <p>ESM and CommonJS with TypeScript declarations, plus a standalone browser module of <strong>12.7&nbsp;kB</strong> (<strong>4.6&nbsp;kB gzip</strong>). No globals, subscriptions or storage access.</p>
+        </section>
+        <section class="dv-intro-item" aria-labelledby="intro-6">
+          <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-shield"/></svg></span>
+          <h3 id="intro-6">Hostile data terminates</h3>
+          <p>Parent cycles, 30,000-level hierarchies, duplicate IDs and unsafe paths such as <code>__proto__</code> have <strong>defined results</strong> instead of hangs, stack overflows or prototype access.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div class="dv-flythrough">
+    <section class="parallax" data-sticky style="--parallax-length:2" aria-label="Filter, sort, page">
+      <div class="parallax-stage" style="background:radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--chart-2) 55%, #05060f), #05060f 72%);color:#fff;border-radius:var(--radius-xl)">
+        <div class="parallax-layer" data-motion="zoom fade" style="--parallax-scale:6"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#7cf0ff" stroke-width="1" opacity=".55"><rect x="110" y="140" width="180" height="120" rx="8"/><path d="M110 180h180M110 220h180M170 140v120"/></g></svg></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 0% contain 40%;z-index:1"><p class="dv-fly-word">Filter millions of grid rows.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 30% contain 70%;z-index:2"><p class="dv-fly-word">Sort millions of tree nodes.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 60% contain 100%;z-index:3"><p class="dv-fly-word">Paginate millions of tree nodes.</p></div>
+        <div class="parallax-layer" data-motion="spin" style="--parallax-turn:180deg;--parallax-speed:0%;z-index:-1;opacity:.25"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width=".6"><path d="M200 200 460 200M200 200 425.2 330M200 200 330 425.2M200 200 200 460M200 200 70 425.2M200 200-25.2 330M200 200-60 200M200 200-25.2 70M200 200 70-25.2M200 200 200-60M200 200 330-25.2M200 200 425.2 70"/></g></svg></div>
+      </div>
+    </section>
+  </div>
+
+  <section id="demo" class="container dv-section parallax-reveal" data-reveal="zoom" aria-labelledby="demo-title">
+    <header class="mk-section-header" data-align="center">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">Live demo</span>
+        <h2 class="mk-section-header-title" id="demo-title">📊 A million rows, five Big Data components</h2>
+        <p class="mk-section-header-desc">Ledger runs defuss-shadcn's Data Grid, a tree grid, the Data Tree, the Virtual List and the Autocomplete on generated records, up to 1,000,000 orders. Each component queries through defuss-dataview 0.4.0, which defuss-shadcn 0.9.8 bundles. The inspector shows the query a component holds and times the calls the demo makes; the Search tab sends dataview requests to a module worker.</p>
+      </div>
+    </header>
+    <div class="dv-window">
+      <div class="dv-frame">
+        <figure class="iframe" data-fit="container" data-variant="bare" id="playground">
+          <iframe class="iframe-frame" src="demo/" title="Ledger, a demo of defuss-shadcn's Big Data components on defuss-dataview"></iframe>
+        </figure>
+      </div>
+      <div class="dv-window-foot">
+        <p class="dv-window-note"><svg class="dv-icon" aria-hidden="true"><use href="#i-database"/></svg>The records come from fixed seeds and stay in your browser. The components keep their view for this session, so a reload keeps sort and filters.</p>
+        <div class="dv-window-actions">
+          <button type="button" class="btn" data-variant="ghost" data-size="sm" id="playground-restart"><svg class="dv-icon" aria-hidden="true"><use href="#i-reload"/></svg>Restart</button>
+          <a class="btn" data-variant="outline" data-size="sm" href="demo/" target="_blank" rel="noopener"><svg class="dv-icon" aria-hidden="true"><use href="#i-maximize"/></svg>Open full screen<span class="sr-only"> (opens in a new tab)</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="container dv-section parallax-reveal" aria-labelledby="how-title">
+    <section class="mk-features" style="width:100%">
+      <div class="mk-features-head">
+        <span class="mk-features-eyebrow">How it works</span>
+        <h2 class="mk-features-title" id="how-title">💡 One pass from descriptor to page</h2>
+        <p class="mk-features-desc"><code>createDataview()</code> validates a request once and returns plain JSON state. <code>evaluateDataview(rows, view)</code> then runs the same steps on every call, without caching or hidden state, and returns the requested page with its counts. A flat view skips the tree steps.</p>
+      </div>
+    </section>
+    <div class="dv-how-grid">
+      <ol class="mk-process-steps">
+        <li class="mk-process-step">
+          <span class="mk-process-step-number" aria-hidden="true">01</span>
+          <div class="mk-process-step-body">
+            <h3 class="mk-process-step-title">List or tree</h3>
+            <p class="mk-process-step-desc">Rows form a flat list or a tree: a list row is <code>{ "id": 4, "name": "Storage" }</code>, a tree row also names its parent, <code>{ "id": 4, "parentId": 3, "name": "Storage" }</code>, and adding <code>tree: { "idField": "id", "parentIdField": "parentId" }</code> to the query links every row to that parent. The first row with an ID wins, unknown parents become roots, and one edge per cycle is cut at its lowest input index.</p>
+          </div>
+        </li>
+        <li class="mk-process-step">
+          <span class="mk-process-step-number" aria-hidden="true">02</span>
+          <div class="mk-process-step-body">
+            <h3 class="mk-process-step-title">Sort</h3>
+            <p class="mk-process-step-desc">Sorters compare in order and keep equal rows in input order. In a tree, the roots and each group of siblings sort separately, so children stay under their parent.</p>
+          </div>
+        </li>
+        <li class="mk-process-step">
+          <span class="mk-process-step-number" aria-hidden="true">03</span>
+          <div class="mk-process-step-body">
+            <h3 class="mk-process-step-title">Match</h3>
+            <p class="mk-process-step-desc">Filters are ANDed. In a tree, the ancestors of every match are included (<code>includeAncestors</code>, default on), and their descendants on request (<code>includeDescendantsOfMatch</code>).</p>
+          </div>
+        </li>
+        <li class="mk-process-step">
+          <span class="mk-process-step-number" aria-hidden="true">04</span>
+          <div class="mk-process-step-body">
+            <h3 class="mk-process-step-title">Walk</h3>
+            <p class="mk-process-step-desc">Tree views only. A preorder walk applies expansion and <code>maxDepth</code>; a collapsed ancestor hides its descendants even when they match.</p>
+          </div>
+        </li>
+        <li class="mk-process-step">
+          <span class="mk-process-step-number" aria-hidden="true">05</span>
+          <div class="mk-process-step-body">
+            <h3 class="mk-process-step-title">Page</h3>
+            <p class="mk-process-step-desc"><code>page × pageSize</code> slices the visible sequence, so a page may begin at a child. Counts are taken before the slice.</p>
+          </div>
+        </li>
+      </ol>
+      <article class="card dv-type">
+        <div class="card-header">
+          <h3 class="card-title">Every entry is <code>{ row, meta }</code></h3>
+          <p class="card-description"><code>row</code> is your original object, never a copy, so it has a parent field only when your rows do: a tree row such as <code>{ "id": 4, "parentId": 3 }</code> keeps its <code>parentId</code>, a list row needs none. <code>meta</code> says where the row sits.</p>
+        </div>
+        <div class="card-content">
+          <dl class="dv-dl">
+            <div><dt><code>depth</code></dt><dd>0 for a root; keeps its place in the hierarchy while filtering.</dd></div>
+            <div><dt><code>hasChildren</code></dt><dd>The source hierarchy has children here, even when none match.</dd></div>
+            <div><dt><code>isExpanded</code></dt><dd>Children show. A node stopped by <code>maxDepth</code> is not expanded.</dd></div>
+            <div><dt><code>isMatch</code></dt><dd>False for an ancestor shown only for a match.</dd></div>
+            <div><dt><code>isSelected</code></dt><dd>Its ID is in <code>meta.selectedRowIds</code>.</dd></div>
+            <div><dt><code>parentId</code></dt><dd>In a tree, the value of the row's parent field (the one <code>tree.parentIdField</code> names), also for a cycle edge that was cut. Always <code>null</code> in a list, even when the rows have a parent field.</dd></div>
+          </dl>
+        </div>
+      </article>
+    </div>
+
+    <figure class="diagram dv-flow" id="dv-flow" data-type="flow" data-steps data-autoplay="600" data-interactive aria-label="The path of rows and a request through defuss-dataview into a view your code owns">
+      <figcaption class="diagram-caption">
+        <span class="diagram-eyebrow">One pass, animated</span>
+        <span class="diagram-title">From loaded rows to a view your code owns</span>
+        <span class="diagram-dek">defuss-dataview takes rows and a request and returns entries and counts. It owns no state and no view: your code decides when to ask and how a view shows the answer.</span>
+      </figcaption>
+      <div class="diagram-canvas" style="--cols:4">
+        <div class="diagram-node" data-node="source" data-shape="store" data-tone="link" style="--col:4;--row:1" data-detail="Rows come from wherever your app keeps them: an array in memory, one fetch() of everything, or page after page from an API or a worker."><span class="diagram-node-eyebrow">Local or remote</span><span class="diagram-node-name">Your data</span><span class="diagram-node-meta">loaded whole, or page by page</span></div>
+        <div class="diagram-node" data-node="rows" style="--col:2;--row:1" data-detail="Plain objects such as { id, parentId, name }. defuss-dataview never sorts or mutates this array, and entries keep each row's identity."><span class="diagram-node-eyebrow">Your array</span><span class="diagram-node-name">rows[]</span><span class="diagram-node-meta">never sorted or mutated</span></div>
+        <div class="diagram-node" data-node="request" style="--col:1;--row:1" data-detail="Filters, sorters, page, pageSize, tree options and selection: plain JSON your code keeps, stores or sends."><span class="diagram-node-eyebrow">Your state</span><span class="diagram-node-name">request (JSON)</span><span class="diagram-node-meta">filters · sorters · page · tree</span></div>
+        <div class="diagram-group" data-node="engine" style="--col:1;--row:2;--span:4;--rspan:2">
+          <span class="diagram-group-label">defuss-dataview · pure functions, no state, no DOM</span>
+        </div>
+        <div class="diagram-node" data-node="create" style="--col:1;--row:2" data-detail="Validates the request once and returns a normalized, JSON-serializable view."><span class="diagram-node-eyebrow">Validate</span><span class="diagram-node-name">createDataview()</span><span class="diagram-node-meta">request → view</span></div>
+        <div class="diagram-node" data-node="link" style="--col:2;--row:2" data-detail="Tree views only: rows link to their parent by ID, unknown parents become roots, cycles are cut."><span class="diagram-node-eyebrow">Tree only</span><span class="diagram-node-name">Link</span><span class="diagram-node-meta">parent by ID</span></div>
+        <div class="diagram-node" data-node="sort" style="--col:3;--row:2" data-detail="Stable sort; in a tree, roots and each sibling group sort separately."><span class="diagram-node-name">Sort</span><span class="diagram-node-meta">stable, per sibling group</span></div>
+        <div class="diagram-node" data-node="match" style="--col:4;--row:2" data-detail="Filters are ANDed; in a tree, the ancestors of every match are included."><span class="diagram-node-name">Match</span><span class="diagram-node-meta">filters, then ancestors</span></div>
+        <div class="diagram-node" data-node="note" data-shape="note" style="--col:1;--row:3" data-detail="A list skips Link and Walk: filter, sort, page."><span class="diagram-node-name">A list skips Link and Walk.</span></div>
+        <div class="diagram-node" data-node="walk" style="--col:4;--row:3" data-detail="Tree views only: expansion and maxDepth decide which rows are visible."><span class="diagram-node-eyebrow">Tree only</span><span class="diagram-node-name">Walk</span><span class="diagram-node-meta">expansion · maxDepth</span></div>
+        <div class="diagram-node" data-node="page" style="--col:3;--row:3" data-detail="page × pageSize slices the visible rows; the counts are taken before the slice."><span class="diagram-node-name">Page</span><span class="diagram-node-meta">counts before the slice</span></div>
+        <div class="diagram-node" data-node="result" data-tone="accent" style="--col:3;--row:4" data-detail="The returned value: the page of { row, meta } entries plus totalRows, matchedRows, visibleRows, pageCount and the paging flags."><span class="diagram-node-eyebrow">Returned</span><span class="diagram-node-name">entries + counts</span><span class="diagram-node-meta">{ row, meta }[] · pageCount</span></div>
+        <div class="diagram-node" data-node="code" style="--col:2;--row:4" data-detail="An event handler, a store subscription or a worker reply: your code calls defuss-dataview and passes the answer on."><span class="diagram-node-eyebrow">Your code</span><span class="diagram-node-name">render(result)</span><span class="diagram-node-meta">on input, load or a timer</span></div>
+        <div class="diagram-node" data-node="view" data-tone="external" style="--col:2;--row:5" data-detail="A table, a Data Grid, a tree or a list. Your code fills it; defuss-dataview never reaches it."><span class="diagram-node-eyebrow">Owned by your app</span><span class="diagram-node-name">View component</span><span class="diagram-node-meta">table · grid · tree · list</span></div>
+      </div>
+      <ol class="diagram-edges">
+        <li class="diagram-edge" data-from="source" data-to="rows" data-flow>whole or paged</li>
+        <li class="diagram-edge" data-from="request:bottom" data-to="create:top"></li>
+        <li class="diagram-edge" data-from="rows:bottom" data-to="link:top" data-flow data-flow-delay="300">rows</li>
+        <li class="diagram-edge" data-from="create" data-to="link">view</li>
+        <li class="diagram-edge" data-from="link" data-to="sort"></li>
+        <li class="diagram-edge" data-from="sort" data-to="match"></li>
+        <li class="diagram-edge" data-from="match:bottom" data-to="walk:top"></li>
+        <li class="diagram-edge" data-from="walk" data-to="page"></li>
+        <li class="diagram-edge" data-from="page:bottom" data-to="result:top" data-tone="accent" data-flow data-flow-delay="600"></li>
+        <li class="diagram-edge" data-from="result" data-to="code" data-flow data-flow-delay="900">returns</li>
+        <li class="diagram-edge" data-from="code:bottom" data-to="view:top" data-tone="accent" data-flow data-flow-delay="1200">renders it</li>
+        <li class="diagram-edge" data-from="view:top" data-to="code:bottom" data-line="dashed">user events</li>
+        <li class="diagram-edge" data-from="code:left" data-to="request:left" data-line="dashed">next request: page, filter, sort</li>
+      </ol>
+    </figure>
+    <output class="dv-flow-detail" data-diagram-for="dv-flow">Click a box or a wire to read what it does.</output>
+  </section>
+
+  <section id="explorer" class="container dv-section parallax-reveal" aria-labelledby="explorer-title">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">Query explorer</span>
+        <h2 class="mk-section-header-title" id="explorer-title">🔎 Run a query on your own rows</h2>
+        <p class="mk-section-header-desc">Edit the rows, write the request <code>createDataview()</code> takes, and press Apply: this page runs <code>evaluateDataview()</code> from defuss-dataview 0.4.0, imported from jsDelivr and checked against its hash, and shows what it returns.</p>
+      </div>
+    </header>
+    <div class="dv-explorer card">
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">1</span>Rows <span class="badge" data-variant="secondary" data-size="sm" id="ex-row-count">10,000</span></h3>
+          <div class="dv-step-actions">
+            <button type="button" class="btn" data-variant="outline" data-size="sm" id="ex-demo-rows"><svg class="dv-icon" aria-hidden="true"><use href="#i-tree"/></svg>Demo rows</button>
+            <button type="button" class="btn" data-variant="outline" data-size="sm" id="ex-random-rows"><svg class="dv-icon" aria-hidden="true"><use href="#i-shuffle"/></svg>Random rows</button>
+            <button type="button" class="btn" data-variant="outline" data-size="sm" id="ex-add-row"><svg class="dv-icon" aria-hidden="true"><use href="#i-plus"/></svg>Add row</button>
+          </div>
+        </div>
+        <p class="dv-step-hint">10,000 org units in a tree, generated from a fixed seed. Every cell is editable: only the rows on screen exist as inputs (a Virtual List), and each edit goes straight into the array Apply runs on. Numbers stay numbers; an empty <code>parentId</code> makes a root, and a list query ignores it.</p>
+        <div class="dv-rows-editor">
+          <div class="dv-rows-scroll">
+            <div class="dv-rows-head dv-row-cells" aria-hidden="true"><span>id</span><span>parentId</span><span>name</span><span>region</span><span>score</span><span></span></div>
+            <div class="virtual-list dv-rows-list" id="ex-rows" aria-label="Rows the query runs on"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">2</span>Query</h3>
+        </div>
+        <div class="dv-examples" role="group" aria-label="Example queries">
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"score","op":"gte","value":80}],"sorters":[{"field":"score","direction":"desc"},{"field":"name","direction":"asc"}],"page":0,"pageSize":20}'>filter, sort, page</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"region","op":"in","value":["EU","APAC"]},{"field":"name","op":"startsWith","value":"Storage"}],"page":0,"pageSize":20}'>in, startsWith</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"page":0,"pageSize":20,"meta":{"selectedRowIds":[2,3,5]}}'>selected rows</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"tree":{"idField":"id","parentIdField":"parentId"},"page":0,"pageSize":20}'>tree, all open</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"tree":{"idField":"id","parentIdField":"parentId","expandedIds":[]}}'>explicit expandedIds: []</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"name","op":"contains","value":"Storage"}],"tree":{"idField":"id","parentIdField":"parentId"},"page":0,"pageSize":20}'>a match keeps its ancestors</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"sorters":[{"field":"score","direction":"desc"}],"tree":{"idField":"id","parentIdField":"parentId","maxDepth":1},"page":0,"pageSize":20}'>sorted siblings, maxDepth 1</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"name","op":"contains","value":"storage"}]}'>case-sensitive contains</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"page":1000,"pageSize":20}'>page past the end</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-rows="cycle" data-descriptor='{"tree":{"idField":"id","parentIdField":"parentId"}}'>a cycle terminates</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"__proto__.polluted","op":"eq","value":true}]}'>unsafe path</button>
+        </div>
+        <figure class="mk-code-block dv-editor" data-variant="file">
+          <div class="mk-code-block-head">
+            <span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-braces"/></svg>request.json</span>
+            <div class="dv-editor-tools">
+              <button class="mk-code-block-copy" type="button" id="ex-format" aria-label="Format the JSON" title="Format the JSON"><svg class="dv-icon" aria-hidden="true"><use href="#i-braces"/></svg></button>
+              <button class="mk-code-block-copy" type="button" id="ex-copy" aria-label="Copy code" title="Copy"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
+            </div>
+          </div>
+          <div class="dv-editor-body">
+            <pre class="dv-editor-view" aria-hidden="true"><code id="ex-highlight"></code></pre>
+            <textarea class="dv-editor-input" id="ex-query" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="The request createDataview() takes, as JSON"></textarea>
+          </div>
+          <span class="mk-code-block-status" role="status" id="ex-copy-status"></span>
+        </figure>
+        <div class="dv-apply">
+          <button type="button" class="btn" id="ex-apply"><svg class="dv-icon" aria-hidden="true"><use href="#i-play"/></svg>Apply</button>
+          <span class="dv-step-hint">or <kbd class="kbd-group"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Enter</kbd></kbd> in the editor</span>
+          <span class="dv-step-hint dv-stale" id="ex-stale" role="status"></span>
+        </div>
+      </div>
+
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">3</span>Result</h3>
+        </div>
+        <div class="dv-counts" id="ex-counts" aria-live="polite"></div>
+        <div class="alert" data-variant="destructive" role="alert" id="ex-error" hidden>
+          <svg class="alert-icon dv-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div class="alert-content">
+            <h4 class="alert-title" id="ex-error-title">createDataview() threw</h4>
+            <p class="alert-description" id="ex-error-message"></p>
+          </div>
+        </div>
+        <div class="data-grid dv-result-grid" id="ex-grid" aria-label="Entries returned by evaluateDataview()" data-id-field="key" data-persist="none" data-empty-text="No entries on this page.">
+          <div class="data-grid-viewport">
+            <div class="data-grid-head">
+              <div class="data-grid-row">
+                <div class="data-grid-header" data-field="name" data-width="minmax(12rem, 1.5fr)" data-sortable="false" data-lockable="false">row.name</div>
+                <div class="data-grid-header" data-field="id" data-type="number" data-format="" data-width="5rem" data-sortable="false" data-lockable="false">row.id</div>
+                <div class="data-grid-header" data-field="score" data-type="number" data-format="" data-width="5.5rem" data-sortable="false" data-lockable="false">row.score</div>
+                <div class="data-grid-header" data-field="depth" data-type="number" data-format="" data-width="6.5rem" data-sortable="false" data-lockable="false">meta.depth</div>
+                <div class="data-grid-header" data-field="hasChildren" data-width="minmax(8.5rem, 1fr)" data-sortable="false" data-lockable="false">meta.hasChildren</div>
+                <div class="data-grid-header" data-field="isExpanded" data-width="minmax(8.5rem, 1fr)" data-sortable="false" data-lockable="false">meta.isExpanded</div>
+                <div class="data-grid-header" data-field="isMatch" data-width="minmax(7rem, 1fr)" data-sortable="false" data-lockable="false">meta.isMatch</div>
+                <div class="data-grid-header" data-field="isSelected" data-width="minmax(8rem, 1fr)" data-sortable="false" data-lockable="false">meta.isSelected</div>
+                <div class="data-grid-header" data-field="parentId" data-width="minmax(8rem, 1fr)" data-sortable="false" data-lockable="false">meta.parentId</div>
+              </div>
+            </div>
+            <div class="data-grid-body"></div>
+          </div>
+        </div>
+        <div class="dv-pages" id="ex-pages" hidden>
+          <nav class="pagination" id="ex-pager" aria-label="Result pages" data-size="sm" data-min-page="1" data-max-page="1" data-active-page="1" data-page-display-count="7">
+            <ul class="pagination-list">
+              <li><a class="pagination-prev" href="#" aria-label="Go to previous page"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Previous</a></li>
+              <li><a class="pagination-next" href="#" aria-label="Go to next page">Next<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></a></li>
+            </ul>
+          </nav>
+          <span class="dv-step-hint" id="ex-page-note"></span>
+        </div>
+        <div class="accordion dv-accordion">
+          <details class="accordion-item">
+            <summary class="accordion-trigger"><span>Normalized state from <code>createDataview()</code></span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content"><pre class="dv-json" id="ex-state"></pre></div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="api" class="container dv-section parallax-reveal" aria-labelledby="api-title">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">API</span>
+        <h2 class="mk-section-header-title" id="api-title">📚 Thirteen functions, plain data in and out</h2>
+        <p class="mk-section-header-desc">Views and rows go in; new views, rows or results come out. Rows keep their object identity, and the backing array is never sorted or mutated. The declarations ship as <code>dist/index.d.mts</code> and <code>dist/index.d.cts</code>; the source of truth is <a href="https://github.com/kyr0/defuss-dataview/blob/main/src/types.ts">src/types.ts</a>.</p>
+      </div>
+    </header>
+
+    <div class="tabs dv-api">
+      <div class="tab-list" role="tablist" aria-label="API reference" data-size="lg">
+        <button class="tab-trigger" role="tab" aria-selected="true" aria-controls="api-functions" id="tab-functions">Functions</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-request" id="tab-request" tabindex="-1">Descriptor</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-filters" id="tab-filters" tabindex="-1">Filters &amp; sorting</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-tree" id="tab-tree" tabindex="-1">Trees</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-result" id="tab-result" tabindex="-1">Results</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-identity" id="tab-identity" tabindex="-1">Identity</button>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-functions" aria-labelledby="tab-functions" tabindex="0">
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Function</th><th class="table-head">Returns</th><th class="table-head">Semantics</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>createDataview(request = {})</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Validates and normalizes a request into plain JSON state. Malformed descriptors throw.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>evaluateDataview(rows, view)</code></td><td class="table-cell"><code>DataviewResult</code></td><td class="table-cell">The requested entries plus counts and paging state.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>applyDataview(rows, view)</code></td><td class="table-cell"><code>Array&lt;{ row, meta }&gt;</code></td><td class="table-cell">The entries alone, as an array of <code>{ row, meta }</code>.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>updateMeta(view, updates)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Updates UI metadata without rebuilding query state; a semantic no-op returns the same view.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>setSelectedRows(view, ids)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Replaces the selection.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>toggleSelectedRow(view, id)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Toggles one ID in the selection.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>setLockedColumns(view, columns)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Deduplicated, nonempty column names.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>setExpandedIds(view, ids)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Switches to an explicit expansion list and clears exceptions.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>toggleExpanded(view, id)</code></td><td class="table-cell"><code>DataviewState</code></td><td class="table-cell">Toggles effective expansion. In expand-all mode it updates <code>collapsedIds</code>, so it needs no access to the rows. A no-op on flat views.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>updateRows(rows, ids, updates, idField = 'id')</code></td><td class="table-cell">rows</td><td class="table-cell">Batch shallow patches. Unchanged rows keep their identity; patch keys are literal property names.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>addRows(rows, newRows, anchorId?, position = 'after', idField = 'id')</code></td><td class="table-cell">rows</td><td class="table-cell">Inserts before or after the first anchor; a missing anchor appends.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>removeRows(rows, ids, idField = 'id')</code></td><td class="table-cell">rows</td><td class="table-cell">Removes matching rows, without deleting their subtrees.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>setParent(rows, nodeId, parentId, idField = 'id', parentIdField = 'parentId')</code></td><td class="table-cell">rows</td><td class="table-cell">An immutable move. Rejects moves into itself, a descendant or an existing cyclic parent chain; an unknown parent is allowed, <code>null</code> detaches.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dv-api-lead">The patch helpers return the input array on a no-op. A controlled grid keeps rows and view apart: patch rows with <code>updateRows</code> or <code>setParent</code>, change the query with <code>createDataview</code>, change selection and expansion with the helpers, then evaluate again.</p>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-request" aria-labelledby="tab-request" tabindex="0" hidden>
+        <p class="dv-api-lead"><code>createDataview(request)</code> takes a <code>DataviewRequest</code>. Every key is optional.</p>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Key</th><th class="table-head">Type</th><th class="table-head">Default</th><th class="table-head">Meaning</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>filters</code></td><td class="table-cell"><code>{ field, op, value }[]</code></td><td class="table-cell"><code>[]</code></td><td class="table-cell">ANDed filters; see Filters &amp; sorting.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>sorters</code></td><td class="table-cell"><code>{ field, direction }[]</code></td><td class="table-cell"><code>[]</code></td><td class="table-cell">Sort keys in priority order. <code>dir</code> is an alias; <code>direction</code> wins. <code>asc</code> by default.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>page</code></td><td class="table-cell"><code>number</code></td><td class="table-cell"><code>0</code></td><td class="table-cell">Zero-based safe integer. A page past the end returns no entries; it is not clamped.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>pageSize</code></td><td class="table-cell"><code>number</code></td><td class="table-cell">none</td><td class="table-cell">A positive safe integer. Omit it to disable paging; <code>page</code> then has no effect.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>idField</code></td><td class="table-cell"><code>string</code></td><td class="table-cell"><code>'id'</code> or <code>tree.idField</code></td><td class="table-cell">The selection identifier. Graph identity always uses <code>tree.idField</code>.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>meta</code></td><td class="table-cell"><code>{ selectedRowIds, lockedColumns }</code></td><td class="table-cell">empty lists</td><td class="table-cell">UI metadata. Extension fields on the view and on <code>meta</code> are kept.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>tree</code></td><td class="table-cell"><code>DataviewTreeOptions</code></td><td class="table-cell">none</td><td class="table-cell">Makes the view a tree; see Trees.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="accordion dv-accordion">
+          <details class="accordion-item" open>
+            <summary class="accordion-trigger"><span>Fields and paths</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content"><p>Fields are nonempty dot paths over own properties. <code>__proto__</code>, <code>prototype</code>, <code>constructor</code>, empty segments and empty paths are rejected, and inherited fields never match. Array indexes use dot syntax such as <code>links.0.parent</code>.</p></div>
+          </details>
+          <details class="accordion-item">
+            <summary class="accordion-trigger"><span>When a filter changes</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content"><p>Build the next view with <code>createDataview({ ...view, page: 0, filters: nextFilters })</code>. Normalization validates the structure; filter values stay your references, which keeps equality semantics intact.</p></div>
+          </details>
+        </div>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-filters" aria-labelledby="tab-filters" tabindex="0" hidden>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Operator</th><th class="table-head">A cell matches when</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>eq</code>, <code>neq</code></td><td class="table-cell">It is (or is not) strictly equal to the value; object operands compare by reference.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code></td><td class="table-cell">The relational comparison holds. Null, missing, <code>NaN</code> and invalid-date cells never match.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>in</code></td><td class="table-cell">It strictly equals an element of the array value. A value that is not an array matches nothing.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>contains</code>, <code>startsWith</code>, <code>endsWith</code></td><td class="table-cell">The string operation holds. String operations are case-sensitive.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="accordion dv-accordion">
+          <details class="accordion-item" open>
+            <summary class="accordion-trigger"><span>Sort order</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content"><p>Equal values keep their input order. Mixed values sort in this ascending type order: booleans, numbers, BigInts, strings, valid Dates, other values, invalid numbers and dates, nullish values; descending reverses it. Numbers and Dates sort numerically, strings with the runtime's <code>localeCompare</code>, which can differ between host locales.</p></div>
+          </details>
+          <details class="accordion-item">
+            <summary class="accordion-trigger"><span>Portable queries</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content"><p>JSON-compatible filter values serialize, but reference equality for object values does not survive a JSON round trip. Use scalar field predicates for queries you send to a server or store.</p></div>
+          </details>
+        </div>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-tree" aria-labelledby="tab-tree" tabindex="0" hidden>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Tree option</th><th class="table-head">Behavior</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>idField</code>, <code>parentIdField</code></td><td class="table-cell">Required dot paths that define graph identity.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>expandedIds</code></td><td class="table-cell">Omitted: everything is open (<code>expandAll</code> defaults to true). An explicit <code>[]</code> collapses all. A nonempty list opens the listed IDs only, unless <code>expandAll</code> is explicitly true.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>expandAll</code></td><td class="table-cell">Opens everything except <code>collapsedIds</code>.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>collapsedIds</code></td><td class="table-cell">Exceptions, used only in expand-all mode.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>maxDepth</code></td><td class="table-cell">A nonnegative safe integer; roots have depth 0. Nodes it stops are not reported as expanded.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>includeAncestors</code></td><td class="table-cell">Include the ancestors of matches. Default true.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>includeDescendantsOfMatch</code></td><td class="table-cell">Include the descendants of matching nodes. Default false.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dv-api-lead">Missing, null or unknown parents become roots; a self-parent renders as a root. Duplicate IDs keep separate rows, and parent references resolve to the first occurrence. To open everything again, use <code>createDataview({ ...view, tree: { ...view.tree, expandAll: true, collapsedIds: [] } })</code>.</p>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-result" aria-labelledby="tab-result" tabindex="0" hidden>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Field</th><th class="table-head">Meaning</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>entries</code></td><td class="table-cell">The requested page; identical to <code>applyDataview</code> output.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>totalRows</code></td><td class="table-cell">The length of the backing array.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>matchedRows</code></td><td class="table-cell">Rows satisfying the filters, before ancestors or descendants are included and before collapsing.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>visibleRows</code></td><td class="table-cell">Included rows that pass expansion and <code>maxDepth</code>, before paging.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>page</code>, <code>pageSize</code></td><td class="table-cell">The descriptor values.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>pageCount</code></td><td class="table-cell"><code>ceil(visibleRows / pageSize)</code>; unpaged, 1 when anything is visible, else 0.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>hasPreviousPage</code>, <code>hasNextPage</code></td><td class="table-cell">Paging flags, both false when unpaged. Past the last page, <code>hasPreviousPage</code> stays true when any page exists, so the app can recover.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dv-api-lead">Flat views have equal <code>matchedRows</code> and <code>visibleRows</code>. A tree can show more rows than match (included ancestors) or fewer (collapsed matches).</p>
+      </div>
+
+      <div class="tab-content" role="tabpanel" id="api-identity" aria-labelledby="tab-identity" tabindex="0" hidden>
+        <div class="dv-types">
+          <article class="card dv-type">
+            <div class="card-header"><h3 class="card-title">Canonical JSON identity</h3><p class="card-description">Selection, expansion, parent links and patches match IDs the same way.</p></div>
+            <div class="card-content">
+              <dl class="dv-dl">
+                <div><dt>Objects</dt><dd>Compare by JSON contents, independent of key order.</dd></div>
+                <div><dt>Arrays</dt><dd>Compare by contents in order.</dd></div>
+                <div><dt>Numbers, strings</dt><dd>Stay distinct: <code>1</code> is not <code>'1'</code>. <code>-0</code> and <code>0</code> share an identity.</dd></div>
+                <div><dt><code>null</code>, missing</dt><dd>Not selectable and not indexed as tree parents. Missing never aliases <code>null</code>.</dd></div>
+              </dl>
+            </div>
+          </article>
+          <article class="card dv-type">
+            <div class="card-header"><h3 class="card-title">Rejected identifiers</h3><p class="card-description">Lossy IDs fail instead of colliding.</p></div>
+            <div class="card-content">
+              <dl class="dv-dl">
+                <div><dt>Rejected</dt><dd>Non-finite numbers, explicit <code>undefined</code>, BigInts, Dates, functions, symbols, cycles, accessors, hidden properties, sparse or extended arrays.</dd></div>
+                <div><dt>Rows</dt><dd>Row IDs that are not JSON values are reported unselected. Other row fields may hold Dates, BigInts and so on.</dd></div>
+                <div><dt>Copies</dt><dd>Normalization copies selection and expansion IDs, so later caller mutation does not reach the view.</dd></div>
+              </dl>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="numbers" class="container dv-section parallax-reveal" aria-labelledby="numbers-title">
+    <section class="mk-stats" style="width:100%">
+      <div class="mk-stats-layout">
+        <div class="mk-stats-copy">
+          <div class="mk-stats-head">
+            <h2 class="mk-stats-title" id="numbers-title">Small, tested, measured</h2>
+            <p class="mk-stats-desc">Sizes are <code>dist/stats.json</code> from the published 0.4.0 package. Coverage, test counts and the timings below come from <code>make site-metrics</code>, which runs the test suites and then times the built package: <span id="metrics-source">loading the measurements…</span></p>
+          </div>
+          <div class="mk-stats-grid">
+            <div class="mk-stat" id="stat-gzip"><span class="mk-stat-value">4,624 B <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">12,658 B minified: the standalone browser module this page loads</span></div>
+            <div class="mk-stat" id="stat-coverage"><span class="mk-stat-value">–</span><span class="mk-stat-label">of source lines covered by the unit tests</span></div>
+            <div class="mk-stat" id="stat-tests"><span class="mk-stat-value">–</span><span class="mk-stat-label">unit and browser tests</span><a href="https://github.com/kyr0/defuss-dataview/tree/main/tests/e2e" class="btn mk-stat-link" data-variant="link" data-size="default">The browser suites</a></div>
+            <div class="mk-stat"><span class="mk-stat-value">0</span><span class="mk-stat-label">runtime dependencies; ESM, CommonJS and TypeScript declarations in one package</span></div>
+          </div>
+        </div>
+        <figure class="mk-stats-media dv-metrics">
+          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.4.0">
+            <pre data-prefix="$"><code>cat dist/stats.json</code></pre>
+            <pre data-prefix=""><code>{</code></pre>
+            <pre data-prefix="" id="stats-esm"><code>  "esmBytes": 22954,</code></pre>
+            <pre data-prefix="" id="stats-cjs"><code>  "commonjsBytes": 23266,</code></pre>
+            <pre data-prefix="" id="stats-min"><code>  "browserMinifiedBytes": 12658,</code></pre>
+            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  "browserGzipBytes": 4624</code></pre>
+            <pre data-prefix=""><code>}</code></pre>
+          </div>
+          <figcaption class="dv-figcaption">Gzip is Node's <code>zlib</code> at its default level.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <div class="dv-perf" id="perf">
+      <h3 class="dv-perf-title">How time grows with length and depth</h3>
+      <p class="dv-perf-lead">Median time of one <code>evaluateDataview()</code> call, pages of 50. Both axes are logarithmic: each gridline is ten times the one below, so a line that climbs one gridline per gridline means time grows in proportion to the rows. Benchmarks describe one machine and do not gate a release.</p>
+      <div class="dv-perf-charts">
+        <figure class="chart-frame">
+          <h4 class="chart-title">Lists, by length</h4>
+          <p class="chart-dek" id="perf-lists-dek">Rows { id, name, score }; the filter keeps half of them.</p>
+          <div class="chart" id="perf-lists" role="img" aria-label="Line chart: evaluateDataview() time for lists of 1,000 to 1,000,000 rows, with and without a two-key sort"></div>
+          <figcaption class="chart-source">Both axes logarithmic. The table below holds every value.</figcaption>
+        </figure>
+        <figure class="chart-frame">
+          <h4 class="chart-title">Trees, by depth</h4>
+          <p class="chart-dek" id="perf-depth-dek">A chain is as deep as it is long; a balanced tree with four children per node stays shallow.</p>
+          <div class="chart" id="perf-depth" role="img" aria-label="Line chart: evaluateDataview() time for trees of 1,000 to 1,000,000 nodes, a chain up to 100,000 levels deep against a balanced tree"></div>
+          <figcaption class="chart-source">Both axes logarithmic. The table below holds every value.</figcaption>
+        </figure>
+      </div>
+      <div class="accordion dv-accordion">
+        <details class="accordion-item">
+          <summary class="accordion-trigger"><span>All measurements as a table</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="accordion-content">
+            <div class="table-container">
+              <table class="table dv-table dv-perf-table">
+                <caption class="sr-only">Median and fastest evaluateDataview() time per scenario and size</caption>
+                <thead><tr class="table-row"><th class="table-head" scope="col">Shape</th><th class="table-head" scope="col">Scenario</th><th class="table-head" scope="col">Rows</th><th class="table-head" scope="col">Depth</th><th class="table-head" scope="col">Median</th><th class="table-head" scope="col">Fastest</th><th class="table-head" scope="col">Runs</th></tr></thead>
+                <tbody id="perf-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="container dv-section parallax-reveal" aria-labelledby="install-title">
+    <div class="corner-leaf pattern-dots dv-use">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">Install</span>
+        <h2 class="mk-section-header-title" id="install-title">🧑‍💻 Add it to your app</h2>
+        <p class="mk-section-header-desc">Install it from npm, or import the browser module straight from a CDN. Then keep your rows and the view apart, or hand one prompt to your coding agent.</p>
+      </div>
+    </header>
+    <div class="dv-ways">
+      <div class="dv-way">
+        <h3 class="dv-way-title"><svg class="dv-icon" aria-hidden="true"><use href="#i-package"/></svg>From npm</h3>
+        <p class="dv-way-desc">Bundlers resolve <code>import … from 'defuss-dataview'</code>, CommonJS uses <code>require('defuss-dataview')</code>. The public types need only ES2022 libraries, with no DOM or Node ambient types.</p>
+        <figure class="mk-code-block">
+          <div class="mk-code-block-head">
+            <div class="mk-code-block-tabs" role="radiogroup" aria-label="Package manager">
+              <label><input type="radio" name="cb-pm" value="npm" checked>npm</label><label><input type="radio" name="cb-pm" value="pnpm">pnpm</label><label><input type="radio" name="cb-pm" value="bun">bun</label>
+            </div>
+            <button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
+          </div>
+          <pre data-tab="npm"><code><span>npm install defuss-dataview</span></code></pre>
+          <pre data-tab="pnpm"><code><span>pnpm add defuss-dataview</span></code></pre>
+          <pre data-tab="bun"><code><span>bun add defuss-dataview</span></code></pre>
+          <span class="mk-code-block-status" role="status"></span>
+        </figure>
+      </div>
+      <div class="separator dv-sep-vertical" data-orientation="vertical" role="separator"></div>
+      <hr class="separator dv-sep-horizontal">
+      <div class="dv-way">
+        <h3 class="dv-way-title"><svg class="dv-icon" aria-hidden="true"><use href="#i-globe"/></svg>In the browser, no bundler</h3>
+        <p class="dv-way-desc"><code>dist/browser.min.mjs</code> is one self-contained module. This page loads it exactly like this; browsers that support import-map integrity check the hash before the module runs.</p>
+        <figure class="mk-code-block" data-variant="file">
+          <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-file"/></svg>index.html</span><button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+          <pre><code><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"importmap"</span><span class="mk-code-block-k">&gt;</span></span><span>{</span><span>  <span class="mk-code-block-s">"imports"</span>: { <span class="mk-code-block-s">"defuss-dataview"</span>: <span class="mk-code-block-s">"https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs"</span> },</span><span>  <span class="mk-code-block-s">"integrity"</span>: { <span class="mk-code-block-s">"https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs"</span>:</span><span>    <span class="mk-code-block-s">"sha384-0IouHJZBV5KbHLxZssSnyRJHXfDiocaEDcMQtIQTtISenm3I6/2yuKaqXAewyJoq"</span> }</span><span>}</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"module"</span><span class="mk-code-block-k">&gt;</span></span><span>  <span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span></code></pre>
+          <span class="mk-code-block-status" role="status"></span>
+        </figure>
+      </div>
+    </div>
+
+    <div class="dv-usage">
+      <h3 class="dv-way-title"><svg class="dv-icon" aria-hidden="true"><use href="#i-terminal"/></svg>Use it</h3>
+      <p class="dv-way-desc">Keep the rows and the view separately. Change the view with <code>createDataview</code> and the helpers, patch rows with the patch helpers, and evaluate again. The view is plain JSON, so it survives storage, a URL or a network hop unchanged.</p>
+      <figure class="mk-code-block" data-variant="file">
+        <div class="mk-code-block-head">
+          <div class="mk-code-block-tabs" role="radiogroup" aria-label="Example">
+            <label><input type="radio" name="cb-use" value="grid" checked>Grid</label><label><input type="radio" name="cb-use" value="tree">Tree</label><label><input type="radio" name="cb-use" value="worker">Worker</label><label><input type="radio" name="cb-use" value="shadcn">defuss-shadcn</label>
+          </div>
+          <button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
+        </div>
+        <pre data-tab="grid" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> data = [</span><span>  { id: 1, name: <span class="mk-code-block-s">'Ada'</span>, score: 92 },</span><span>  { id: 2, name: <span class="mk-code-block-s">'Grace'</span>, score: 98 },</span><span>  { id: 3, name: <span class="mk-code-block-s">'Linus'</span>, score: 75 },</span><span>];</span><span><span class="mk-code-block-k">const</span> view = createDataview({</span><span>  filters: [{ field: <span class="mk-code-block-s">'score'</span>, op: <span class="mk-code-block-s">'gte'</span>, value: 80 }],</span><span>  sorters: [{ field: <span class="mk-code-block-s">'score'</span>, direction: <span class="mk-code-block-s">'desc'</span> }],</span><span>  page: 0, pageSize: 1,</span><span>  meta: { selectedRowIds: [2], lockedColumns: [<span class="mk-code-block-s">'name'</span>] },</span><span>});</span><span></span><span data-highlight><span class="mk-code-block-k">const</span> entries = applyDataview(data, view); <span class="mk-code-block-c">// Existing [{ row, meta }] contract.</span></span><span>console.log(entries[0].row.name);         <span class="mk-code-block-c">// Grace</span></span><span>console.log(entries[0].meta.isSelected);  <span class="mk-code-block-c">// true</span></span><span></span><span data-highlight><span class="mk-code-block-k">const</span> result = evaluateDataview(data, view);</span><span>console.log(result.matchedRows); <span class="mk-code-block-c">// 2</span></span><span>console.log(result.pageCount);   <span class="mk-code-block-c">// 2</span></span><span>console.log(result.hasNextPage); <span class="mk-code-block-c">// true</span></span></code></pre>
+        <pre data-tab="tree" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, toggleExpanded, setExpandedIds } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> rows = [</span><span>  { id: 1, parentId: <span class="mk-code-block-k">null</span>, name: <span class="mk-code-block-s">'Root'</span> },</span><span>  { id: 2, parentId: 1, name: <span class="mk-code-block-s">'Child'</span> },</span><span>];</span><span data-highlight><span class="mk-code-block-k">let</span> view = createDataview({ tree: { idField: <span class="mk-code-block-s">'id'</span>, parentIdField: <span class="mk-code-block-s">'parentId'</span> } });</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 2: omitted expansion list opens all.</span></span><span>view = toggleExpanded(view, 1);</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 1: toggling closes this root.</span></span><span>view = setExpandedIds(view, []);              <span class="mk-code-block-c">// Explicitly collapse all.</span></span></code></pre>
+        <pre data-tab="worker" data-numbers><code><span><span class="mk-code-block-c">// query.worker.js: no DOM or Node globals needed, so the query runs off the main thread.</span></span><span><span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs'</span>;</span><span></span><span><span class="mk-code-block-k">let</span> rows = [];</span><span>onmessage = ({ data }) =&gt; {</span><span>  <span class="mk-code-block-k">if</span> (data.rows) rows = data.rows;</span><span data-highlight>  <span class="mk-code-block-k">const</span> result = evaluateDataview(rows, createDataview(data.request));</span><span>  postMessage({ rows: result.entries.map((entry) =&gt; entry.row), total: result.matchedRows, hasMore: result.hasNextPage });</span><span>};</span><span></span><span><span class="mk-code-block-c">// main.js</span></span><span><span class="mk-code-block-k">const</span> worker = <span class="mk-code-block-k">new</span> Worker(<span class="mk-code-block-k">new</span> URL(<span class="mk-code-block-s">'./query.worker.js'</span>, <span class="mk-code-block-k">import</span>.meta.url), { type: <span class="mk-code-block-s">'module'</span> });</span><span>worker.postMessage({ rows, request: { filters: [{ field: <span class="mk-code-block-s">'level'</span>, op: <span class="mk-code-block-s">'eq'</span>, value: <span class="mk-code-block-s">'error'</span> }], page: 0, pageSize: 50 } });</span></code></pre>
+        <pre data-tab="shadcn" data-numbers><code><span><span class="mk-code-block-c">// defuss-shadcn's Data Grid, Data Tree, Virtual List and Autocomplete query through defuss-dataview.</span></span><span><span class="mk-code-block-k">const</span> grid = document.querySelector(<span class="mk-code-block-s">'#orders'</span>);</span><span data-highlight>df$.shadcn.dataGrid.setSource(grid, orders);</span><span>df$.shadcn.dataGrid.query(grid, { sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }] });</span><span>grid.store.subscribe(({ config }) =&gt; console.log(config.filters, config.sorters));</span><span></span><span><span class="mk-code-block-c">// The bundled engine is df$.dataview: create, evaluate and the patch helpers.</span></span><span data-highlight><span class="mk-code-block-k">const</span> view = df$.dataview.create({ sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }], pageSize: 20 });</span><span>console.log(df$.dataview.evaluate(orders, view).pageCount);</span></code></pre>
+        <span class="mk-code-block-status" role="status"></span>
+      </figure>
+    </div>
+
+    <hr class="separator dv-sep-wide">
+    <div class="dv-way dv-way-agent">
+      <h3 class="dv-way-title"><svg class="dv-icon" aria-hidden="true"><use href="#i-bot"/></svg>Vibe coding</h3>
+      <p class="dv-way-desc">Paste this prompt into your coding agent. It links the repository, so the agent works from the current README.</p>
+      <div class="dv-prompt">
+        <div class="mockup-code" data-chrome="mac" data-title="coding agent · ~/your-app" data-wrap id="agent-prompt">
+          <pre data-prefix=">"><code>Use defuss-dataview for this app's tables and trees: https://github.com/kyr0/defuss-dataview</code></pre>
+          <pre data-prefix=""><code>Read its README.md first. Keep rows and the view descriptor apart: build the view with createDataview(), change it with the helpers, and render evaluateDataview(rows, view).entries.</code></pre>
+          <pre data-prefix=""><code>Drive paging controls from the counts (matchedRows, visibleRows, pageCount, hasNextPage), never from a page's length. Reset page to 0 when filters change.</code></pre>
+          <pre data-prefix=""><code>Store the descriptor as JSON. In a tree, an explicit expandedIds: [] collapses all; omit it to open all.</code></pre>
+          <pre data-prefix="" data-tone="muted" data-cursor><code>⏎ send</code></pre>
+        </div>
+        <button type="button" class="btn dv-prompt-copy" data-variant="secondary" data-size="sm" id="copy-prompt"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy prompt</span></button>
+        <span class="sr-only" role="status" id="copy-prompt-status"></span>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <div class="container dv-section parallax-reveal" data-reveal="zoom">
+    <div class="corner-leaf dv-consult">
+      <section class="mk-cta" data-variant="split" aria-labelledby="vae-title">
+        <div class="mk-cta-inner">
+          <div class="mk-cta-copy">
+            <div class="dv-cta-head">
+              <div class="aura aura-glow aura-gold dv-cta-portrait" style="--shape-round:1.25rem"><img class="shape-squircle" src="assets/aron-homberg.jpg" width="400" height="400" alt="Portrait of Aron Homberg" loading="lazy"></div>
+              <h2 class="mk-cta-title" id="vae-title">Stressed with inconsistent results and tiring reviews?</h2>
+            </div>
+            <p class="mk-cta-desc">Build more consistent agents with <a href="https://github.com/kyr0/defuss-vae" target="_blank" rel="noopener"><strong>defuss-vae</strong><svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>, Aron Homberg’s <a href="https://vae.defuss.org/" target="_blank" rel="noopener"><strong>Verified Agentic Engineering</strong><svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> method. Aron is a freelance AI researcher, O’Reilly author (2011), conference speaker, and longtime mentor to software engineering teams.</p>
+          </div>
+          <div class="mk-cta-actions dv-consult-actions">
+            <a class="btn" data-size="lg" href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener"><svg class="dv-icon dv-icon-fill" aria-hidden="true"><use href="#i-linkedin"/></svg>Talk to Aron on LinkedIn<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+            <p class="mk-cta-note dv-consult-note">...if you're looking for a remote training or mentoring session for you or your engineering team.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="container dv-section parallax-reveal" data-reveal="zoom">
+    <section class="mk-cta" data-variant="dark" aria-labelledby="cta-title">
+      <div class="mk-cta-inner">
+        <div class="mk-cta-copy">
+          <h2 class="mk-cta-title" id="cta-title">Describe the view once, run it anywhere</h2>
+          <p class="mk-cta-desc">Filters, sorting, paging and trees for big data grids &amp; trees, with exact counts, in one package without dependencies.</p>
+        </div>
+        <div class="mk-cta-actions">
+          <a class="btn" data-size="lg" href="https://github.com/kyr0/defuss-dataview" target="_blank" rel="noopener">View on GitHub<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+          <a class="btn" data-variant="outline" data-size="lg" href="https://www.npmjs.com/package/defuss-dataview" target="_blank" rel="noopener">npm package<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+        </div>
+        <p class="mk-cta-note">MIT licensed · 0.4.0 · zero runtime dependencies</p>
+      </div>
+    </section>
+  </div>
+
+  </main>
+
+  <footer class="mk-footer" style="width:100%">
+    <div class="mk-footer-inner">
+      <nav class="mk-footer-nav dv-footer-nav" aria-label="Footer">
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Project</h3>
+          <ul class="mk-footer-list">
+            <li><a href="https://github.com/kyr0/defuss-dataview" target="_blank" rel="noopener">Source code<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-dataview/blob/main/README.md" target="_blank" rel="noopener">README<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-dataview/blob/main/ARCH.md" target="_blank" rel="noopener">Architecture<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-dataview/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://www.npmjs.com/package/defuss-dataview" target="_blank" rel="noopener">npm<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">This page</h3>
+          <ul class="mk-footer-list">
+            <li><a href="#demo">Live demo</a></li>
+            <li><a href="#how">How it works</a></li>
+            <li><a href="#explorer">Query explorer</a></li>
+            <li><a href="#api">API</a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Works with</h3>
+          <ul class="mk-footer-list">
+            <li><a href="https://github.com/kyr0/defuss-shadcn" target="_blank" rel="noopener">defuss-shadcn<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://www.npmjs.com/package/defuss-store" target="_blank" rel="noopener">defuss-store<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://dom-router.defuss.org/" target="_blank" rel="noopener">defuss-dom-router<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Professional consulting services</h3>
+          <aside class="corner-leaf dv-ad" aria-label="Consulting by Aron Homberg">
+            <div class="dv-ad-head">
+              <div class="aura aura-glow aura-gold dv-ad-portrait" style="--shape-round:1.5rem"><img class="shape-squircle" src="assets/aron-homberg.jpg" width="400" height="400" alt="Portrait of Aron Homberg" loading="lazy"></div>
+              <div>
+                <p class="dv-ad-name">Aron Homberg</p>
+                <p class="dv-ad-role">Freelance computer science expert · independent AI researcher</p>
+              </div>
+            </div>
+            <a class="btn" data-size="sm" href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener"><svg class="dv-icon dv-icon-fill" aria-hidden="true"><use href="#i-linkedin"/></svg>Connect on LinkedIn<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+          </aside>
+        </div>
+      </nav>
+      <hr class="separator mk-footer-rule">
+      <div class="mk-footer-bottom">
+        <a href="#top" class="mk-footer-brand" aria-label="Back to the top"><svg class="dv-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-footer-brand-name">defuss-dataview</span></a>
+        <div class="mk-footer-meta">
+          <p class="mk-footer-copy">© 2026 <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (kyr0)<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> · MIT. Built with <a href="https://github.com/kyr0/defuss-shadcn" target="_blank" rel="noopener">defuss-shadcn<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+<div class="fab" data-scroll-top>
+  <a class="btn fab-trigger" href="#top" aria-label="Back to top"><span class="fab-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-arrow-up"/></svg></span></a>
+</div>
+
+<script type="module" src="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.js" integrity="sha384-Lk87A4KViuU62PT7Hy5Qw2DHzw0iEtvi2huW/2h9963U/cZLBARdRf7LZMCsirTa" crossorigin="anonymous"></script>
+<script type="module" src="assets/site.js"></script>
+</body>
+</html>

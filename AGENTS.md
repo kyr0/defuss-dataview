@@ -1,7 +1,8 @@
 # defuss-dataview
 
-- `tests/fixtures/upstream-src/**`, `tests/fixtures/upstream-README.md` and the 67 original tests are hash-pinned (`tests/fixtures/provenance.json`, checked by `npm run verify`); never edit them — add new tests in `src/regressions.test.ts` instead.
+- `tests/fixtures/upstream-src/**`, `tests/fixtures/upstream-README.md` and the 67 original tests are hash-pinned (`tests/fixtures/provenance.json`, checked by `npm run verify`); never edit them; add new tests in `src/regressions.test.ts` instead.
 - Behavior changes vs 0.3.1 need a README "Migration from 0.3.1" note and a CHANGELOG line.
+- `docs/` is the website for GitHub Pages (`docs/CNAME`: dataview.defuss.org). It loads the newest published release from jsDelivr: after publishing, bump the version and sha384 in `docs/index.html`'s import map, the worker import and the install snippet, or `tests/e2e/docs.spec.ts` fails. Its measured numbers live in `docs/assets/metrics.json`: run `make site-metrics` after a release or a test change (`tests/unit/docs.test.ts` checks the version).
 
 <!-- defuss-vae:start -->
 ## defuss-vae
