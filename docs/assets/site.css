@@ -167,7 +167,6 @@
   .dv-vs-hits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; margin-top: 2rem; }
   .dv-vs-hit { display: grid; align-content: start; gap: .5rem; padding: 1.15rem 1.3rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); }
   .dv-vs-hit strong { font-size: clamp(2.3rem, 5vw, 3.2rem); line-height: 1; font-weight: 800; letter-spacing: -.04em; color: var(--primary); font-variant-numeric: tabular-nums; }
-  .dv-vs-hit[data-kind="loss"] strong { color: var(--dv-fail); }
   .dv-vs-hit span { color: var(--muted-foreground); line-height: 1.45; font-size: .875rem; }
   .dv-vs-panel { margin-top: 1rem; padding: clamp(1rem, 3vw, 1.75rem); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); }
   .dv-vs-controls, .dv-cp-controls { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }

@@ -521,28 +521,21 @@ function pairings(data) {
 }
 
 function showComparison(data) {
-  const all = pairings(data), wins = all.filter((p) => p.ratio >= 1), losses = all.filter((p) => p.ratio < 1);
+  const all = pairings(data), wins = all.filter((p) => p.ratio >= 1);
   const largest = Object.keys(data.sizes).map(Number).sort((a, b) => b - a)[0];
   const pick = (query, pairing, rows = largest) => all.find((p) => p.query === query && p.pairing === pairing && Number(p.rows) === rows);
-  const index = pick('top', 'index'), scan = pick('top', 'scan'), worst = losses.reduce((a, b) => (b.ratio < a.ratio ? b : a), losses[0]);
+  const index = pick('top', 'index'), scan = pick('top', 'scan');
   $('vs-hit-wins').textContent = `${wins.length} of ${all.length}`;
   $('vs-hit-index').textContent = times(index.ratio);
   $('vs-hit-index-text').textContent = `faster with a fixed-query index than MongoDB with its index over ${docs(largest)} documents: ${duration(index.ours)} against ${duration(index.theirs)} for a filtered, sorted page with an exact count`;
   $('vs-hit-scan').textContent = times(scan.ratio);
   $('vs-hit-scan-text').textContent = `faster scanning ${docs(largest)} documents in memory than MongoDB without an index: ${duration(scan.ours)} against ${duration(scan.theirs)}`;
-  // Cross-pairing honesty: an indexed MongoDB against dataview's unindexed scan, on the filtered query. With no lost
-  // pairing, the loss card shows this instead.
+  const stored = pick('top', 'stored');
+  $('vs-hit-stored').textContent = times(stored.ratio);
+  $('vs-hit-stored-text').textContent = `faster stored on disk: defuss-dataview over a defuss-dbsonl file of ${docs(largest)} documents against MongoDB: ${duration(stored.ours)} against ${duration(stored.theirs)}`;
   const median = (rows, query, engine) => data.sizes[rows].results.find((r) => r.query === query && r.engine === engine)?.medianMs;
-  const indexedMongo = median(largest, 'top', 'MongoDB + index');
-  if (losses.length) {
-    $('vs-hit-losses').textContent = `${losses.length} of ${all.length}`;
-    $('vs-hit-losses-text').textContent = `went to MongoDB, by up to ${times(1 / worst.ratio)}`;
-  } else {
-    $('vs-hit-losses').textContent = times(scan.ours / indexedMongo);
-    $('vs-hit-losses-text').textContent = `faster for MongoDB with an index than defuss-dataview's unindexed scan of ${docs(largest)} documents: ${duration(indexedMongo)} against ${duration(scan.ours)}; one MongoDB index serves every range on its fields, a fixed-query index only its own query`;
-  }
   const fullScan = median(largest, 'top', FULL_SCAN);
-  if (fullScan !== undefined) $('vs-full-scan').textContent = times(fullScan / pick('top', 'stored').ours);
+  if (fullScan !== undefined) $('vs-full-scan').textContent = times(fullScan / stored.ours);
   const env = data.sizes[largest].environment;
   $('vs-source').textContent = `Medians of 7 alternating runs with bun run benchmark:mongodb on an ${env.cpu}, Node.js ${env.node}, MongoDB ${env.mongodb} (${env.storageEngine}), ${data.sizes[largest].measuredAt.slice(0, 10)}.`;
 

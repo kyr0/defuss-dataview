@@ -256,10 +256,10 @@ test.describe('landing page', () => {
     const all = Object.keys(data.sizes).flatMap((rows) => ['top', 'page'].flatMap((query) => (Object.keys(pairs) as Array<keyof typeof pairs>).map((p) => ratio(rows, query, p))));
     await page.goto('/docs/');
     await expect(page.locator('#vs-hit-wins')).toHaveText(`${all.filter((r) => r >= 1).length} of ${all.length}`);
-    const lost = all.filter((r) => r < 1).length, largestRows = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
-    const cross = median(largestRows, 'top', pairs.scan[0]) / median(largestRows, 'top', 'MongoDB + index');
-    // With no lost pairing the card shows the cross-pairing: MongoDB's index against dataview's unindexed scan.
-    await expect(page.locator('#vs-hit-losses')).toHaveText(lost ? `${lost} of ${all.length}` : `${cross < 10 ? cross.toFixed(1) : Math.round(cross)}×`);
+    const largestRows = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
+    const stored = ratio(largestRows, 'top', 'stored');
+    await expect(page.locator('#vs-hit-stored')).toHaveText(`${stored < 10 ? stored.toFixed(1) : Math.round(stored)}×`);
+    await expect(page.locator('#vs-hit-stored-text')).toContainText('stored on disk');
     await page.locator('#mongodb').scrollIntoViewIfNeeded();
     const gauge = (pairing: string) => page.locator(`#vs-${pairing} .tacho-meter`);
     const expectGauges = async (rows: string, query: string) => {

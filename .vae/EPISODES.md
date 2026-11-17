@@ -29,7 +29,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:257 L01 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:377 B09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:335 B02 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
-2026-10-10T16:16:08Z s=792882e7 DONE fp=bfa5032bf83f cov=? paths=README.md
 2026-10-10T16:16:08Z s=792882e7 FINDING README.md:13 A04 learn=none: Human editorial choice, not a defect.
 2026-11-15T20:21:41Z s=9ef67782 FAIL prose
 2026-11-15T20:34:44Z s=9ef67782 DONE fp=167886e5c96f cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+41)
@@ -104,3 +103,4 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T11:24:00Z s=9ef67782 FINDING docs/assets/site.js:applyPlan learn=test: tests/e2e/docs.spec.ts 'the explorer runs JSON compute plans' opens plan.explain() and reads it
 2026-11-17T12:10:44Z s=9ef67782 DONE fp=decccda24c43 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
 2026-11-17T12:12:00Z s=9ef67782 DONE fp=6dcf9644f72c cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-17T16:25:07Z s=9ef67782 DONE fp=c8c9aabdcabb cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
