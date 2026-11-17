@@ -15,7 +15,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T15:08:39Z s=4c6f18dd FINDING playwright.config.ts:PORT learn=none: The fallback itself removes the failure class; a test that occupies 4179 would collide with the same dev server it guards against.
 2026-10-10T15:08:39Z s=4c6f18dd FINDING docs/assets/site.js:lineChart legend learn=none: Visual; the identity channel is also carried by direct labels and the table.
 2026-10-10T15:08:39Z s=4c6f18dd FINDING docs/index.html:#perf lead L09 learn=none: Wording.
-2026-10-10T16:12:11Z s=792882e7 DONE fp=898e82788445 cov=? paths=README.md
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:55 L03 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:56 L03 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:363 L09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
@@ -104,3 +103,4 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T11:24:00Z s=9ef67782 FINDING docs/demo/app.js:runReport learn=test: tests/e2e/docs.spec.ts 'Reports: compute plans aggregate and project the orders into a Data Grid'
 2026-11-17T11:24:00Z s=9ef67782 FINDING docs/assets/site.js:applyPlan learn=test: tests/e2e/docs.spec.ts 'the explorer runs JSON compute plans' opens plan.explain() and reads it
 2026-11-17T12:10:44Z s=9ef67782 DONE fp=decccda24c43 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
+2026-11-17T12:12:00Z s=9ef67782 DONE fp=6dcf9644f72c cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
