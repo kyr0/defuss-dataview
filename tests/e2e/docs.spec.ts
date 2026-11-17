@@ -417,7 +417,7 @@ test.describe('landing page', () => {
       range.selectNodeContents(word);
       return [...range.getClientRects()].map(line => Math.abs((line.left - layer.left) - (layer.right - line.right)));
     }));
-    expect(gaps).toHaveLength(3);
+    expect(gaps).toHaveLength(5);
     for (const lines of gaps) {
       expect(lines.length).toBeGreaterThan(1);
       for (const gap of lines) expect(gap).toBeLessThan(2);

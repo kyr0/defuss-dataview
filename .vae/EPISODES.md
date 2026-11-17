@@ -30,9 +30,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:377 B09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:335 B02 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:16:08Z s=792882e7 FINDING README.md:13 A04 learn=none: Human editorial choice, not a defect.
-2026-11-15T20:21:41Z s=9ef67782 FAIL prose
-2026-11-15T20:34:44Z s=9ef67782 DONE fp=167886e5c96f cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+41)
-2026-11-15T20:34:44Z s=9ef67782 FINDING src/stream/optimization.test.ts:2 learn=verifier: rule tests.no-gitignored-inputs rejects .ts imports from artifacts/
 2026-11-15T20:34:44Z s=9ef67782 FINDING scripts/verify.mjs:15 learn=memory: AGENTS.md project line: gates read only committed inputs; not regex-checkable for .mjs that legitimately write artifacts/
 2026-11-15T20:34:44Z s=9ef67782 FINDING .oxlintrc.json learn=none: the lint verb in the gate already detects it
 2026-11-15T20:34:44Z s=9ef67782 FINDING src/normalize.ts:57 createDataview learn=test: src/regressions.test.ts 'table/tree semantics' fails without the fix (2 tests)
@@ -104,3 +101,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T12:10:44Z s=9ef67782 DONE fp=decccda24c43 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
 2026-11-17T12:12:00Z s=9ef67782 DONE fp=6dcf9644f72c cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
 2026-11-17T16:25:07Z s=9ef67782 DONE fp=c8c9aabdcabb cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-17T16:29:17Z s=9ef67782 DONE fp=3d265a6f7240 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-17T16:34:10Z s=9ef67782 DONE fp=0731552066a2 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-17T16:45:11Z s=9ef67782 DONE fp=a5c1bcd249b8 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)

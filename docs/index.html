@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>defuss-dataview · one JSON descriptor for big data tables and trees</title>
-  <meta name="description" content="Isomorphic filters, sorting, paging, tree traversal and UI metadata for table and tree grids: one JSON descriptor, exact counts, zero dependencies, 4.6 kB gzip. The query engine behind defuss-shadcn's Big Data components.">
+  <meta name="description" content="A high-performance in-memory database engine you embed in your app: filter, sort, group, project and page lists and linked lists of DSON objects with plain JSON queries and exact counts. Zero dependencies; it powers the Big Data components of defuss-shadcn.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2'/%3E%3Cpath d='M3 9h18M3 15h18M9 3v18'/%3E%3C/svg%3E">
   <script>
     // Before paint, before df$ exists (defuss-shadcn Dark Mode guide): the saved choice, else the OS default.
@@ -136,12 +136,12 @@
           <h1 class="mk-hero-title">Filter, sort and page big data grids &amp; trees using <strong>one JSON descriptor</strong> that</h1>
           <p class="dv-flip"><span class="text-rotate"><span>
               <span class="dv-accent">runs in a page, worker or server</span>
-              <span class="dv-accent">turns a table into a tree</span>
+              <span class="dv-accent">fully supports lists and linked lists</span>
               <span class="dv-accent">counts rows, matches and pages</span>
               <span class="dv-accent">never mutates your rows</span>
               <span class="dv-accent">terminates on cyclic trees</span>
           </span></span></p>
-          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler. For records in a database or arriving in batches, <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same filters and sorters over snapshot sources such as DBSONL, with bounded top-k and exact counts, and <a href="#compute"><code>defuss-dataview/compute</code></a> adds computed columns, grouped measures and page-plus-totals views over the same sources.</p>
+          <p class="mk-hero-desc"><code>defuss-dataview</code> is a high-performance in-memory database engine you embed in your app. It handles lists and linked lists of DSON objects, with typed fields such as BigInts, dates and binary values and parent links that turn rows into trees, and it filters, sorts, groups, projects and pages them with exact counts. Queries and compute plans are plain JSON and touch no DOM, Node API or storage, so they run in a component, a worker or an API handler, over a few rows or millions. It powers the Big Data components of <a href="https://shadcn.defuss.org" target="_blank" rel="noopener">defuss-shadcn<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> and works as well as a low-level database engine inside your app. For records on disk or arriving in batches, <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same queries over snapshot sources such as DBSONL, and <a href="#compute"><code>defuss-dataview/compute</code></a> adds computed columns, grouped measures and page-plus-totals views.</p>
           <div class="mk-hero-actions">
             <a class="btn" data-size="lg" href="#demo">Try the live demo<svg class="dv-icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
             <a class="btn" data-variant="outline" data-size="lg" href="#explorer">Run a query or plan</a>
@@ -272,12 +272,14 @@
   </section>
 
   <div class="dv-flythrough">
-    <section class="parallax" data-sticky style="--parallax-length:2" aria-label="Filter, sort, page">
+    <section class="parallax" data-sticky style="--parallax-length:3" aria-label="Filter, sort, group, project, page">
       <div class="parallax-stage" style="background:radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--chart-2) 55%, #05060f), #05060f 72%);color:#fff;border-radius:var(--radius-xl)">
         <div class="parallax-layer" data-motion="zoom fade" style="--parallax-scale:6"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#7cf0ff" stroke-width="1" opacity=".55"><rect x="110" y="140" width="180" height="120" rx="8"/><path d="M110 180h180M110 220h180M170 140v120"/></g></svg></div>
-        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 0% contain 40%;z-index:1"><p class="dv-fly-word">Filter millions of grid rows.</p></div>
-        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 30% contain 70%;z-index:2"><p class="dv-fly-word">Sort millions of tree nodes.</p></div>
-        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 60% contain 100%;z-index:3"><p class="dv-fly-word">Paginate millions of tree nodes.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 0% contain 28%;z-index:1"><p class="dv-fly-word">Filter millions of table rows.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 18% contain 46%;z-index:2"><p class="dv-fly-word">Sort millions of tree nodes.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 36% contain 64%;z-index:3"><p class="dv-fly-word">Group millions of rows.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 54% contain 82%;z-index:4"><p class="dv-fly-word">Project computed columns.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 72% contain 100%;z-index:5"><p class="dv-fly-word">Paginate tables and trees.</p></div>
         <div class="parallax-layer" data-motion="spin" style="--parallax-turn:180deg;--parallax-speed:0%;z-index:-1;opacity:.25"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width=".6"><path d="M200 200 460 200M200 200 425.2 330M200 200 330 425.2M200 200 200 460M200 200 70 425.2M200 200-25.2 330M200 200-60 200M200 200-25.2 70M200 200 70-25.2M200 200 200-60M200 200 330-25.2M200 200 425.2 70"/></g></svg></div>
       </div>
     </section>
