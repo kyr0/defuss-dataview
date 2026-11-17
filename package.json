@@ -1,6 +1,6 @@
 {
   "name": "defuss-dataview",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "packageManager": "bun@1.4.3",
   "publishConfig": {
@@ -42,12 +42,14 @@
     "benchmark:compare": "node scripts/benchmark-compare.mjs",
     "benchmark:dbsonl": "node --expose-gc scripts/benchmark-dbsonl.mjs",
     "benchmark:mongodb": "node --expose-gc --max-old-space-size=8192 scripts/benchmark-mongodb.mjs",
+    "benchmark:mongodb-compute": "node --expose-gc --max-old-space-size=8192 scripts/benchmark-mongodb-compute.mjs",
     "benchmark:paired": "node scripts/benchmark-paired.mjs",
     "verify": "node scripts/verify.mjs",
     "check": "bun run lint && bun run typecheck && bun run build && bun run test:coverage -- --exclude tests/unit/docs.test.ts && bun run test:browser && node scripts/site-metrics.mjs && bun run test:coverage && node scripts/site-metrics.mjs --reports-only && bun run test:package && bun run verify",
     "prepublishOnly": "bun run check",
     "dev": "node scripts/serve.mjs",
     "benchmark:stream": "node scripts/benchmark-stream.mjs",
+    "benchmark:compute": "node --max-old-space-size=8192 scripts/benchmark-compute.mjs",
     "benchmark:binary": "node scripts/benchmark-binary.mjs",
     "benchmark:cache": "node scripts/benchmark-cache-policies.mjs"
   },
@@ -82,6 +84,16 @@
       "require": {
         "types": "./dist/stream.d.cts",
         "default": "./dist/stream.cjs"
+      }
+    },
+    "./compute": {
+      "import": {
+        "types": "./dist/compute.d.mts",
+        "default": "./dist/compute.mjs"
+      },
+      "require": {
+        "types": "./dist/compute.d.cts",
+        "default": "./dist/compute.cjs"
       }
     },
     "./adapters/dbsonl": {

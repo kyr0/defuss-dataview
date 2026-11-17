@@ -128,3 +128,36 @@ test('shared browser key builds survive one cancelled waiter and release pins', 
   });
   expect(result.code).toBe('ABORTED');expect(result.before).toMatchObject({builds:1,pinnedEntries:0,buildingEntries:0});expect(result.after.bytes).toBe(0);
 });
+
+test('built compute module runs under a CSP without unsafe-eval and cleans up on break', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  // A same-origin page whose policy forbids eval and inline script: dynamic code generation would fail here.
+  await page.route('**/csp-compute.html', route => route.fulfill({
+    contentType: 'text/html', headers: { 'content-security-policy': "default-src 'self'; script-src 'self'" },
+    body: '<!doctype html><title>compute</title>',
+  }));
+  await page.goto('/csp-compute.html');
+  const result = await page.evaluate(async () => {
+    // One bundle for sources and plans: its private registries let the plan lease the prepared columns.
+    const { forRows, createImmutableArraySource } = await import('/dist/browser-compute.mjs');
+    let evalBlocked = false;
+    try { new Function('return 1')(); } catch { evalBlocked = true; }
+    const q = forRows();
+    const source = createImmutableArraySource(Array.from({ length: 2000 }, (_, id) => ({ id, country: ['de', 'fr', 'it'][id % 3], amount: id / 2, big: BigInt(id) })), { keyCache: {} });
+    await source.prepareKeys(['country', 'amount']);
+    const grouped = await q.aggregate({
+      groupBy: { country: q.field('country') },
+      measures: { orders: q.count(), revenue: q.sum(q.field('amount')), big: q.sumBigInt(q.field('big')) },
+      orderBy: [{ field: 'revenue', direction: 'desc' }],
+    }).evaluate(source, { limit: 2 }, { count: 'exact' });
+    const view = await q.view({ select: { id: q.field('id') }, totals: { total: q.sum(q.field('amount')) }, orderBy: [{ expr: q.field('amount'), direction: 'desc' }] }).evaluate(source, { limit: 3 });
+    const iterator = q.rows({ select: { id: q.field('id') } }).stream(source, {}, { batchSize: 5 });
+    const first = await iterator.next(); await iterator.return(undefined);
+    return { evalBlocked, rows: grouped.rows.map((r: { country: string; orders: number; revenue: number; big: bigint }) => [r.country, r.orders, r.revenue, String(r.big)]), groups: grouped.summary.totalResultRows, leased: grouped.summary.cacheBytesPinned > 0,
+      ids: view.rows.map((r: { id: number }) => r.id), total: view.totals.total, firstBatch: first.value.rows.length };
+  });
+  expect(result).toEqual({ evalBlocked: true, rows: [['fr', 667, 333500, '667000'], ['de', 667, 333166.5, '666333']], groups: 3, leased: true, ids: [1999, 1998, 1997], total: 999500, firstBatch: 5 });
+  expect(errors.filter(e => !/Function|unsafe-eval/.test(e))).toEqual([]);
+});

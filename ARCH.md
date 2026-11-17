@@ -1,6 +1,6 @@
 # Architecture
 
-Version 0.5.0 builds on standalone DataView commit `7ff0498e426f1d40ceaeff409f4fb725dbe81223` (package 0.4.0). DBSONL integration was designed against `kyr0/defuss-dbjsonl` commit `a6063a50e84f872d442efc4bef0ec03cb0986c08`, package 0.4.0, and tested against the npm package.
+Version 0.5.0 builds on standalone DataView commit `7ff0498e426f1d40ceaeff409f4fb725dbe81223` (package 0.4.0). DBSONL integration was designed against `kyr0/defuss-dbjsonl` commit `a6063a50e84f872d442efc4bef0ec03cb0986c08`, package 0.4.0, and tested against the npm package. Version 0.6.0 adds `defuss-dataview/compute` on top of the same source protocol.
 
 ## Boundaries
 
@@ -9,6 +9,7 @@ Version 0.5.0 builds on standalone DataView commit `7ff0498e426f1d40ceaeff409f4f
 | values/query/fields | Deterministic equality, ordering, safe access and query compilation |
 | table/tree evaluator | Synchronous exact grid results, forest normalization, UI metadata |
 | stream executor | One owned snapshot, global query state, bounded sorting/paging/counts |
+| compute plans | Prepared projection, aggregation and page-plus-totals over the same snapshot sources ([src/compute/ARCH.md](src/compute/ARCH.md)) |
 | record source | Scoped stable records, order/count capabilities, batching and cleanup |
 | DBSONL adapter | Map read-session lifecycle and key ranges to the source protocol |
 | storage/database/graph | Bytes, durability, mutation/index planning and graph traversal outside this package |

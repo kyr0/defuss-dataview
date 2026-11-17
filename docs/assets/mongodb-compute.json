@@ -1,0 +1,320 @@
+{
+  "queries": {
+    "regions": "group by region: count, paid revenue, average, max",
+    "pairs": "group by region × product, HAVING, top 10 groups by revenue",
+    "top": "paid orders, computed gross = amount × 1.19, top 10 by gross",
+    "view": "EU orders: newest 10 plus totals over all of them, one query",
+    "scalar": "all orders: count, revenue, average, max (one global row)"
+  },
+  "method": "1 warmup that also cross-checks results, then median of 7 alternating runs, gc between runs when --expose-gc; MongoDB aggregation pipelines over loopback, answered from its cache",
+  "sizes": {
+    "100000": {
+      "measuredAt": "2026-11-17T03:11:37.383Z",
+      "environment": {
+        "node": "v26.13.1",
+        "platform": "darwin 25.6.0 arm64",
+        "cpu": "Apple M5 Max",
+        "mongodb": "9.0.8",
+        "storageEngine": "wiredTiger"
+      },
+      "loads": [
+        {
+          "engine": "MongoDB",
+          "ms": 271.547375
+        },
+        {
+          "engine": "MongoDB + indexes",
+          "ms": 371.02908299999996
+        }
+      ],
+      "prepare": {
+        "fields": [
+          "region",
+          "amount",
+          "status",
+          "product",
+          "id",
+          "customer",
+          "date"
+        ],
+        "ms": 12.378167000000076
+      },
+      "results": [
+        {
+          "query": "regions",
+          "engine": "dataview, row reads",
+          "medianMs": 15.903667000000041,
+          "minMs": 15.779875000000061
+        },
+        {
+          "query": "regions",
+          "engine": "dataview, prepared columns",
+          "medianMs": 14.370292000000063,
+          "minMs": 13.969957999999906
+        },
+        {
+          "query": "regions",
+          "engine": "MongoDB",
+          "medianMs": 23.262707999999975,
+          "minMs": 23.043916999999965
+        },
+        {
+          "query": "regions",
+          "engine": "MongoDB + indexes",
+          "medianMs": 23.743375000000015,
+          "minMs": 22.81079099999988
+        },
+        {
+          "query": "pairs",
+          "engine": "dataview, row reads",
+          "medianMs": 13.950041000000056,
+          "minMs": 13.619290999999976
+        },
+        {
+          "query": "pairs",
+          "engine": "dataview, prepared columns",
+          "medianMs": 11.47308299999986,
+          "minMs": 8.661583000000064
+        },
+        {
+          "query": "pairs",
+          "engine": "MongoDB",
+          "medianMs": 22.64991699999996,
+          "minMs": 21.49970899999994
+        },
+        {
+          "query": "pairs",
+          "engine": "MongoDB + indexes",
+          "medianMs": 28.191499999999905,
+          "minMs": 27.821791000000076
+        },
+        {
+          "query": "top",
+          "engine": "dataview, row reads",
+          "medianMs": 8.445166000000427,
+          "minMs": 6.413124999999582
+        },
+        {
+          "query": "top",
+          "engine": "dataview, prepared columns",
+          "medianMs": 5.313916999999947,
+          "minMs": 4.675707999999759
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB",
+          "medianMs": 32.04795800000011,
+          "minMs": 31.608584000000064
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB + indexes",
+          "medianMs": 32.51624999999967,
+          "minMs": 31.791207999999642
+        },
+        {
+          "query": "view",
+          "engine": "dataview, row reads",
+          "medianMs": 8.397042000000056,
+          "minMs": 6.574207999999999
+        },
+        {
+          "query": "view",
+          "engine": "dataview, prepared columns",
+          "medianMs": 6.105583999999908,
+          "minMs": 5.324125000000095
+        },
+        {
+          "query": "view",
+          "engine": "MongoDB",
+          "medianMs": 21.811874999999873,
+          "minMs": 21.20966700000008
+        },
+        {
+          "query": "view",
+          "engine": "MongoDB + indexes",
+          "medianMs": 26.12220900000011,
+          "minMs": 25.018750000000182
+        },
+        {
+          "query": "scalar",
+          "engine": "dataview, row reads",
+          "medianMs": 9.833624999999302,
+          "minMs": 5.866375000000062
+        },
+        {
+          "query": "scalar",
+          "engine": "dataview, prepared columns",
+          "medianMs": 8.464041999999608,
+          "minMs": 4.791041999999834
+        },
+        {
+          "query": "scalar",
+          "engine": "MongoDB",
+          "medianMs": 12.67870800000037,
+          "minMs": 12.409832999999708
+        },
+        {
+          "query": "scalar",
+          "engine": "MongoDB + indexes",
+          "medianMs": 12.529207999999926,
+          "minMs": 12.153416000000107
+        }
+      ]
+    },
+    "1000000": {
+      "measuredAt": "2026-11-17T03:12:15.202Z",
+      "environment": {
+        "node": "v26.13.1",
+        "platform": "darwin 25.6.0 arm64",
+        "cpu": "Apple M5 Max",
+        "mongodb": "9.0.8",
+        "storageEngine": "wiredTiger"
+      },
+      "loads": [
+        {
+          "engine": "MongoDB",
+          "ms": 1995.7313749999998
+        },
+        {
+          "engine": "MongoDB + indexes",
+          "ms": 3062.4121250000003
+        }
+      ],
+      "prepare": {
+        "fields": [
+          "region",
+          "amount",
+          "status",
+          "product",
+          "id",
+          "customer",
+          "date"
+        ],
+        "ms": 149.81162500000028
+      },
+      "results": [
+        {
+          "query": "regions",
+          "engine": "dataview, row reads",
+          "medianMs": 114.15879099999984,
+          "minMs": 111.94154100000014
+        },
+        {
+          "query": "regions",
+          "engine": "dataview, prepared columns",
+          "medianMs": 93.93354200000067,
+          "minMs": 92.3052090000001
+        },
+        {
+          "query": "regions",
+          "engine": "MongoDB",
+          "medianMs": 240.29420899999968,
+          "minMs": 223.4516249999997
+        },
+        {
+          "query": "regions",
+          "engine": "MongoDB + indexes",
+          "medianMs": 230.9980000000014,
+          "minMs": 224.09454200000073
+        },
+        {
+          "query": "pairs",
+          "engine": "dataview, row reads",
+          "medianMs": 107.31687500000044,
+          "minMs": 102.86995899999965
+        },
+        {
+          "query": "pairs",
+          "engine": "dataview, prepared columns",
+          "medianMs": 81.23145899999872,
+          "minMs": 73.04620799999975
+        },
+        {
+          "query": "pairs",
+          "engine": "MongoDB",
+          "medianMs": 227.8851250000007,
+          "minMs": 210.33216700000048
+        },
+        {
+          "query": "pairs",
+          "engine": "MongoDB + indexes",
+          "medianMs": 269.8666669999984,
+          "minMs": 263.35100000000057
+        },
+        {
+          "query": "top",
+          "engine": "dataview, row reads",
+          "medianMs": 74.55716700000266,
+          "minMs": 71.39662500000122
+        },
+        {
+          "query": "top",
+          "engine": "dataview, prepared columns",
+          "medianMs": 62.00191700000141,
+          "minMs": 60.86124999999811
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB",
+          "medianMs": 344.4050419999985,
+          "minMs": 318.13379200000054
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB + indexes",
+          "medianMs": 331.4577909999971,
+          "minMs": 318.78012500000114
+        },
+        {
+          "query": "view",
+          "engine": "dataview, row reads",
+          "medianMs": 69.51141699999789,
+          "minMs": 67.61879200000112
+        },
+        {
+          "query": "view",
+          "engine": "dataview, prepared columns",
+          "medianMs": 63.70691699999952,
+          "minMs": 61.68491699999868
+        },
+        {
+          "query": "view",
+          "engine": "MongoDB",
+          "medianMs": 217.9975830000003,
+          "minMs": 204.11254199999894
+        },
+        {
+          "query": "view",
+          "engine": "MongoDB + indexes",
+          "medianMs": 308.90191699999923,
+          "minMs": 303.40287499999977
+        },
+        {
+          "query": "scalar",
+          "engine": "dataview, row reads",
+          "medianMs": 76.80849999999919,
+          "minMs": 70.33962500000052
+        },
+        {
+          "query": "scalar",
+          "engine": "dataview, prepared columns",
+          "medianMs": 64.90387499999633,
+          "minMs": 59.85016699999687
+        },
+        {
+          "query": "scalar",
+          "engine": "MongoDB",
+          "medianMs": 135.72275000000081,
+          "minMs": 124.41000000000349
+        },
+        {
+          "query": "scalar",
+          "engine": "MongoDB + indexes",
+          "medianMs": 125.61129200000141,
+          "minMs": 122.66858300000604
+        }
+      ]
+    }
+  }
+}

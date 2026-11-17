@@ -18,11 +18,11 @@
       document.documentElement.style.colorScheme = 'dark';
     }
   </script>
-  <!-- defuss-dataview: the newest published release from jsDelivr, checked against its hash before it runs. -->
+  <!-- defuss-dataview: this local build (scripts/site-build.mjs pins it), checked against its hash before it runs. -->
   <script type="importmap">
     {
-      "imports": { "defuss-dataview": "./assets/defuss-dataview@0.5.0/browser.min.mjs" },
-      "integrity": { "./assets/defuss-dataview@0.5.0/browser.min.mjs": "sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M" }
+      "imports": { "defuss-dataview": "./assets/defuss-dataview@0.6.0/browser.min.mjs", "defuss-dataview/compute": "./assets/defuss-dataview@0.6.0/browser-compute.mjs" },
+      "integrity": { "./assets/defuss-dataview@0.6.0/browser.min.mjs": "sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M", "./assets/defuss-dataview@0.6.0/browser-compute.mjs": "sha384-qBYL3ipWqO+1g2pUdOWl056a9tjRqmY6+VIb7FUk8hbRssXc54VnLX0IQdSUEXZc" }
     }
   </script>
   <!-- defuss-shadcn from jsDelivr at an exact release, pinned by Subresource Integrity. -->
@@ -74,13 +74,12 @@
       <a href="#top" class="mk-header-brand"><svg class="dv-icon dv-brand-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-header-name">defuss-dataview</span></a>
       <nav class="mk-header-nav" aria-label="Main">
         <ul class="nav-menu-list">
-          <li class="nav-menu-item"><a class="nav-menu-link" href="#mongodb">vs MongoDB</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#demo">Demo</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#how">How it works</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#explorer">Explorer</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#compute">Compute</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#api">API</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="stream.html">Streams</a></li>
-          <li class="nav-menu-item"><a class="nav-menu-link" href="#install">Install</a></li>
         </ul>
       </nav>
       <div class="mk-header-actions">
@@ -103,10 +102,10 @@
         <div class="sheet-body">
           <p class="mk-header-sheet-label">This page</p>
           <ul class="mk-header-sheet-nav">
-            <li><a href="#mongodb" data-sheet-close>vs MongoDB <small>The same queries against MongoDB 9.0</small></a></li>
-            <li><a href="#demo" data-sheet-close>Demo <small>Five Big Data components, up to a million rows</small></a></li>
+            <li><a href="#demo" data-sheet-close>Demo <small>Five Big Data components and compute reports, up to a million rows</small></a></li>
             <li><a href="#how" data-sheet-close>How it works</a></li>
             <li><a href="#explorer" data-sheet-close>Query explorer</a></li>
+            <li><a href="#compute" data-sheet-close>Projection &amp; aggregation <small>Groups, measures and totals in one scan</small></a></li>
             <li><a href="#api" data-sheet-close>API</a></li>
             <li><a href="stream.html">Snapshot streams <small>The same queries over DBSONL and batched sources</small></a></li>
             <li><a href="#install" data-sheet-close>Install</a></li>
@@ -133,7 +132,7 @@
     <div class="parallax-content">
       <section class="mk-hero" style="width:100%">
         <div class="mk-hero-copy">
-          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.5.0</span>Zero dependencies · 6.3&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.6.0</span>Zero dependencies · 6.3&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
           <h1 class="mk-hero-title">Filter, sort and page big data grids &amp; trees using <strong>one JSON descriptor</strong> that</h1>
           <p class="dv-flip"><span class="text-rotate"><span>
               <span class="dv-accent">runs in a page, worker or server</span>
@@ -142,10 +141,10 @@
               <span class="dv-accent">never mutates your rows</span>
               <span class="dv-accent">terminates on cyclic trees</span>
           </span></span></p>
-          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler. For records in a database or arriving in batches, <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same filters and sorters over snapshot sources such as DBSONL, with bounded top-k and exact counts.</p>
+          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler. For records in a database or arriving in batches, <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same filters and sorters over snapshot sources such as DBSONL, with bounded top-k and exact counts, and <a href="#compute"><code>defuss-dataview/compute</code></a> adds computed columns, grouped measures and page-plus-totals views over the same sources.</p>
           <div class="mk-hero-actions">
             <a class="btn" data-size="lg" href="#demo">Try the live demo<svg class="dv-icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
-            <a class="btn" data-variant="outline" data-size="lg" href="#explorer">Run a descriptor</a>
+            <a class="btn" data-variant="outline" data-size="lg" href="#explorer">Run a query or plan</a>
           </div>
           <p class="mk-hero-note">Built by <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (kyr0)<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> – Open Source (<a href="https://github.com/kyr0/defuss-dataview/blob/main/LICENSE" target="_blank" rel="noopener">MIT<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>)</p>
         </div>
@@ -189,7 +188,7 @@
     <header class="mk-section-header">
       <div class="mk-section-header-copy">
         <span class="mk-section-header-eyebrow">defuss-dataview against MongoDB 9.0</span>
-        <h2 class="mk-section-header-title" id="vs-title">Faster than MongoDB in <span id="vs-wins">12 of 12</span> pairings</h2>
+        <h2 class="mk-section-header-title" id="vs-title">Faster than MongoDB</h2>
         <p class="mk-section-header-desc">The same documents and the same two queries, answered like for like: dataview's scan against MongoDB's collection scan, dataview's fixed-query index against a MongoDB index, and dataview over defuss-dbsonl file storage, at an unchanged revision, against MongoDB. dataview runs in the measuring process; MongoDB 9.0.8 answers over loopback through the Node.js driver. Each pairing runs at 100,000 and 1,000,000 documents.</p>
       </div>
     </header>
@@ -288,8 +287,8 @@
     <header class="mk-section-header" data-align="center">
       <div class="mk-section-header-copy">
         <span class="mk-section-header-eyebrow">Live demo</span>
-        <h2 class="mk-section-header-title" id="demo-title">📊 A million rows, five Big Data components</h2>
-        <p class="mk-section-header-desc">Ledger runs defuss-shadcn's Data Grid, a tree grid, the Data Tree, the Virtual List and the Autocomplete on generated records, up to 1,000,000 orders. Each component queries through defuss-dataview 0.4.0, which defuss-shadcn 0.9.8 bundles. The inspector shows the query a component holds and times the calls the demo makes; the Search tab sends dataview requests to a module worker.</p>
+        <h2 class="mk-section-header-title" id="demo-title">📊 A million rows: grids, trees, groups and projections</h2>
+        <p class="mk-section-header-desc">Ledger runs defuss-shadcn's Data Grid, a tree grid, the Data Tree, the Virtual List and the Autocomplete on generated records, up to 1,000,000 orders. Each component queries through defuss-dataview 0.4.0, which defuss-shadcn 0.9.14 bundles. The Reports tab aggregates and projects those orders with this build's <code>defuss-dataview/compute</code>: revenue by region and product, refunds by region, paid orders with computed VAT, and a page of EU orders with totals, each shown in a Data Grid. The inspector shows the query or plan a component holds and times the calls the demo makes; the Search tab sends dataview requests to a module worker.</p>
       </div>
     </header>
     <div class="dv-window">
@@ -372,40 +371,44 @@
       </article>
     </div>
 
-    <figure class="diagram dv-flow" id="dv-flow" data-type="flow" data-steps data-autoplay="600" data-interactive aria-label="The path of rows and a request through defuss-dataview into a view your code owns">
+    <figure class="diagram dv-flow" id="dv-flow" data-type="flow" data-steps data-autoplay="600" data-interactive aria-label="The path of rows and a request or compute plan through defuss-dataview into a view your code owns">
       <figcaption class="diagram-caption">
         <span class="diagram-eyebrow">One pass, animated</span>
         <span class="diagram-title">From loaded rows to a view your code owns</span>
-        <span class="diagram-dek">defuss-dataview takes rows and a request and returns entries and counts. It owns no state and no view: your code decides when to ask and how a view shows the answer.</span>
+        <span class="diagram-dek">defuss-dataview takes rows and a request or a compute plan and returns entries, groups or projected rows with their counts. It owns no state and no view: your code decides when to ask and how a view shows the answer.</span>
       </figcaption>
-      <div class="diagram-canvas" style="--cols:4">
-        <div class="diagram-node" data-node="source" data-shape="store" data-tone="link" style="--col:4;--row:1" data-detail="Rows come from wherever your app keeps them: an array in memory, one fetch() of everything, or page after page from an API or a worker."><span class="diagram-node-eyebrow">Local or remote</span><span class="diagram-node-name">Your data</span><span class="diagram-node-meta">loaded whole, or page by page</span></div>
-        <div class="diagram-node" data-node="rows" style="--col:2;--row:1" data-detail="Plain objects such as { id, parentId, name }. defuss-dataview never sorts or mutates this array, and entries keep each row's identity."><span class="diagram-node-eyebrow">Your array</span><span class="diagram-node-name">rows[]</span><span class="diagram-node-meta">never sorted or mutated</span></div>
-        <div class="diagram-node" data-node="request" style="--col:1;--row:1" data-detail="Filters, sorters, page, pageSize, tree options and selection: plain JSON your code keeps, stores or sends."><span class="diagram-node-eyebrow">Your state</span><span class="diagram-node-name">request (JSON)</span><span class="diagram-node-meta">filters · sorters · page · tree</span></div>
-        <div class="diagram-group" data-node="engine" style="--col:1;--row:2;--span:4;--rspan:2">
+      <div class="diagram-canvas" style="--cols:5">
+        <div class="diagram-node" data-node="source" data-shape="store" data-tone="link" style="--col:5;--row:1" data-detail="Rows come from wherever your app keeps them: an array in memory, one fetch() of everything, or page after page from an API or a worker."><span class="diagram-node-eyebrow">Local or remote</span><span class="diagram-node-name">Your data</span><span class="diagram-node-meta">loaded whole, or page by page</span></div>
+        <div class="diagram-node" data-node="rows" style="--col:2;--row:1" data-detail="Plain objects such as { id, parentId, name }. defuss-dataview never sorts or mutates this array, and entries keep each row's identity. Compute plans read the same array through a snapshot source."><span class="diagram-node-eyebrow">Your array</span><span class="diagram-node-name">rows[]</span><span class="diagram-node-meta">never sorted or mutated</span></div>
+        <div class="diagram-node" data-node="request" style="--col:1;--row:1" data-detail="Filters, sorters, page, pageSize, tree options and selection, or a compute plan's groupBy, measures and select: plain JSON your code keeps, stores or sends."><span class="diagram-node-eyebrow">Your state</span><span class="diagram-node-name">request (JSON)</span><span class="diagram-node-meta">filters · sorters · groups · page</span></div>
+        <div class="diagram-group" data-node="engine" style="--col:1;--row:2;--span:5;--rspan:2">
           <span class="diagram-group-label">defuss-dataview · pure functions, no state, no DOM</span>
         </div>
-        <div class="diagram-node" data-node="create" style="--col:1;--row:2" data-detail="Validates the request once and returns a normalized, JSON-serializable view."><span class="diagram-node-eyebrow">Validate</span><span class="diagram-node-name">createDataview()</span><span class="diagram-node-meta">request → view</span></div>
+        <div class="diagram-node" data-node="create" style="--col:1;--row:2" data-detail="createDataview() validates a request once and returns a normalized, JSON-serializable view. forRows().rows(), aggregate() or view() validate and freeze a compute plan the same way."><span class="diagram-node-eyebrow">Validate</span><span class="diagram-node-name">createDataview()</span><span class="diagram-node-meta">or forRows().aggregate()</span></div>
         <div class="diagram-node" data-node="link" style="--col:2;--row:2" data-detail="Tree views only: rows link to their parent by ID, unknown parents become roots, cycles are cut."><span class="diagram-node-eyebrow">Tree only</span><span class="diagram-node-name">Link</span><span class="diagram-node-meta">parent by ID</span></div>
-        <div class="diagram-node" data-node="sort" style="--col:3;--row:2" data-detail="Stable sort; in a tree, roots and each sibling group sort separately."><span class="diagram-node-name">Sort</span><span class="diagram-node-meta">stable, per sibling group</span></div>
-        <div class="diagram-node" data-node="match" style="--col:4;--row:2" data-detail="Filters are ANDed; in a tree, the ancestors of every match are included."><span class="diagram-node-name">Match</span><span class="diagram-node-meta">filters, then ancestors</span></div>
-        <div class="diagram-node" data-node="note" data-shape="note" style="--col:1;--row:3" data-detail="A list skips Link and Walk: filter, sort, page."><span class="diagram-node-name">A list skips Link and Walk.</span></div>
-        <div class="diagram-node" data-node="walk" style="--col:4;--row:3" data-detail="Tree views only: expansion and maxDepth decide which rows are visible."><span class="diagram-node-eyebrow">Tree only</span><span class="diagram-node-name">Walk</span><span class="diagram-node-meta">expansion · maxDepth</span></div>
-        <div class="diagram-node" data-node="page" style="--col:3;--row:3" data-detail="page × pageSize slices the visible rows; the counts are taken before the slice."><span class="diagram-node-name">Page</span><span class="diagram-node-meta">counts before the slice</span></div>
-        <div class="diagram-node" data-node="result" data-tone="accent" style="--col:3;--row:4" data-detail="The returned value: the page of { row, meta } entries plus totalRows, matchedRows, visibleRows, pageCount and the paging flags."><span class="diagram-node-eyebrow">Returned</span><span class="diagram-node-name">entries + counts</span><span class="diagram-node-meta">{ row, meta }[] · pageCount</span></div>
+        <div class="diagram-node" data-node="sort" style="--col:3;--row:2" data-detail="Stable sort; in a tree, roots and each sibling group sort separately. A compute rows plan keeps only the candidates its page needs."><span class="diagram-node-name">Sort</span><span class="diagram-node-meta">stable, per sibling group</span></div>
+        <div class="diagram-node" data-node="match" style="--col:4;--row:2" data-detail="Filters are ANDed; in a tree, the ancestors of every match are included. Compute plans add a where expression."><span class="diagram-node-name">Match</span><span class="diagram-node-meta">filters, then ancestors</span></div>
+        <div class="diagram-node" data-node="walk" style="--col:5;--row:2" data-detail="Tree views only: expansion and maxDepth decide which rows are visible."><span class="diagram-node-eyebrow">Tree only</span><span class="diagram-node-name">Walk</span><span class="diagram-node-meta">expansion · maxDepth</span></div>
+        <div class="diagram-node" data-node="note" data-shape="note" style="--col:1;--row:3" data-detail="A list skips Link and Walk: filter, sort, page. Only compute plans group and project."><span class="diagram-node-name">A list skips Link and Walk; only plans group and project.</span></div>
+        <div class="diagram-node" data-node="group" style="--col:5;--row:3" data-detail="Compute plans only: matching rows group by exact typed keys, count, sum, avg, min and max update per group, HAVING keeps groups and orderBy sorts them. A view also keeps totals over every match."><span class="diagram-node-eyebrow">Compute only</span><span class="diagram-node-name">Aggregate</span><span class="diagram-node-meta">groupBy · measures · HAVING</span></div>
+        <div class="diagram-node" data-node="page" style="--col:4;--row:3" data-detail="page × pageSize, or offset and limit, slices the visible rows or groups; the counts are taken before the slice."><span class="diagram-node-name">Page</span><span class="diagram-node-meta">counts before the slice</span></div>
+        <div class="diagram-node" data-node="project" style="--col:3;--row:3" data-detail="Compute plans only: the selected and computed columns are evaluated for the rows of the returned page, not for every match. evaluateDataview() returns your row objects instead."><span class="diagram-node-eyebrow">Compute only</span><span class="diagram-node-name">Project</span><span class="diagram-node-meta">select · computed columns</span></div>
+        <div class="diagram-node" data-node="result" data-tone="accent" style="--col:3;--row:4" data-detail="The returned value: the page of { row, meta } entries plus totalRows, matchedRows, visibleRows, pageCount and the paging flags; for a compute plan, the projected rows or groups, a summary and a view's totals."><span class="diagram-node-eyebrow">Returned</span><span class="diagram-node-name">entries + counts</span><span class="diagram-node-meta">or rows · groups · totals</span></div>
         <div class="diagram-node" data-node="code" style="--col:2;--row:4" data-detail="An event handler, a store subscription or a worker reply: your code calls defuss-dataview and passes the answer on."><span class="diagram-node-eyebrow">Your code</span><span class="diagram-node-name">render(result)</span><span class="diagram-node-meta">on input, load or a timer</span></div>
-        <div class="diagram-node" data-node="view" data-tone="external" style="--col:2;--row:5" data-detail="A table, a Data Grid, a tree or a list. Your code fills it; defuss-dataview never reaches it."><span class="diagram-node-eyebrow">Owned by your app</span><span class="diagram-node-name">View component</span><span class="diagram-node-meta">table · grid · tree · list</span></div>
+        <div class="diagram-node" data-node="view" data-tone="external" style="--col:2;--row:5" data-detail="A table, a Data Grid, a tree, a list or a report. Your code fills it; defuss-dataview never reaches it."><span class="diagram-node-eyebrow">Owned by your app</span><span class="diagram-node-name">View component</span><span class="diagram-node-meta">table · grid · tree · report</span></div>
       </div>
       <ol class="diagram-edges">
         <li class="diagram-edge" data-from="source" data-to="rows" data-flow>whole or paged</li>
         <li class="diagram-edge" data-from="request:bottom" data-to="create:top"></li>
         <li class="diagram-edge" data-from="rows:bottom" data-to="link:top" data-flow data-flow-delay="300">rows</li>
-        <li class="diagram-edge" data-from="create" data-to="link">view</li>
+        <li class="diagram-edge" data-from="create" data-to="link"></li>
         <li class="diagram-edge" data-from="link" data-to="sort"></li>
         <li class="diagram-edge" data-from="sort" data-to="match"></li>
-        <li class="diagram-edge" data-from="match:bottom" data-to="walk:top"></li>
-        <li class="diagram-edge" data-from="walk" data-to="page"></li>
-        <li class="diagram-edge" data-from="page:bottom" data-to="result:top" data-tone="accent" data-flow data-flow-delay="600"></li>
+        <li class="diagram-edge" data-from="match" data-to="walk"></li>
+        <li class="diagram-edge" data-from="walk:bottom" data-to="group:top"></li>
+        <li class="diagram-edge" data-from="group" data-to="page"></li>
+        <li class="diagram-edge" data-from="page" data-to="project"></li>
+        <li class="diagram-edge" data-from="project:bottom" data-to="result:top" data-tone="accent" data-flow data-flow-delay="600"></li>
         <li class="diagram-edge" data-from="result" data-to="code" data-flow data-flow-delay="900">returns</li>
         <li class="diagram-edge" data-from="code:bottom" data-to="view:top" data-tone="accent" data-flow data-flow-delay="1200">renders it</li>
         <li class="diagram-edge" data-from="view:top" data-to="code:bottom" data-line="dashed">user events</li>
@@ -420,7 +423,7 @@
       <div class="mk-section-header-copy">
         <span class="mk-section-header-eyebrow">Query explorer</span>
         <h2 class="mk-section-header-title" id="explorer-title">🔎 Run a query on your own rows</h2>
-        <p class="mk-section-header-desc">Edit the rows, write the request <code>createDataview()</code> takes, and press Apply: this page runs <code>evaluateDataview()</code> from this local DataView build, checked against its hash, and shows what it returns.</p>
+        <p class="mk-section-header-desc">Edit the rows, write the request <code>createDataview()</code> takes, and press Apply: this page runs <code>evaluateDataview()</code> from this local DataView build, checked against its hash, and shows what it returns. A request with an <code>"aggregate"</code>, <code>"rows"</code> or <code>"view"</code> key is a compute plan instead: the explorer prepares it with <code>forRows()</code> from <code>defuss-dataview/compute</code>, runs it on the same rows and shows the groups or projected rows. The last five examples are plans.</p>
       </div>
     </header>
     <div class="dv-explorer card">
@@ -457,6 +460,11 @@
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"name","op":"contains","value":"storage"}]}'>case-sensitive contains</button>
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"page":1000,"pageSize":20}'>page past the end</button>
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-rows="cycle" data-descriptor='{"tree":{"idField":"id","parentIdField":"parentId"}}'>a cycle terminates</button>
+          <button type="button" class="btn" data-variant="outline" data-size="xs" data-compute data-descriptor='{"aggregate":{"groupBy":{"region":{"v":1,"op":"field","key":"region"}},"measures":{"units":{"v":1,"op":"count"},"averageScore":{"v":1,"op":"avg","arg":{"v":1,"op":"field","key":"score"}},"best":{"v":1,"op":"max","arg":{"v":1,"op":"field","key":"score"}},"over80":{"v":1,"op":"count","where":{"v":1,"op":"gte","args":[{"v":1,"op":"field","key":"score"},{"v":1,"op":"literal","value":80}]}}},"orderBy":[{"field":"averageScore","direction":"desc"}]},"page":{"limit":20}}'>aggregate by region</button>
+          <button type="button" class="btn" data-variant="outline" data-size="xs" data-compute data-descriptor='{"aggregate":{"groupBy":{"parentId":{"v":1,"op":"field","key":"parentId"}},"measures":{"children":{"v":1,"op":"count"},"averageScore":{"v":1,"op":"avg","arg":{"v":1,"op":"field","key":"score"}}},"having":[{"field":"children","op":"gte","value":10}],"orderBy":[{"field":"children","direction":"desc"}]},"page":{"offset":0,"limit":20}}'>children per parent, HAVING</button>
+          <button type="button" class="btn" data-variant="outline" data-size="xs" data-compute data-descriptor='{"aggregate":{"measures":{"units":{"v":1,"op":"count"},"totalScore":{"v":1,"op":"sum","arg":{"v":1,"op":"field","key":"score"}},"averageScore":{"v":1,"op":"avg","arg":{"v":1,"op":"field","key":"score"}},"lowest":{"v":1,"op":"min","arg":{"v":1,"op":"field","key":"score"}},"highest":{"v":1,"op":"max","arg":{"v":1,"op":"field","key":"score"}}}}}'>scalar aggregate</button>
+          <button type="button" class="btn" data-variant="outline" data-size="xs" data-compute data-descriptor='{"rows":{"filters":[{"field":"score","op":"gte","value":80}],"select":{"id":{"v":1,"op":"field","key":"id"},"name":{"v":1,"op":"field","key":"name"},"score":{"v":1,"op":"field","key":"score"},"weighted":{"v":1,"op":"mul","args":[{"v":1,"op":"field","key":"score"},{"v":1,"op":"literal","value":1.5}]}},"orderBy":[{"expr":{"v":1,"op":"field","key":"score"},"direction":"desc"},{"expr":{"v":1,"op":"field","key":"id"}}]},"page":{"offset":0,"limit":20}}'>projection, computed column</button>
+          <button type="button" class="btn" data-variant="outline" data-size="xs" data-compute data-descriptor='{"view":{"filters":[{"field":"region","op":"in","value":["EU","APAC"]}],"select":{"id":{"v":1,"op":"field","key":"id"},"name":{"v":1,"op":"field","key":"name"},"region":{"v":1,"op":"field","key":"region"},"score":{"v":1,"op":"field","key":"score"}},"totals":{"units":{"v":1,"op":"count"},"averageScore":{"v":1,"op":"avg","arg":{"v":1,"op":"field","key":"score"}}},"orderBy":[{"expr":{"v":1,"op":"field","key":"score"},"direction":"desc"},{"expr":{"v":1,"op":"field","key":"id"}}]},"page":{"offset":0,"limit":20}}'>page plus totals</button>
         </div>
         <figure class="mk-code-block dv-editor" data-variant="file">
           <div class="mk-code-block-head">
@@ -509,6 +517,13 @@
             <div class="data-grid-body"></div>
           </div>
         </div>
+        <div class="table-container" id="ex-compute" hidden>
+          <table class="table dv-table dv-compute-table" aria-label="Rows the compute plan returned">
+            <thead><tr class="table-row" id="ex-compute-head"></tr></thead>
+            <tbody id="ex-compute-body"></tbody>
+          </table>
+        </div>
+        <div class="dv-compute-totals" id="ex-totals" hidden></div>
         <div class="dv-pages" id="ex-pages" hidden>
           <nav class="pagination" id="ex-pager" aria-label="Result pages" data-size="sm" data-min-page="1" data-max-page="1" data-active-page="1" data-page-display-count="7">
             <ul class="pagination-list">
@@ -520,10 +535,10 @@
         </div>
         <div class="accordion dv-accordion">
           <details class="accordion-item">
-            <summary class="accordion-trigger"><span>Normalized state from <code>createDataview()</code></span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <summary class="accordion-trigger"><span id="ex-state-label">Normalized state from <code>createDataview()</code></span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
             <div class="accordion-content">
               <figure class="mk-code-block dv-state" data-variant="file">
-                <div class="mk-code-block-head"><span class="mk-code-block-file">view = createDataview(request)</span></div>
+                <div class="mk-code-block-head"><span class="mk-code-block-file" id="ex-state-file">view = createDataview(request)</span></div>
                 <pre tabindex="0" aria-label="The normalized state createDataview() returned"><code id="ex-state"></code></pre>
               </figure>
             </div>
@@ -533,12 +548,154 @@
     </div>
   </section>
 
+  <section id="compute" class="container dv-section parallax-reveal" aria-labelledby="compute-title">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">New in 0.6.0 · defuss-dataview/compute</span>
+        <h2 class="mk-section-header-title" id="compute-title">🧮 Projection and aggregation in one scan</h2>
+        <p class="mk-section-header-desc">Select computed columns, group with exact typed equality, sum and average with defined number semantics, and get a page plus its totals from one snapshot. Plans are plain data, prepared once and run on any snapshot source. This panel runs the local <code>browser-compute.mjs</code> build on seeded orders in your browser.</p>
+      </div>
+    </header>
+
+    <div class="dv-explorer card dv-compute">
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">1</span>Plan</h3>
+        </div>
+        <div class="dv-examples" role="group" aria-label="Example plans" id="cp-plans">
+          <button type="button" class="btn" data-variant="default" data-size="xs" aria-pressed="true" data-plan="regions">Revenue by region</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" aria-pressed="false" data-plan="pairs">Region × product, HAVING</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" aria-pressed="false" data-plan="top">Top orders by a computed column</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" aria-pressed="false" data-plan="view">Page plus totals</button>
+          <button type="button" class="btn" data-variant="secondary" data-size="xs" aria-pressed="false" data-plan="distinct">First distinct products</button>
+        </div>
+        <p class="dv-step-hint" id="cp-plan-note"></p>
+        <figure class="mk-code-block dv-state" data-variant="file">
+          <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-braces"/></svg>plan.js</span></div>
+          <pre tabindex="0" aria-label="The plan this panel runs"><code id="cp-code"></code></pre>
+        </figure>
+      </div>
+
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">2</span>Source</h3>
+        </div>
+        <div class="dv-cp-controls">
+          <div class="dv-vs-control"><span id="cp-size-label">Orders</span>
+            <div class="toggle-group" data-variant="outline" role="group" aria-labelledby="cp-size-label" id="cp-size">
+              <button class="toggle" type="button" aria-pressed="false" data-value="10000">10,000</button>
+              <button class="toggle" type="button" aria-pressed="true" data-value="100000">100,000</button>
+              <button class="toggle" type="button" aria-pressed="false" data-value="1000000">1,000,000</button>
+            </div>
+          </div>
+          <div class="dv-vs-control"><span id="cp-columns-label">Field reads</span>
+            <div class="toggle-group" data-variant="outline" role="group" aria-labelledby="cp-columns-label" id="cp-columns">
+              <button class="toggle" type="button" aria-pressed="true" data-value="rows">From rows</button>
+              <button class="toggle" type="button" aria-pressed="false" data-value="columns">Prepared columns</button>
+            </div>
+          </div>
+        </div>
+        <p class="dv-step-hint">Orders come from the demo's seeded generator and sit in a <code>createImmutableArraySource</code>. <strong>Prepared columns</strong> first runs <code>prepareKeys()</code> on the fields the plan reads; the plan then leases those columns instead of reading row objects. Compute never builds a column on its own.</p>
+        <div class="dv-apply">
+          <button type="button" class="btn" id="cp-run"><svg class="dv-icon" aria-hidden="true"><use href="#i-play"/></svg>Run plan</button>
+          <span class="dv-step-hint" id="cp-status" role="status"></span>
+        </div>
+      </div>
+
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title"><span class="dv-step-number" aria-hidden="true">3</span>Result</h3>
+        </div>
+        <div class="dv-counts" id="cp-summary" aria-live="polite"></div>
+        <div class="alert" data-variant="destructive" role="alert" id="cp-error" hidden>
+          <svg class="alert-icon dv-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div class="alert-content">
+            <h4 class="alert-title">The plan threw</h4>
+            <p class="alert-description" id="cp-error-message"></p>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="table dv-table dv-compute-table" id="cp-table" aria-label="Rows the plan returned">
+            <thead><tr class="table-row" id="cp-head"></tr></thead>
+            <tbody id="cp-body"></tbody>
+          </table>
+        </div>
+        <div class="dv-compute-totals" id="cp-totals" hidden></div>
+        <div class="accordion dv-accordion">
+          <details class="accordion-item">
+            <summary class="accordion-trigger"><span><code>plan.explain()</code> and the full summary</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="accordion-content">
+              <figure class="mk-code-block dv-state" data-variant="file">
+                <div class="mk-code-block-head"><span class="mk-code-block-file">{ explain, summary }</span></div>
+                <pre tabindex="0" aria-label="The plan's explain output and the execution summary"><code id="cp-explain"></code></pre>
+              </figure>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <div class="card dv-cp-vs" id="cp-vs">
+      <div class="dv-step">
+        <div class="dv-step-head">
+          <h3 class="dv-step-title">Against MongoDB aggregation pipelines <span class="badge" data-variant="secondary" data-size="sm" id="cp-vs-wins">5 of 5</span></h3>
+          <div class="dv-cp-controls">
+            <div class="dv-vs-control"><span id="cp-vs-size-label">Orders</span>
+              <div class="toggle-group" data-variant="outline" role="group" aria-labelledby="cp-vs-size-label" id="cp-vs-size">
+                <button class="toggle" type="button" aria-pressed="false" data-value="100000">100,000</button>
+                <button class="toggle" type="button" aria-pressed="true" data-value="1000000">1,000,000</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="dv-step-hint">The five plans above, written once more as MongoDB aggregation pipelines (<code>$group</code>, <code>$match</code>, <code>$sort</code>, <code>$facet</code>), on the same seeded orders. Before timing, every engine's answer is checked against the others. <strong>vs MongoDB</strong> compares dataview's row reads, which need no preparation, with the faster MongoDB variant. All times are repeated queries: MongoDB answers from its cache, dataview from an immutable array in the same process.</p>
+        <div class="table-container">
+          <table class="table dv-table dv-compute-table" aria-label="Median time per query and engine">
+            <thead><tr class="table-row"><th class="table-head">Query</th><th class="table-head" data-numeric title="dataview with row reads against the faster MongoDB variant">vs MongoDB</th><th class="table-head" data-numeric>dataview, row reads</th><th class="table-head" data-numeric>dataview, prepared columns</th><th class="table-head" data-numeric>MongoDB</th><th class="table-head" data-numeric>MongoDB + indexes</th></tr></thead>
+            <tbody id="cp-vs-body"></tbody>
+          </table>
+        </div>
+        <h4 class="dv-cp-prep-title">What “prepared columns” means</h4>
+        <p class="dv-step-hint"><strong>Row reads</strong> need no preparation: every run reads each field the plan names from the row objects, <code>row.region</code>, <code>row.amount</code> and so on. <strong>Prepared columns</strong> are copies of those fields, one array per field indexed by row position, which an immutable array source keeps in its key cache. You enable the cache with a memory cap when you create the source and call <code>prepareKeys()</code> once with the fields your plans read; every later run then reads the arrays instead of the rows. This pays off when the same rows are queried repeatedly and never change, because the cache assumes they stay immutable. Building the columns is not in the times above: <span id="cp-vs-prepare">it ran once before them</span>.</p>
+        <div class="tabs dv-cp-prep">
+          <div class="tab-list" role="tablist" aria-label="Row reads or prepared columns" data-size="sm">
+            <button class="tab-trigger" role="tab" aria-selected="true" aria-controls="cp-prep-rows-panel" id="cp-prep-rows-tab">Row reads</button>
+            <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="cp-prep-columns-panel" id="cp-prep-columns-tab" tabindex="-1">Prepared columns</button>
+          </div>
+          <div class="tab-content" role="tabpanel" id="cp-prep-rows-panel" aria-labelledby="cp-prep-rows-tab" tabindex="0">
+            <figure class="mk-code-block dv-state" data-variant="file">
+              <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-braces"/></svg>row-reads.js</span></div>
+              <pre tabindex="0" aria-label="Running a plan with row reads"><code id="cp-prep-rows"></code></pre>
+            </figure>
+          </div>
+          <div class="tab-content" role="tabpanel" id="cp-prep-columns-panel" aria-labelledby="cp-prep-columns-tab" tabindex="0" hidden>
+            <figure class="mk-code-block dv-state" data-variant="file">
+              <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-braces"/></svg>prepared-columns.js</span></div>
+              <pre tabindex="0" aria-label="Preparing columns, then running a plan"><code id="cp-prep-columns"></code></pre>
+            </figure>
+          </div>
+        </div>
+        <p class="dv-vs-scope" id="cp-vs-source">Measured with <code>bun run benchmark:mongodb-compute</code>.</p>
+      </div>
+    </div>
+
+    <div class="dv-compute-features">
+      <div class="card"><div class="card-header"><h3 class="card-title">Typed outputs</h3><p class="card-description">Aliases and measure types are inferred from the descriptor: <code>sum()</code> gives <code>number | null</code>, <code>sumBigInt()</code> gives <code>bigint | null</code>. A dynamic descriptor gives <code>Record&lt;string, unknown&gt;</code>, never <code>any</code>.</p></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Exact grouping</h3><p class="card-description"><code>NaN</code> joins <code>NaN</code> and <code>+0</code> joins <code>-0</code>; <code>null</code>, a missing key, <code>1</code>, <code>1n</code> and <code>'1'</code> stay apart. Dates and bytes group by value. No joined string key can merge two tuples.</p></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Defined numbers</h3><p class="card-description">Compensated sums in source order give the same result at every batch size. Overflow, division by zero and counts past <code>MAX_SAFE_INTEGER</code> throw instead of returning <code>Infinity</code> or a rounded count.</p></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Bounded and cancellable</h3><p class="card-description"><code>maxWorkingBytes</code>, <code>maxGroups</code> and output caps fail instead of dropping groups. An <code>AbortSignal</code> or an early <code>break</code> closes the snapshot.</p></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">Late projection</h3><p class="card-description">Selected columns are computed only for rows on the returned page, sort keys only for matching rows, and none of them for an empty page. An expression used twice in a row runs once.</p></div></div>
+      <div class="card"><div class="card-header"><h3 class="card-title">No generated code</h3><p class="card-description">Plans are validated data, never compiled with <code>eval</code> or <code>new Function</code>, so they run under a Content-Security-Policy without <code>unsafe-eval</code>.</p></div></div>
+    </div>
+    <p class="dv-vs-scope">The <a href="https://github.com/kyr0/defuss-dataview/blob/main/documentation/COMPUTE_API.md">API</a>, the <a href="https://github.com/kyr0/defuss-dataview/blob/main/documentation/COMPUTE_SEMANTICS.md">semantics of every result</a> and the <a href="https://github.com/kyr0/defuss-dataview/blob/main/documentation/COMPUTE_PERFORMANCE.md">measurements</a> are on GitHub. Times in this panel are one run in your browser, not a benchmark.</p>
+  </section>
+
   <section id="api" class="container dv-section parallax-reveal" aria-labelledby="api-title">
     <header class="mk-section-header">
       <div class="mk-section-header-copy">
         <span class="mk-section-header-eyebrow">API</span>
-        <h2 class="mk-section-header-title" id="api-title">📚 Thirteen functions, plain data in and out</h2>
-        <p class="mk-section-header-desc">Views and rows go in; new views, rows or results come out. Rows keep their object identity, and the backing array is never sorted or mutated. The declarations ship as <code>dist/index.d.mts</code> and <code>dist/index.d.cts</code>; the source of truth is <a href="https://github.com/kyr0/defuss-dataview/blob/main/src/types.ts">src/types.ts</a>.</p>
+        <h2 class="mk-section-header-title" id="api-title">📚 A small API surface</h2>
+        <p class="mk-section-header-desc">Plain data in, plain data out, from three entry points. <code>defuss-dataview</code> has thirteen functions for tables and trees: views and rows go in, new views, rows or results come out, and the backing array is never sorted or mutated. <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same filters and sorters over snapshot sources. <code>defuss-dataview/compute</code> adds projection and aggregation: one builder, <code>forRows()</code>, three plan kinds and the expressions they take. The declarations ship next to every entry point; the source of truth is <a href="https://github.com/kyr0/defuss-dataview/blob/main/src/types.ts">src/types.ts</a> and <a href="https://github.com/kyr0/defuss-dataview/blob/main/src/compute/types.ts">src/compute/types.ts</a>.</p>
       </div>
     </header>
 
@@ -550,6 +707,7 @@
         <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-tree" id="tab-tree" tabindex="-1">Trees</button>
         <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-result" id="tab-result" tabindex="-1">Results</button>
         <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-identity" id="tab-identity" tabindex="-1">Identity</button>
+        <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="api-compute" id="tab-compute" tabindex="-1">Projection &amp; aggregation</button>
       </div>
 
       <div class="tab-content" role="tabpanel" id="api-functions" aria-labelledby="tab-functions" tabindex="0">
@@ -689,6 +847,35 @@
           </article>
         </div>
       </div>
+
+      <div class="tab-content" role="tabpanel" id="api-compute" aria-labelledby="tab-compute" tabindex="0" hidden>
+        <p class="dv-api-lead"><code>import { forRows } from 'defuss-dataview/compute'</code>. <code>const q = forRows()</code> returns frozen expression builders and three plan factories. A plan is validated and frozen once, holds no state, and runs on any snapshot source from <code>defuss-dataview/stream</code>.</p>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Plan</th><th class="table-head">Descriptor</th><th class="table-head">Returns</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>q.rows(d)</code></td><td class="table-cell"><code>select</code>, <code>orderBy: [{ expr, direction }]</code></td><td class="table-cell">Projection: one row per match with the selected and computed columns</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>q.aggregate(d)</code></td><td class="table-cell"><code>groupBy</code>, <code>measures</code>, <code>having</code>, <code>orderBy: [{ field, direction }]</code></td><td class="table-cell">Aggregation: one row per group, or one global row without <code>groupBy</code></td></tr>
+              <tr class="table-row"><td class="table-cell"><code>q.view(d)</code></td><td class="table-cell"><code>select</code>, <code>totals</code>, <code>orderBy</code></td><td class="table-cell">A page of projected rows plus totals over every match, from one scan</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>plan.evaluate(source, page?, options?)</code></td><td class="table-cell"><code>page</code>: <code>{ offset, limit }</code>; <code>count: 'exact'</code></td><td class="table-cell"><code>Promise&lt;{ rows, summary }&gt;</code>, views add <code>totals</code></td></tr>
+              <tr class="table-row"><td class="table-cell"><code>plan.stream(source, page?, options?)</code></td><td class="table-cell">as <code>evaluate</code></td><td class="table-cell">An async generator of row batches, then the summary</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>plan.explain()</code></td><td class="table-cell"></td><td class="table-cell">Plan kind, required fields, measures and candidate strategies</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-container">
+          <table class="table dv-table">
+            <thead><tr class="table-row"><th class="table-head">Expression builders</th><th class="table-head">Value</th></tr></thead>
+            <tbody>
+              <tr class="table-row"><td class="table-cell"><code>field(key)</code>, <code>path('a.b')</code>, <code>literal(value)</code>, <code>number(expr)</code></td><td class="table-cell">An own property, an own-property path, a constant, a value narrowed to <code>number | null</code></td></tr>
+              <tr class="table-row"><td class="table-cell"><code>add</code>, <code>sub</code>, <code>mul</code>, <code>div</code>, <code>coalesce</code></td><td class="table-cell">Finite arithmetic; a nullish operand gives <code>null</code>, overflow and division by zero throw</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>eq</code>, <code>neq</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>isNullish</code>, <code>and</code>, <code>or</code>, <code>not</code></td><td class="table-cell">Predicates for <code>where</code> and measure filters, with the semantics of the stream filters</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>sumBigInt</code></td><td class="table-cell">Measures; each takes an optional <code>{ where }</code> predicate</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dv-api-lead">Every descriptor also takes the stream <code>filters</code>, a <code>where</code> expression and number options. Builders return plain nodes such as <code>{ "v": 1, "op": "field", "key": "region" }</code>, so a plan can also come from JSON; the query explorer above runs plans written that way. <a href="https://github.com/kyr0/defuss-dataview/blob/main/documentation/COMPUTE_API.md">The full compute API</a>.</p>
+      </div>
     </div>
   </section>
 
@@ -708,13 +895,13 @@
           </div>
         </div>
         <figure class="mk-stats-media dv-metrics">
-          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.5.0">
-            <pre data-prefix="$"><code>cat dist/stats.json</code></pre>
+          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.6.0">
+            <pre data-prefix="$"><code><span class="mk-code-block-k">cat</span> dist/stats.json</code></pre>
             <pre data-prefix=""><code>{</code></pre>
-            <pre data-prefix="" id="stats-esm"><code>  "esmBytes": 14395,</code></pre>
-            <pre data-prefix="" id="stats-cjs"><code>  "commonjsBytes": 14788,</code></pre>
-            <pre data-prefix="" id="stats-min"><code>  "browserMinifiedBytes": 17711,</code></pre>
-            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  "browserGzipBytes": 6252</code></pre>
+            <pre data-prefix="" id="stats-esm"><code>  <span class="mk-code-block-k">"esmBytes"</span>: <span class="dv-json-literal">14395</span>,</code></pre>
+            <pre data-prefix="" id="stats-cjs"><code>  <span class="mk-code-block-k">"commonjsBytes"</span>: <span class="dv-json-literal">14788</span>,</code></pre>
+            <pre data-prefix="" id="stats-min"><code>  <span class="mk-code-block-k">"browserMinifiedBytes"</span>: <span class="dv-json-literal">17711</span>,</code></pre>
+            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  <span class="mk-code-block-k">"browserGzipBytes"</span>: <span class="dv-json-literal">6252</span></code></pre>
             <pre data-prefix=""><code>}</code></pre>
           </div>
           <figcaption class="dv-figcaption">Gzip is Node's <code>zlib</code> at its default level.</figcaption>
@@ -776,9 +963,9 @@
             </div>
             <button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
           </div>
-          <pre data-tab="npm"><code><span>npm install defuss-dataview</span></code></pre>
-          <pre data-tab="pnpm"><code><span>pnpm add defuss-dataview</span></code></pre>
-          <pre data-tab="bun"><code><span>bun add defuss-dataview</span></code></pre>
+          <pre data-tab="npm"><code><span><span class="mk-code-block-k">npm</span> install <span class="mk-code-block-s">defuss-dataview</span></span></code></pre>
+          <pre data-tab="pnpm"><code><span><span class="mk-code-block-k">pnpm</span> add <span class="mk-code-block-s">defuss-dataview</span></span></code></pre>
+          <pre data-tab="bun"><code><span><span class="mk-code-block-k">bun</span> add <span class="mk-code-block-s">defuss-dataview</span></span></code></pre>
           <span class="mk-code-block-status" role="status"></span>
         </figure>
       </div>
@@ -789,7 +976,7 @@
         <p class="dv-way-desc"><code>dist/browser.min.mjs</code> is one self-contained module. This page loads it exactly like this; browsers that support import-map integrity check the hash before the module runs.</p>
         <figure class="mk-code-block" data-variant="file">
           <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-file"/></svg>index.html</span><button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
-          <pre><code><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"importmap"</span><span class="mk-code-block-k">&gt;</span></span><span>{</span><span>  <span class="mk-code-block-s">"imports"</span>: { <span class="mk-code-block-s">"defuss-dataview"</span>: <span class="mk-code-block-s">"./assets/defuss-dataview@0.5.0/browser.min.mjs"</span> },</span><span>  <span class="mk-code-block-s">"integrity"</span>: { <span class="mk-code-block-s">"./assets/defuss-dataview@0.5.0/browser.min.mjs"</span>:</span><span>    <span class="mk-code-block-s">"sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M"</span> }</span><span>}</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"module"</span><span class="mk-code-block-k">&gt;</span></span><span>  <span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span></code></pre>
+          <pre><code><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"importmap"</span><span class="mk-code-block-k">&gt;</span></span><span>{</span><span>  <span class="mk-code-block-s">"imports"</span>: { <span class="mk-code-block-s">"defuss-dataview"</span>: <span class="mk-code-block-s">"./assets/defuss-dataview@0.6.0/browser.min.mjs"</span> },</span><span>  <span class="mk-code-block-s">"integrity"</span>: { <span class="mk-code-block-s">"./assets/defuss-dataview@0.6.0/browser.min.mjs"</span>:</span><span>    <span class="mk-code-block-s">"sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M"</span> }</span><span>}</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"module"</span><span class="mk-code-block-k">&gt;</span></span><span>  <span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span></code></pre>
           <span class="mk-code-block-status" role="status"></span>
         </figure>
       </div>
@@ -807,7 +994,7 @@
         </div>
         <pre data-tab="grid" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> data = [</span><span>  { id: 1, name: <span class="mk-code-block-s">'Ada'</span>, score: 92 },</span><span>  { id: 2, name: <span class="mk-code-block-s">'Grace'</span>, score: 98 },</span><span>  { id: 3, name: <span class="mk-code-block-s">'Linus'</span>, score: 75 },</span><span>];</span><span><span class="mk-code-block-k">const</span> view = createDataview({</span><span>  filters: [{ field: <span class="mk-code-block-s">'score'</span>, op: <span class="mk-code-block-s">'gte'</span>, value: 80 }],</span><span>  sorters: [{ field: <span class="mk-code-block-s">'score'</span>, direction: <span class="mk-code-block-s">'desc'</span> }],</span><span>  page: 0, pageSize: 1,</span><span>  meta: { selectedRowIds: [2], lockedColumns: [<span class="mk-code-block-s">'name'</span>] },</span><span>});</span><span></span><span data-highlight><span class="mk-code-block-k">const</span> entries = applyDataview(data, view); <span class="mk-code-block-c">// Existing [{ row, meta }] contract.</span></span><span>console.log(entries[0].row.name);         <span class="mk-code-block-c">// Grace</span></span><span>console.log(entries[0].meta.isSelected);  <span class="mk-code-block-c">// true</span></span><span></span><span data-highlight><span class="mk-code-block-k">const</span> result = evaluateDataview(data, view);</span><span>console.log(result.matchedRows); <span class="mk-code-block-c">// 2</span></span><span>console.log(result.pageCount);   <span class="mk-code-block-c">// 2</span></span><span>console.log(result.hasNextPage); <span class="mk-code-block-c">// true</span></span></code></pre>
         <pre data-tab="tree" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, toggleExpanded, setExpandedIds } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> rows = [</span><span>  { id: 1, parentId: <span class="mk-code-block-k">null</span>, name: <span class="mk-code-block-s">'Root'</span> },</span><span>  { id: 2, parentId: 1, name: <span class="mk-code-block-s">'Child'</span> },</span><span>];</span><span data-highlight><span class="mk-code-block-k">let</span> view = createDataview({ tree: { idField: <span class="mk-code-block-s">'id'</span>, parentIdField: <span class="mk-code-block-s">'parentId'</span> } });</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 2: omitted expansion list opens all.</span></span><span>view = toggleExpanded(view, 1);</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 1: toggling closes this root.</span></span><span>view = setExpandedIds(view, []);              <span class="mk-code-block-c">// Explicitly collapse all.</span></span></code></pre>
-        <pre data-tab="worker" data-numbers><code><span><span class="mk-code-block-c">// query.worker.js: no DOM or Node globals needed, so the query runs off the main thread.</span></span><span><span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'./assets/defuss-dataview@0.5.0/browser.min.mjs'</span>;</span><span></span><span><span class="mk-code-block-k">let</span> rows = [];</span><span>onmessage = ({ data }) =&gt; {</span><span>  <span class="mk-code-block-k">if</span> (data.rows) rows = data.rows;</span><span data-highlight>  <span class="mk-code-block-k">const</span> result = evaluateDataview(rows, createDataview(data.request));</span><span>  postMessage({ rows: result.entries.map((entry) =&gt; entry.row), total: result.matchedRows, hasMore: result.hasNextPage });</span><span>};</span><span></span><span><span class="mk-code-block-c">// main.js</span></span><span><span class="mk-code-block-k">const</span> worker = <span class="mk-code-block-k">new</span> Worker(<span class="mk-code-block-k">new</span> URL(<span class="mk-code-block-s">'./query.worker.js'</span>, <span class="mk-code-block-k">import</span>.meta.url), { type: <span class="mk-code-block-s">'module'</span> });</span><span>worker.postMessage({ rows, request: { filters: [{ field: <span class="mk-code-block-s">'level'</span>, op: <span class="mk-code-block-s">'eq'</span>, value: <span class="mk-code-block-s">'error'</span> }], page: 0, pageSize: 50 } });</span></code></pre>
+        <pre data-tab="worker" data-numbers><code><span><span class="mk-code-block-c">// query.worker.js: no DOM or Node globals needed, so the query runs off the main thread.</span></span><span><span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'./assets/defuss-dataview@0.6.0/browser.min.mjs'</span>;</span><span></span><span><span class="mk-code-block-k">let</span> rows = [];</span><span>onmessage = ({ data }) =&gt; {</span><span>  <span class="mk-code-block-k">if</span> (data.rows) rows = data.rows;</span><span data-highlight>  <span class="mk-code-block-k">const</span> result = evaluateDataview(rows, createDataview(data.request));</span><span>  postMessage({ rows: result.entries.map((entry) =&gt; entry.row), total: result.matchedRows, hasMore: result.hasNextPage });</span><span>};</span><span></span><span><span class="mk-code-block-c">// main.js</span></span><span><span class="mk-code-block-k">const</span> worker = <span class="mk-code-block-k">new</span> Worker(<span class="mk-code-block-k">new</span> URL(<span class="mk-code-block-s">'./query.worker.js'</span>, <span class="mk-code-block-k">import</span>.meta.url), { type: <span class="mk-code-block-s">'module'</span> });</span><span>worker.postMessage({ rows, request: { filters: [{ field: <span class="mk-code-block-s">'level'</span>, op: <span class="mk-code-block-s">'eq'</span>, value: <span class="mk-code-block-s">'error'</span> }], page: 0, pageSize: 50 } });</span></code></pre>
         <pre data-tab="shadcn" data-numbers><code><span><span class="mk-code-block-c">// defuss-shadcn's Data Grid, Data Tree, Virtual List and Autocomplete query through defuss-dataview.</span></span><span><span class="mk-code-block-k">const</span> grid = document.querySelector(<span class="mk-code-block-s">'#orders'</span>);</span><span data-highlight>df$.shadcn.dataGrid.setSource(grid, orders);</span><span>df$.shadcn.dataGrid.query(grid, { sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }] });</span><span>grid.store.subscribe(({ config }) =&gt; console.log(config.filters, config.sorters));</span><span></span><span><span class="mk-code-block-c">// The bundled engine is df$.dataview: create, evaluate and the patch helpers.</span></span><span data-highlight><span class="mk-code-block-k">const</span> view = df$.dataview.create({ sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }], pageSize: 20 });</span><span>console.log(df$.dataview.evaluate(orders, view).pageCount);</span></code></pre>
         <span class="mk-code-block-status" role="status"></span>
       </figure>
@@ -863,7 +1050,7 @@
           <a class="btn" data-size="lg" href="https://github.com/kyr0/defuss-dataview" target="_blank" rel="noopener">View on GitHub<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
           <a class="btn" data-variant="outline" data-size="lg" href="https://www.npmjs.com/package/defuss-dataview" target="_blank" rel="noopener">npm package<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
         </div>
-        <p class="mk-cta-note">MIT licensed · 0.5.0 · zero runtime dependencies</p>
+        <p class="mk-cta-note">MIT licensed · 0.6.0 · zero runtime dependencies</p>
       </div>
     </section>
   </div>
@@ -886,10 +1073,10 @@
         <div class="mk-footer-col">
           <h3 class="mk-footer-heading">This page</h3>
           <ul class="mk-footer-list">
-            <li><a href="#mongodb">vs MongoDB</a></li>
             <li><a href="#demo">Live demo</a></li>
             <li><a href="#how">How it works</a></li>
             <li><a href="#explorer">Query explorer</a></li>
+            <li><a href="#compute">Projection &amp; aggregation</a></li>
             <li><a href="#api">API</a></li>
           </ul>
         </div>
@@ -931,5 +1118,6 @@
 
 <script type="module" src="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.14/dist/components/all.min.js" integrity="sha384-sqAevTacLdpjQj6DQOMbnJyCUtuL973QDLVhsN3QTYy3+I1q9aDQf9UEJ85VtiPP" crossorigin="anonymous"></script>
 <script type="module" src="assets/site.js"></script>
+<script type="module" src="assets/compute.js"></script>
 </body>
 </html>

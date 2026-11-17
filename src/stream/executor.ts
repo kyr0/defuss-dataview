@@ -6,9 +6,10 @@ import type { MeasuredBatch } from './measured.js';
 import { TopK } from './heap.js';
 import { queryKeys } from './key-capability.js';
 import { projectionPlan } from './projection.js';
+import { validateSession } from './driver.js';
 import type { QueryKeyLease } from './key-cache.js';
 import { abort, cleanup, DataviewError, natural, resolveOptions, rowBytes, yieldToHost } from './common.js';
-import type { QueryEvent, QuerySummary, RecordSession, RecordSource, StreamOptions, StreamRequest, StreamResult } from './types.js';
+import type { QueryEvent, QuerySummary, RecordSource, StreamOptions, StreamRequest, StreamResult } from './types.js';
 
 /** Convert table state to a stream query. Hierarchy traversal requires an array or graph planner. */
 export function toStreamRequest(view: DataviewState): StreamRequest {
@@ -189,12 +190,6 @@ function executeQuery<T extends DataviewRow>(source: RecordSource<T>, request: S
     yield { type: 'complete', summary: summary! };
   }
   return execute();
-}
-
-function validateSession<T extends DataviewRow>(session: RecordSession<T>): void {
-  if (session.consistency !== 'snapshot') throw new DataviewError('SOURCE_CONTRACT', 'A stable snapshot is required.');
-  if (!['number', 'string', 'bigint'].includes(typeof session.revision) || typeof session.revision === 'number' && !Number.isSafeInteger(session.revision)) throw new DataviewError('SOURCE_CONTRACT', 'Invalid source revision.');
-  if (session.count !== undefined) natural(session.count, 'source count');
 }
 
 /** Collect a bounded result. Use streamQuery when the output itself may exceed memory. */

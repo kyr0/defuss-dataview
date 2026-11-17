@@ -8,6 +8,7 @@ import { AccountingCache, prepareCache } from './accounting-cache.js';
 import { KeyCache } from './key-cache.js';
 import type { KeyCacheOptions, KeyCacheStats, KeyRevision } from './key-cache.js';
 import { registerQueryKeys } from './key-capability.js';
+import { registerFieldColumns } from './field-capability.js';
 import type { CancellationSignal } from './types.js';
 import type { MeasuredBatch } from './measured.js';
 export interface ArraySourceOptions {
@@ -70,7 +71,12 @@ export function arraySession<T extends DataviewRow>(snapshot: readonly T[], revi
     scan(request) { check(); return batchRows(values(), request); },
     async close() { closed = true; },
   };
-  if (keys) registerQueryKeys(session, (query, signal, sort) => keys.cache.query(keys.revision, query, begin, signal, sort));
+  if (keys) {
+    registerQueryKeys(session, (query, signal, sort) => keys.cache.query(keys.revision, query, begin, signal, sort));
+    // Compute plans may read already-built columns of this revision; the lease never builds one, so a plan's cost
+    // never includes a hidden cache build. VERIFIED: grouping.test.ts 'never builds a column' (builds stay 0).
+    registerFieldColumns(session, (fields, signal) => keys.cache.columns(keys.revision, fields, begin, signal));
+  }
   return registerMeasuredScan(session, measured);
 }
 

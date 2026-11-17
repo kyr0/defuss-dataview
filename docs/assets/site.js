@@ -198,14 +198,14 @@ function syncScroll() {
 query.addEventListener('input', () => { paintQuery(); markStale(); });
 query.addEventListener('scroll', syncScroll);
 query.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); apply(); }
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void apply(); }
 });
 function setQuery(text) {
   query.value = text;
   paintQuery();
 }
 $('ex-format').addEventListener('click', () => {
-  try { setQuery(JSON.stringify(JSON.parse(query.value), null, 2)); } catch (failure) { showError(failure); }
+  try { setQuery(JSON.stringify(JSON.parse(query.value), null, 2)); } catch (failure) { showError(failure, 'createDataview() threw'); }
 });
 $('ex-copy').addEventListener('click', () => void copyText(query.value, $('ex-copy-status')));
 
@@ -226,8 +226,8 @@ function statistic(title, value) {
   box.append(label, figure);
   return box;
 }
-function showError(failure) {
-  $('ex-error-title').textContent = failure instanceof SyntaxError ? 'The JSON does not parse' : 'createDataview() threw';
+function showError(failure, title) {
+  $('ex-error-title').textContent = failure instanceof SyntaxError ? 'The JSON does not parse' : title;
   $('ex-error-message').textContent = failure instanceof Error ? failure.message : String(failure);
   error.hidden = false;
 }
@@ -245,22 +245,62 @@ const cells = {
   parentId(el, record) { el.textContent = JSON.stringify(record.parentId); },
 };
 
-function apply() {
+// A request with exactly one of these keys is a compute plan: { "aggregate" | "rows" | "view": descriptor, "page"? }.
+// Plans are plain expression nodes ({ "v": 1, "op": ... }), which forRows() accepts as they are and validates once.
+// The compute bundle loads on the first plan, so a failure there leaves descriptor queries working.
+const PLAN_KINDS = ['aggregate', 'rows', 'view'];
+const planKind = (request) => {
+  const kinds = PLAN_KINDS.filter((kind) => request !== null && typeof request === 'object' && Object.hasOwn(request, kind));
+  if (kinds.length > 1) throw new TypeError(`A plan names one kind; this request names ${kinds.join(' and ')}.`);
+  return kinds[0];
+};
+let computeModule;
+const loadCompute = () => (computeModule ??= import('defuss-dataview/compute'));
+const decimal = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
+const cellText = (value) => (typeof value === 'number' ? decimal.format(value) : typeof value === 'bigint' ? `${value}n` : value === undefined ? 'undefined' : typeof value === 'string' ? value : JSON.stringify(value));
+
+function clearResult() {
+  counts.replaceChildren();
+  df$.shadcn.dataGrid.setSource(grid, [], { cells });
+  $('ex-pages').hidden = true;
+  $('ex-state').replaceChildren();
+  $('ex-compute').hidden = true;
+  $('ex-totals').hidden = true;
+  stale.textContent = '';
+}
+function showMode(compute, kind) {
+  grid.style.display = compute ? 'none' : '';
+  $('ex-compute').hidden = !compute;
+  $('ex-state-label').innerHTML = compute ? '<code>plan.explain()</code> and the summary' : 'Normalized state from <code>createDataview()</code>';
+  $('ex-state-file').textContent = compute ? `plan = forRows().${kind}(request.${kind})` : 'view = createDataview(request)';
+}
+
+let applied = 0;
+async function apply() {
+  const current = ++applied;
+  let request, kind;
+  try {
+    request = JSON.parse(query.value || '{}');
+    kind = planKind(request);
+  } catch (failure) {
+    showError(failure, 'createDataview() threw');
+    clearResult();
+    return;
+  }
+  if (kind) return applyPlan(request, kind, current);
   let view, result;
   try {
-    view = createDataview(JSON.parse(query.value || '{}'));
+    view = createDataview(request);
     result = evaluateDataview(rows, view);
   } catch (failure) {
-    showError(failure);
-    counts.replaceChildren();
-    df$.shadcn.dataGrid.setSource(grid, [], { cells });
-    $('ex-pages').hidden = true;
-    $('ex-state').replaceChildren();
-    stale.textContent = '';
+    showError(failure, 'createDataview() threw');
+    clearResult();
     return;
   }
   error.hidden = true;
   stale.textContent = '';
+  showMode(false);
+  $('ex-totals').hidden = true;
   counts.replaceChildren(
     statistic('totalRows', result.totalRows), statistic('matchedRows', result.matchedRows), statistic('visibleRows', result.visibleRows),
     statistic('pageCount', result.pageCount), statistic('hasPreviousPage', result.hasPreviousPage), statistic('hasNextPage', result.hasNextPage));
@@ -269,39 +309,95 @@ function apply() {
   const records = result.entries.map(({ row, meta }, key) => ({ key, name: row.name, id: row.id, score: row.score, ...meta }));
   grid.style.setProperty('--dv-result-rows', String(Math.min(Math.max(records.length, 3), 12)));
   df$.shadcn.dataGrid.setSource(grid, records, { cells });
-  showPages(view, result);
+  showPages(view.pageSize, view.page, result.pageCount, 'page');
   $('ex-state').replaceChildren(...jsonLines(JSON.stringify(view, null, 2)));
 }
-$('ex-apply').addEventListener('click', apply);
+
+async function applyPlan(request, kind, current) {
+  let plan, result;
+  const extra = Object.keys(request).filter((key) => key !== kind && key !== 'page');
+  try {
+    if (extra.length) throw new TypeError(`A plan request takes "${kind}" and "page"; remove ${extra.map((key) => `"${key}"`).join(', ')}.`);
+    const { forRows, createImmutableArraySource } = await loadCompute();
+    plan = forRows()[kind](request[kind]);
+    result = await plan.evaluate(createImmutableArraySource(rows), request.page ?? {}, { count: 'exact' });
+  } catch (failure) {
+    if (current !== applied) return;
+    showError(failure, `forRows().${kind}() threw`);
+    clearResult();
+    return;
+  }
+  if (current !== applied) return;
+  const { summary } = result;
+  error.hidden = true;
+  stale.textContent = '';
+  showMode(true, kind);
+  counts.replaceChildren(
+    statistic('strategy', summary.strategy), statistic('scannedRows', summary.scannedRows),
+    statistic('observedInputMatches', summary.observedInputMatches), statistic('totalResultRows', summary.totalResultRows ?? 'unknown'),
+    statistic('returnedRows', summary.returnedRows), statistic('hasMore', summary.hasMore));
+  const columns = [...new Set(result.rows.flatMap((row) => Object.keys(row)))];
+  $('ex-compute-head').replaceChildren(...columns.map((name) => {
+    const th = document.createElement('th');
+    th.className = 'table-head';
+    th.textContent = name;
+    if (result.rows.some((row) => typeof row[name] === 'number')) th.dataset.numeric = '';
+    return th;
+  }));
+  $('ex-compute-body').replaceChildren(...result.rows.map((row) => {
+    const tr = document.createElement('tr');
+    tr.className = 'table-row';
+    tr.append(...columns.map((name) => {
+      const td = document.createElement('td');
+      td.className = 'table-cell';
+      td.textContent = cellText(row[name]);
+      if (typeof row[name] === 'number') td.dataset.numeric = '';
+      return td;
+    }));
+    return tr;
+  }));
+  const totals = $('ex-totals');
+  totals.hidden = !result.totals;
+  totals.replaceChildren(...Object.entries(result.totals ?? {}).map(([name, value]) => statistic(`totals.${name}`, cellText(value))));
+  const { offset = 0, limit } = request.page ?? {};
+  showPages(limit, Math.floor(offset / (limit || 1)), summary.totalResultRows === null ? 0 : Math.ceil(summary.totalResultRows / limit), 'offset');
+  $('ex-state').replaceChildren(...jsonLines(JSON.stringify({ explain: plan.explain(), summary }, (_, value) => (typeof value === 'bigint' ? String(value) : value), 2)));
+}
+$('ex-apply').addEventListener('click', () => void apply());
 
 // ---- pages: the pager shows the result's page state and writes a picked page back into the request -----------------
+// A descriptor pages with "page" and "pageSize"; a plan with "page": { "offset", "limit" }.
 const pager = $('ex-pager');
-function showPages(view, result) {
-  $('ex-pages').hidden = !view.pageSize;
-  if (!view.pageSize) return;
-  const last = Math.max(result.pageCount, 1);
-  pager.api.setState('default', { minPage: 1, maxPage: last, activePage: Math.min(view.page + 1, last) });
-  $('ex-page-note').textContent = view.page < result.pageCount
-    ? `"page": ${view.page} is page ${number.format(view.page + 1)} of ${number.format(result.pageCount)}, ${view.pageSize} entries each`
-    : `"page": ${view.page} is past the last page (${number.format(result.pageCount)})`;
+let pagedBy = 'page';
+function showPages(size, index, pageCount, by) {
+  pagedBy = by;
+  $('ex-pages').hidden = !size;
+  if (!size) return;
+  const last = Math.max(pageCount, 1);
+  pager.api.setState('default', { minPage: 1, maxPage: last, activePage: Math.min(index + 1, last) });
+  const at = by === 'page' ? `"page": ${index}` : `"offset": ${number.format(index * size)}`;
+  $('ex-page-note').textContent = index < pageCount
+    ? `${at} is page ${number.format(index + 1)} of ${number.format(pageCount)}, ${size} ${by === 'page' ? 'entries' : 'rows'} each`
+    : `${at} is past the last page (${number.format(pageCount)})`;
 }
 pager.addEventListener('pagination-change', (event) => {
   try {
     const request = JSON.parse(query.value || '{}');
-    request.page = event.detail.page - 1;
+    if (pagedBy === 'page') request.page = event.detail.page - 1;
+    else request.page = { ...request.page, offset: (event.detail.page - 1) * request.page.limit };
     setQuery(JSON.stringify(request, null, 2));
   } catch (failure) {
-    showError(failure);
+    showError(failure, 'createDataview() threw');
     return;
   }
-  apply();
+  void apply();
 });
 
 for (const button of document.querySelectorAll('.dv-examples [data-descriptor]')) {
   button.addEventListener('click', () => {
     if (button.dataset.rows === 'cycle') { rows = CYCLE.map((row) => ({ ...row })); showRows(); } // the only example with its own rows
     setQuery(JSON.stringify(JSON.parse(button.dataset.descriptor), null, 2));
-    apply();
+    void apply();
   });
 }
 showRows();
@@ -429,7 +525,7 @@ function showComparison(data) {
   const largest = Object.keys(data.sizes).map(Number).sort((a, b) => b - a)[0];
   const pick = (query, pairing, rows = largest) => all.find((p) => p.query === query && p.pairing === pairing && Number(p.rows) === rows);
   const index = pick('top', 'index'), scan = pick('top', 'scan'), worst = losses.reduce((a, b) => (b.ratio < a.ratio ? b : a), losses[0]);
-  $('vs-wins').textContent = $('vs-hit-wins').textContent = `${wins.length} of ${all.length}`;
+  $('vs-hit-wins').textContent = `${wins.length} of ${all.length}`;
   $('vs-hit-index').textContent = times(index.ratio);
   $('vs-hit-index-text').textContent = `faster with a fixed-query index than MongoDB with its index over ${docs(largest)} documents: ${duration(index.ours)} against ${duration(index.theirs)} for a filtered, sorted page with an exact count`;
   $('vs-hit-scan').textContent = times(scan.ratio);

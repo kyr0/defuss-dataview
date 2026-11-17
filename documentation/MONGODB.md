@@ -87,12 +87,31 @@ The tables show one run per size. VERIFIED: across three runs with defuss-dbsonl
 
 dataview deliberately has no general secondary index: database planners own index choice, and dataview runs the exact predicates ([README](../README.md#execution-counts-and-limits)).
 
+## Projection and aggregation
+
+`bun run benchmark:mongodb-compute` compares the five `defuss-dataview/compute` plans of the website's compute panel with the same work written as MongoDB aggregation pipelines (`$group`, `$match`, `$sort`, `$limit`, `$facet`). Both read the seeded orders of the website demo: id, customer, region, product, amount, date and status. Before timing, the script checks every engine's answer against the others; floating-point sums and averages must agree to a relative 1e-9, because the two engines add in different orders. MongoDB runs with and without indexes on `status` and on `region, date`. dataview reads fields from the row objects, or from columns that `prepareKeys()` built once beforehand.
+
+VERIFIED: medians of 7 alternating runs over 1,000,000 orders, Apple M5 Max, Node.js 26.13.1, MongoDB 9.0.8 (WiredTiger), 2026-11-17. All are repeated queries: MongoDB answered from its cache over loopback, dataview from an immutable array in the same process. Preparing columns for all seven fields took 150 ms once.
+
+| Query | dataview, row reads | dataview, prepared columns | MongoDB | MongoDB + indexes |
+| --- | --- | --- | --- | --- |
+| Group by region: count, paid revenue, average, max | 114 ms | 94 ms | 240 ms | 231 ms |
+| Group by region × product, HAVING, top 10 groups | 107 ms | 81 ms | 228 ms | 270 ms |
+| Paid orders, computed gross, top 10 by gross | 75 ms | 62 ms | 344 ms | 332 ms |
+| EU orders: newest 10 plus totals, one query | 70 ms | 64 ms | 218 ms | 309 ms |
+| All orders: count, revenue, average, max | 77 ms | 65 ms | 136 ms | 126 ms |
+
+With row reads, dataview took 1.6× (the global aggregate) to 4.4× (the computed top 10) less time than the faster MongoDB variant; over 100,000 orders the range was 1.3× to 3.8×. The indexes did not help: grouping and the global aggregate read every document either way, the indexed collection was at most 8% faster on three queries, and it was slower on the two whose `$match` the indexes could serve (region × product, 270 against 228 ms; the EU page plus totals, 309 against 218 ms). UNKNOWN: which plans MongoDB chose; the script does not record `explain()` output.
+
+Two differences favour dataview and are part of what it offers rather than an artefact. It runs in the application's process, so results never cross a socket or get decoded from BSON. And it keeps no database: the orders must already sit in memory, which MongoDB does not require, and MongoDB persists and indexes data that dataview never stores.
+
 ## Reproduce
 
 ```sh
 bun run build
 MONGODB_URL=mongodb://127.0.0.1:27017 bun run benchmark:mongodb -- 100000
 bun run benchmark:mongodb -- 1000000   # the npm script allows Node an 8 GB heap
+bun run benchmark:mongodb-compute -- 1000000
 ```
 
-The script creates the database `defuss_dataview_bench_<pid>`, drops it when it finishes or fails, and touches no other database. Results go to `artifacts/benchmark-mongodb.json`. Run it on an idle machine; another process using the CPU or the MongoDB server changes the numbers.
+The script creates the database `defuss_dataview_bench_<pid>`, drops it when it finishes or fails, and touches no other database. The compute comparison uses `defuss_dataview_compute_<pid>` the same way. Results go to `artifacts/benchmark-mongodb.json` and `artifacts/benchmark-mongodb-compute.json`; runs at 100,000 or 1,000,000 rows also update the website's `docs/assets/mongodb.json` and `docs/assets/mongodb-compute.json`. Run it on an idle machine; another process using the CPU or the MongoDB server changes the numbers.

@@ -44,6 +44,29 @@ interface Entry {
   ready: Promise<void>;
   values: unknown[];
   blocks?: BlockSummary[];
+  /** Domain of every value, computed on first request and kept with the immutable column; 'mixed' unless all share one kind. */
+  domain?: ColumnDomain;
+}
+/** Non-nullish homogeneous domains in which comparator ties coincide with value equality under code-unit order. */
+export type ColumnDomain = 'boolean' | 'number' | 'bigint' | 'string' | 'mixed';
+const DOMAINS = new Set(['boolean', 'number', 'bigint', 'string']);
+/**
+ * Only the ordered-groups certificate reads a domain, so it is derived lazily instead of during every build.
+ * VERIFIED: tracking it inside build() made prepareKeys 9.5% slower in three paired fresh-process runs (2026-11-17).
+ */
+function domainOf(values: readonly unknown[]): ColumnDomain {
+  if (!values.length) return 'mixed';
+  const kind = typeof values[0];
+  if (!DOMAINS.has(kind)) return 'mixed';
+  for (const value of values) if (typeof value !== kind || (kind === 'number' && !Number.isFinite(value))) return 'mixed';
+  return kind as ColumnDomain;
+}
+/** Existing columns only, pinned for one execution; release is idempotent. */
+export interface FieldLease {
+  readonly begin: number;
+  readonly columns: ReadonlyMap<string, { readonly values: readonly unknown[]; readonly domain: ColumnDomain }>;
+  readonly pinnedBytes: number;
+  release(): void;
 }
 export interface KeyRevision { rows: readonly object[]; current: boolean; entries: Map<string, Entry> }
 export interface QueryKeyLease {
@@ -204,6 +227,25 @@ export class KeyCache {
       }
       return { entries: pinned, release };
     } catch (error) { release(); throw error; }
+  }
+  /**
+   * Pin columns that are already built for this revision, and never start a build. A cold build reads every row,
+   * including rows a query would reject, so a pure but throwing accessor could fail a query that never demands it.
+   * Missing, building or disabled columns are simply absent: callers read rows instead. Popularity is not recorded,
+   * so these reads do not change admission for ordinary queries.
+   */
+  columns(revision: KeyRevision, fields: readonly string[], begin: number, signal?: CancellationSignal): FieldLease {
+    abort(signal);
+    const pinned: Entry[] = [], columns = new Map<string, { values: readonly unknown[]; domain: ColumnDomain }>();
+    let released = false, pinnedBytes = 0;
+    if (this.maxBytes && revision.current) for (const field of new Set(fields)) {
+      fieldParts(field);
+      const entry = revision.entries.get(field);
+      if (!entry || entry.retired || entry.building || entry.failed) continue;
+      entry.pins++; pinned.push(entry); this.hits++; this.touch(entry);
+      columns.set(field, { values: entry.values, get domain() { return entry.domain ??= domainOf(entry.values); } }); pinnedBytes += entry.bytes;
+    }
+    return { begin, columns, pinnedBytes, release: () => { if (released) return; released = true; columns.clear(); for (const entry of pinned) this.release(entry); } };
   }
   async prepare(revision: KeyRevision, fields: readonly string[], signal?: CancellationSignal): Promise<KeyCacheStats> {
     const lease = await this.acquire(revision, fields, signal, true);

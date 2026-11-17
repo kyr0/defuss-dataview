@@ -23,6 +23,7 @@ defuss-dataview keeps that state in one plain JSON descriptor. `createDataview()
 - **Hostile data terminates:** parent cycles, 30,000-level hierarchies, duplicate IDs and paths such as `__proto__` have defined results instead of hangs, stack overflows or prototype access
 - **Isomorphic:** no DOM, Node API, globals, subscriptions or storage access
 - **Snapshot streams:** `defuss-dataview/stream` pages, sorts and counts over batched sources such as DBSONL with stable top-k, cancellation and row, byte and work budgets that fail instead of truncating
+- **Projection and aggregation:** `defuss-dataview/compute` selects computed columns, groups with exact typed equality, and returns a page plus totals from one scan of the same sources
 - **Small:** zero runtime dependencies; the standalone table/tree browser module is 17.0 kB minified, 6.1 kB gzip
 - **Close to 0.3.1:** every export retained; 65 of the 67 original tests pass byte-for-byte unchanged, and the other two encode [deliberate 0.5.0 changes](#behavior-changes-in-050)
 
@@ -73,7 +74,7 @@ npm install defuss-dataview
 Without a bundler, import the standalone browser module by URL, for example from jsDelivr:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.5.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.6.0/dist/browser.min.mjs';
 ```
 
 `dist/browser-stream.mjs`, `dist/browser-query.mjs` and `dist/browser-dbsonl.mjs` are the matching standalone modules for the other entry points.
@@ -417,6 +418,45 @@ It releases projected entries before returning. Getter call counts change when
 enabled; pure/stable access is required. See [performance design](documentation/PERFORMANCE.md)
 and [examples/optimized-index.mjs](examples/optimized-index.mjs).
 
+## Projection and aggregation
+
+`defuss-dataview/compute` runs prepared plans over the same snapshot sources: projected rows, scalar and grouped aggregates, and a page plus totals. Build expressions with `forRows<T>()`, prepare a plan once, then evaluate or stream it on any source.
+
+```ts
+import { forRows } from 'defuss-dataview/compute';
+import { createImmutableArraySource } from 'defuss-dataview/stream';
+
+type Order = { id: number; country: string; quantity: number; unitPrice: number | null; refunded: boolean };
+const q = forRows<Order>();
+const revenue = q.mul(q.field('quantity'), q.field('unitPrice'));
+
+const byCountry = q.aggregate({
+  where: q.not(q.field('refunded')),
+  groupBy: { country: q.field('country') },
+  measures: { orders: q.count(), revenue: q.sum(revenue), largest: q.max(q.field('unitPrice')) },
+  having: [{ field: 'orders', op: 'gte', value: 10 }],
+  orderBy: [{ field: 'revenue', direction: 'desc' }],
+});
+const source = createImmutableArraySource(orders);
+const { rows, summary } = await byCountry.evaluate(source, { limit: 20 }, { count: 'exact' });
+// rows: { country: string; orders: number; revenue: number | null; largest: number | null }[]
+
+const table = q.view({
+  select: { id: q.field('id'), revenue },
+  totals: { orders: q.count(), revenue: q.sum(revenue) },
+  orderBy: [{ expr: revenue, direction: 'desc' }],
+});
+const page = await table.evaluate(source, { limit: 50 }); // page.rows plus page.totals over every match
+```
+
+- **Typed outputs:** aliases and measure types are inferred from the descriptor; a dynamic descriptor gives `Record<string, unknown>`, never `any`.
+- **Exact grouping:** `NaN` with `NaN`, `+0` with `-0`, `null` apart from a missing key, `1` apart from `1n` and `'1'`, Dates and bytes by value. No delimiter or JSON key can merge two tuples.
+- **Defined numbers:** compensated or sequential sums in source order, the same for every batch size; overflow and division by zero throw; `sumBigInt` is exact.
+- **Bounded:** `maxWorkingBytes`, `maxGroups` and output caps fail instead of dropping groups or truncating; cancellation and early `break` close the snapshot.
+- **No hidden work:** a plan reads prepared key-cache columns when they already exist, but never builds one, and it never generates code, so it runs under a strict Content-Security-Policy.
+
+[COMPUTE_API.md](documentation/COMPUTE_API.md) lists builders, descriptors, options and the summary; [COMPUTE_SEMANTICS.md](documentation/COMPUTE_SEMANTICS.md) defines every result; [COMPUTE_ARCHITECTURE.md](documentation/COMPUTE_ARCHITECTURE.md) and [COMPUTE_PERFORMANCE.md](documentation/COMPUTE_PERFORMANCE.md) explain the execution and its measurements. Runnable examples: `examples/compute-*.mjs`.
+
 ## Speed
 
 Medians of one `evaluateDataview()` call on `dist/index.mjs`, measured for 0.5.0 on an Apple M5 Max (18 cores) with Node.js v26.13.0 on macOS. Each median takes 15 timed calls (9 at 100,000 rows, 5 at 1,000,000) after 3 untimed ones; rows are generated before timing and pages hold 50 rows. `make site-metrics` measures again and writes [docs/assets/metrics.json](docs/assets/metrics.json), which the website charts.
@@ -448,7 +488,7 @@ A sorted list page over 1,000,000 rows takes 39 ms because shallow flat pages ke
 
 VERIFIED: in two runs of `bun run benchmark:paired -- <0.4.0 dist/index.mjs>` on the same machine (alternating calls, 3 warmups, median of 11, 5 at 1,000,000 rows), 0.5.0 took 0.07× to 0.09× of 0.4.0's time for a 100,000-row filter + sort + page, 0.28× to 0.45× for balanced trees of 100,000 and 1,000,000 rows, and 0.34× to 0.40× for a 100,000-level chain. Absolute times depend on the machine and runtime, so compare numbers only within one run.
 
-`bun run benchmark:stream` measures the stream executor (`artifacts/stream-benchmark.json`); on the same machine a 1,000,000-row top-50 took 49 ms with fixed-schema accounting and 161 ms with generic per-value accounting. `bun run benchmark:dbsonl` times DBSONL snapshot scans and stream queries on memory and file storage, against the installed defuss-dbsonl and any other version you pass; over 100,000 documents a filter + top-50 with an exact count took 246 ms on memory and 310 ms on file storage with defuss-dbsonl 0.6.0, against 478 and 413 ms with 0.5.0 in the same run. `bun run benchmark:mongodb` runs the same documents and queries through a running MongoDB; [documentation/MONGODB.md](documentation/MONGODB.md) has the comparison. `bun run benchmark:cache` replays fixed query traces with the key cache off, SLRU and TinyLFU. `bun run benchmark:compare` compares the table/tree API with upstream 0.3.1 after checking output equivalence, and `bun run benchmark` retains the original 10k/50k/1M scenarios. Benchmarks are non-gating; reports are in `artifacts/`, and build sizes are in `dist/stats.json`.
+`bun run benchmark:stream` measures the stream executor (`artifacts/stream-benchmark.json`); on the same machine a 1,000,000-row top-50 took 49 ms with fixed-schema accounting and 161 ms with generic per-value accounting. `bun run benchmark:dbsonl` times DBSONL snapshot scans and stream queries on memory and file storage, against the installed defuss-dbsonl and any other version you pass; over 100,000 documents a filter + top-50 with an exact count took 246 ms on memory and 310 ms on file storage with defuss-dbsonl 0.6.0, against 478 and 413 ms with 0.5.0 in the same run. `bun run benchmark:mongodb` runs the same documents and queries through a running MongoDB; [documentation/MONGODB.md](documentation/MONGODB.md) has the comparison. `bun run benchmark:mongodb-compute` does the same for projection and aggregation: over 1,000,000 orders the five compute plans took 1.6× to 4.4× less time than MongoDB aggregation pipelines. `bun run benchmark:cache` replays fixed query traces with the key cache off, SLRU and TinyLFU. `bun run benchmark:compare` compares the table/tree API with upstream 0.3.1 after checking output equivalence, and `bun run benchmark` retains the original 10k/50k/1M scenarios. Benchmarks are non-gating; reports are in `artifacts/`, and build sizes are in `dist/stats.json`.
 
 ## When to use it
 
@@ -521,7 +561,7 @@ console.log(result.matchedRows, result.pageCount);          // 3 2
 `worker.js` keeps the rows and answers requests:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.5.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.6.0/dist/browser.min.mjs';
 
 let rows = [];
 self.onmessage = ({ data }) => {
@@ -629,7 +669,7 @@ If you use defuss-dataview in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-dataview: Isomorphic Filtering, Sorting, Paging and Tree Traversal for Table and Tree Grids and Bounded Snapshot Queries},
   year         = {2026},
-  version      = {0.5.0},
+  version      = {0.6.0},
   howpublished = {\url{https://www.npmjs.com/package/defuss-dataview}},
   note         = {npm package, MIT License}
 }

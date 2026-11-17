@@ -6,6 +6,7 @@ Current unit and integration contracts live next to the code in `src/`. This dir
 - `browser/`: the DBSONL worker that the e2e suite runs against real OPFS and Web Locks.
 - `types/`: compile-only checks of the published declarations; `scripts/package-tests.mjs` also runs them inside the installed tarball.
 - `fixtures/`: the upstream 0.3.1 source and original tests, byte-for-byte. They are immutable provenance, not a behavior contract; `bun run verify` checks their hashes in `fixtures/provenance.json`.
+- `compute/`: `oracle.ts`, a deliberately naive reference evaluator for compute plans (recursive evaluation, linear-search grouping, plain loops per measure); `src/compute/oracle.test.ts` compares every plan kind with it. It shares no plan, hashing or state code with `src/compute`.
 - `reference/`: the differential oracle, a self-contained pre-optimization build of the query compiler and byte accounting. `src/stream/optimization.test.ts` compares the optimized code with it over seeded inputs.
 
 ## Why a committed reference build

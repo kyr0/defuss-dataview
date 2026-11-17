@@ -48,13 +48,15 @@ test.describe('landing page', () => {
   test('header links reach their sections without adding history entries', async ({ page }) => {
     await page.goto('/docs/');
     const before = await page.evaluate(() => history.length);
-    for (const id of ['demo', 'how', 'explorer', 'api', 'install']) {
-      await page.locator(`.mk-header-nav a[href="#${id}"]`).click();
+    // The section links sit in the nav; Install is the header's own button, so the nav fits on one line.
+    for (const id of ['demo', 'how', 'explorer', 'compute', 'api', 'install']) {
+      await page.locator(id === 'install' ? '.mk-header-actions a.btn[href="#install"]' : `.mk-header-nav a[href="#${id}"]`).click();
       await expect.poll(() => page.evaluate((id) => {
         const section = document.getElementById(id)!;
         return Math.abs(section.getBoundingClientRect().top - parseFloat(getComputedStyle(section).scrollMarginTop));
       }, id), `#${id} lands at its scroll margin`).toBeLessThan(4);
     }
+    await expect(page.locator('.mk-header a[href="#mongodb"]'), 'the comparison is no menu entry').toHaveCount(0);
     expect(await page.evaluate(() => history.length)).toBe(before);
     expect(page.url()).toMatch(/#install$/);
     await expect(page.getByRole('link', { name: 'defuss-dataview on npm' })).toHaveAttribute('href', 'https://www.npmjs.com/package/defuss-dataview');
@@ -79,7 +81,8 @@ test.describe('landing page', () => {
     const flow = page.locator('#dv-flow');
     await flow.scrollIntoViewIfNeeded();
     await flow.getByRole('button', { name: 'Show all' }).click();
-    await expect(flow.locator('.diagram-node')).toHaveCount(13);
+    await expect(flow.locator('.diagram-node')).toHaveCount(15);
+    for (const step of ['group', 'project']) await expect(flow.locator(`[data-node="${step}"]`)).toContainText('Compute only');
     await expect(flow.locator('[data-node="view"]')).toBeVisible();
     await expect(flow.locator('[data-node="view"]')).toHaveAttribute('data-tone', 'external');
     await flow.locator('[data-node="view"]').click();
@@ -172,6 +175,63 @@ test.describe('landing page', () => {
     expect((await entries())[0].parentId).toBe(3);
   });
 
+  test('the explorer runs JSON compute plans on its rows: groups, HAVING, a projection, a view and errors', async ({ page }) => {
+    await page.goto('/docs/');
+    const rows = units(10_000);
+    const example = (label: string) => page.locator('.dv-examples button', { hasText: new RegExp(`^${label}$`) }).click();
+    const column = (index: number) => page.locator(`#ex-compute-body tr td:nth-child(${index})`);
+    const fmt = (value: number) => value.toLocaleString('en', { maximumFractionDigits: 2 });
+
+    // the oracle is plain JavaScript over the same seeded rows
+    const regions = new Map<string, number[]>();
+    for (const row of rows) regions.set(row.region, [...(regions.get(row.region) ?? []), row.score]);
+    const byAverage = [...regions].map(([region, scores]) => ({ region, units: scores.length, average: scores.reduce((a, b) => a + b, 0) / scores.length }))
+      .sort((a, b) => b.average - a.average);
+    await example('aggregate by region');
+    await expect(page.locator('#ex-grid')).toBeHidden();
+    await expect(page.locator('#ex-compute-head th')).toHaveText(['region', 'units', 'averageScore', 'best', 'over80']);
+    await expect(column(1)).toHaveText(byAverage.map((group) => group.region));
+    await expect(column(2)).toHaveText(byAverage.map((group) => fmt(group.units)));
+    await expect(explorerCount(page, 'strategy')).toHaveText('hash');
+    await page.locator('#explorer summary', { hasText: 'plan.explain()' }).click();
+    await expect(page.locator('#ex-state')).toContainText('"kind": "aggregate"');
+
+    const children = new Map<number | null, number>();
+    for (const row of rows) children.set(row.parentId, (children.get(row.parentId) ?? 0) + 1);
+    const busy = [...children.values()].filter((value) => value >= 10);
+    await example('children per parent, HAVING');
+    await expect(explorerCount(page, 'totalResultRows')).toHaveText(String(busy.length));
+    await expect(column(2).first()).toHaveText(String(Math.max(...busy)));
+
+    const high = rows.filter((row) => row.score >= 80).sort((a, b) => b.score - a.score || a.id - b.id);
+    await example('projection, computed column');
+    await expect(page.locator('#ex-compute-head th')).toHaveText(['id', 'name', 'score', 'weighted']);
+    await expect(explorerCount(page, 'totalResultRows')).toHaveText(String(high.length));
+    await page.locator('#ex-pager .pagination-next').click();
+    await expect(page.locator('#ex-query')).toHaveValue(/"offset": 20/);
+    await expect(page.locator('#ex-page-note')).toContainText(`page 2 of ${Math.ceil(high.length / 20)}`);
+    await expect(column(2)).toHaveText(high.slice(20, 40).map((row) => row.name));
+    await expect(column(4)).toHaveText(high.slice(20, 40).map((row) => fmt(row.score * 1.5)));
+
+    const euApac = rows.filter((row) => row.region === 'EU' || row.region === 'APAC');
+    await example('page plus totals');
+    await expect(page.locator('#ex-totals [data-count="totals.units"] .statistic-value')).toHaveText(fmt(euApac.length));
+    await example('scalar aggregate');
+    await expect(column(1)).toHaveText([fmt(rows.length)]);
+
+    await page.locator('#ex-query').fill('{ "aggregate": { "measures": {} }, "rows": {} }');
+    await page.locator('#ex-apply').click();
+    await expect(page.locator('#ex-error')).toBeVisible();
+    await expect(page.locator('#ex-error-message')).toContainText('aggregate and rows');
+    await page.locator('#ex-query').fill('{ "aggregate": { "measures": { "n": { "op": "count" } } } }');
+    await page.locator('#ex-apply').click();
+    await expect(page.locator('#ex-error-title')).toHaveText('forRows().aggregate() threw');
+
+    await example('filter, sort, page'); // descriptors show the grid again
+    await expect(page.locator('#ex-grid')).toBeVisible();
+    await expect(page.locator('#ex-compute')).toBeHidden();
+  });
+
   test('the measurements show metrics.json: coverage, tests, both charts and every timing', async ({ page }) => {
     const metrics = JSON.parse(readFileSync('docs/assets/metrics.json', 'utf8'));
     await page.goto('/docs/');
@@ -195,7 +255,7 @@ test.describe('landing page', () => {
     const ratio = (rows: string, query: string, pairing: keyof typeof pairs) => median(rows, query, pairs[pairing][1]) / median(rows, query, pairs[pairing][0]);
     const all = Object.keys(data.sizes).flatMap((rows) => ['top', 'page'].flatMap((query) => (Object.keys(pairs) as Array<keyof typeof pairs>).map((p) => ratio(rows, query, p))));
     await page.goto('/docs/');
-    await expect(page.locator('#vs-wins')).toHaveText(`${all.filter((r) => r >= 1).length} of ${all.length}`);
+    await expect(page.locator('#vs-hit-wins')).toHaveText(`${all.filter((r) => r >= 1).length} of ${all.length}`);
     const lost = all.filter((r) => r < 1).length, largestRows = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
     const cross = median(largestRows, 'top', pairs.scan[0]) / median(largestRows, 'top', 'MongoDB + index');
     // With no lost pairing the card shows the cross-pairing: MongoDB's index against dataview's unindexed scan.
@@ -222,15 +282,110 @@ test.describe('landing page', () => {
     await expect(page.locator('#vs-table tr')).toHaveCount(new Set(Object.values(pairs).flat()).size);
   });
 
+  test('the compute panel runs every preset on the built bundle, matches plain loops and leases prepared columns', async ({ page }) => {
+    // The page generates the same seeded orders, so plain loops over them here are the oracle for what the panel shows.
+    const rows = orders(10_000);
+    const paid = rows.filter((row) => row.status === 'Paid');
+    const regions = new Map<string, { orders: number; paid: number }>();
+    for (const row of rows) {
+      const group = regions.get(row.region) ?? { orders: 0, paid: 0 };
+      group.orders++; if (row.status === 'Paid') group.paid += row.amount;
+      regions.set(row.region, group);
+    }
+    const byPaid = [...regions].sort((a, b) => b[1].paid - a[1].paid);
+    const cell = (row: number, column: number) => page.locator(`#cp-body tr:nth-child(${row}) td:nth-child(${column})`);
+    const summary = (name: string) => page.locator(`#cp-summary [data-summary="${name}"] .statistic-value`);
+    const settled = () => expect(page.locator('#cp-status')).toContainText('10,000 orders');
+
+    await page.goto('/docs/');
+    await page.locator('.mk-header-nav a[href="#compute"]').click();
+    await page.locator('#cp-size .toggle[data-value="10000"]').click();
+    await settled();
+    await expect(page.locator('#cp-code .mk-code-block-k').first()).toHaveText('const');
+    await expect(page.locator('#cp-code .mk-code-block-s').first()).toHaveText("'amount'");
+    await expect(summary('strategy')).toHaveText('hash');
+    await expect(summary('totalResultRows')).toHaveText('4');
+    await expect(page.locator('#cp-head th')).toHaveText(['region', 'orders', 'paidRevenue', 'averageOrder', 'largest']);
+    for (const [index, [region, group]] of byPaid.entries()) {
+      await expect(cell(index + 1, 1)).toHaveText(region);
+      await expect(cell(index + 1, 2)).toHaveText(count(group.orders));
+    }
+
+    await page.locator('#cp-columns .toggle[data-value="columns"]').click();
+    await expect(page.locator('#cp-status')).toContainText("prepareKeys(['region', 'amount', 'status'])");
+    await expect(summary('cacheBytesPinned')).not.toHaveText('0 B');
+    await expect(cell(1, 1)).toHaveText(byPaid[0][0]);
+
+    await page.locator('[data-plan="pairs"]').click();
+    await settled();
+    await expect(page.locator('#cp-body tr')).toHaveCount(10);
+    await expect(page.locator('#cp-head th')).toHaveText(['region', 'product', 'orders', 'revenue', 'averageOrder']);
+
+    await page.locator('[data-plan="top"]').click();
+    await settled();
+    const top = [...paid].sort((a, b) => b.amount * 1.19 - a.amount * 1.19 || a.id - b.id).slice(0, 10);
+    await expect(summary('strategy')).toHaveText('top-k');
+    await expect(summary('totalResultRows')).toHaveText(count(paid.length));
+    await expect(page.locator('#cp-body tr td:nth-child(1)')).toHaveText(top.map((row) => count(row.id)));
+
+    await page.locator('[data-plan="view"]').click();
+    await settled();
+    const eu = rows.filter((row) => row.region === 'EU');
+    await expect(page.locator('#cp-totals [data-summary="totals.orders"] .statistic-value')).toHaveText(count(eu.length));
+    await expect(page.locator('#cp-totals [data-summary="totals.refunded"] .statistic-value')).toHaveText(count(eu.filter((row) => row.status === 'Refunded').length));
+    await expect(page.locator('#cp-body tr')).toHaveCount(10);
+
+    await page.locator('[data-plan="distinct"]').click();
+    await settled();
+    await expect(summary('strategy')).toHaveText('first-seen');
+    await expect(summary('totalResultRows')).toHaveText('unknown');
+    await expect(page.locator('#cp-body tr td:nth-child(1)')).toHaveText([...new Set(rows.map((row) => row.product))].slice(0, 5));
+    await page.locator('#compute summary').click();
+    await expect(page.locator('#cp-explain')).toContainText('"strategy": "first-seen"');
+  });
+
+  test('the compute comparison shows mongodb-compute.json: every query, both sizes and the verdict count', async ({ page }) => {
+    const data = JSON.parse(readFileSync('docs/assets/mongodb-compute.json', 'utf8'));
+    const engines = ['dataview, row reads', 'dataview, prepared columns', 'MongoDB', 'MongoDB + indexes'];
+    await page.goto('/docs/');
+    for (const size of ['1000000', '100000']) {
+      await page.locator(`#cp-vs-size .toggle[data-value="${size}"]`).click();
+      await expect(page.locator(`#cp-vs-size .toggle[data-value="${size}"]`)).toHaveAttribute('aria-pressed', 'true');
+      const run = data.sizes[size];
+      let wins = 0;
+      for (const [id, label] of Object.entries(data.queries) as [string, string][]) {
+        const times = engines.map((engine) => run.results.find((r: { query: string; engine: string }) => r.query === id && r.engine === engine).medianMs);
+        const ratio = Math.min(times[2], times[3]) / times[0];
+        if (ratio > 1) wins++;
+        const row = page.locator(`#cp-vs-body tr[data-query="${id}"]`);
+        await expect(row.locator('td').first()).toHaveText(label);
+        await expect(row.locator('td').nth(1)).toHaveText(ratio >= 1 ? `${ratio.toFixed(1)}× faster` : `${(1 / ratio).toFixed(1)}× slower`);
+      }
+      await expect(page.locator('#cp-vs-wins')).toHaveText(`faster in ${wins} of ${Object.keys(data.queries).length}`);
+      await expect(page.locator('#cp-vs-source')).toContainText(run.environment.mongodb);
+    }
+    // Row reads against prepared columns, as code in two tabs; the preparation time comes from the JSON.
+    await expect(page.locator('#cp-prep-rows')).toContainText('createImmutableArraySource(orders);');
+    await expect(page.locator('#cp-prep-columns')).toBeHidden();
+    await page.locator('#cp-prep-columns-tab').click();
+    await expect(page.locator('#cp-prep-columns')).toContainText('await source.prepareKeys(byRegion.explain().requiredFields);');
+    await expect(page.locator('#cp-prep-columns .mk-code-block-c').first()).toContainText('key cache');
+    await expect(page.locator('#cp-vs-prepare')).toContainText(`${Math.round(data.sizes['100000'].prepare.ms)} ms once for 100,000 orders`);
+    // The comparison's switch must not start a panel run.
+    await expect(page.locator('#cp-status')).not.toContainText('Running');
+  });
+
   test('API tabs and copy buttons', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/docs/');
-    for (const tab of ['request', 'filters', 'tree', 'result', 'identity', 'functions']) {
+    for (const tab of ['request', 'filters', 'tree', 'result', 'identity', 'compute', 'functions']) {
       await page.locator(`#tab-${tab}`).click();
       await expect(page.locator(`#api-${tab}`)).toBeVisible();
       await expect(page.locator('.dv-api .tab-content:visible')).toHaveCount(1);
     }
     await page.locator('#api-functions').getByText('setParent(rows').waitFor();
+    await page.locator('#tab-compute').click();
+    await expect(page.locator('#api-compute')).toContainText('q.aggregate(d)');
     const install = page.locator('#install .mk-code-block').first();
     await install.locator('.mk-code-block-copy').click();
     await expect(install.locator('.mk-code-block-status')).toHaveText('Copied');
@@ -319,6 +474,41 @@ test.describe('Big Data demo', () => {
     await page.locator('#reload').click();
     await expect(page.locator('#orders .data-grid-header[data-field="amount"]')).toHaveAttribute('aria-sort', 'descending');
     await expect(page.locator('#ins-query')).toContainText('"value": "EU"');
+  });
+
+  test('Reports: compute plans aggregate and project the orders into a Data Grid', async ({ page }) => {
+    const rows = orders(100_000);
+    const host = page.locator('#reports-host');
+    const records = () => page.evaluate(() => df$.shadcn.dataGrid.rows(document.querySelector('#reports-host .data-grid')!) as unknown as Array<Record<string, unknown>>);
+    await page.locator('#tab-reports').click();
+    await expect(statistic(page, 'Rows returned')).toHaveText('40');
+    await expect(host.locator('.data-grid-header')).toHaveText(['Region', 'Product', 'Orders', 'Paid revenue', 'Average order', 'Largest']);
+    await expect(page.locator('#ins-query .mk-code-block-k').first()).toHaveText('const');
+    const pairs = new Map<string, number>();
+    for (const row of rows) if (row.status === 'Paid') pairs.set(`${row.region}|${row.product}`, (pairs.get(`${row.region}|${row.product}`) ?? 0) + row.amount);
+    const best = [...pairs].sort((a, b) => b[1] - a[1])[0];
+    const first = (await records())[0];
+    expect(`${first.region}|${first.product}`).toBe(best[0]);
+    expect(first.paidRevenue as number).toBeCloseTo(best[1], 6);
+
+    await page.locator('#reports-plan').selectOption('refunds');
+    await expect(host.locator('.data-grid-header').first()).toHaveText('Region');
+    await expect(statistic(page, 'Rows returned')).toHaveText('4');
+    const refunded = (region: string) => rows.filter((row) => row.region === region && row.status === 'Refunded').length;
+    for (const record of await records()) expect(record.refunded).toBe(refunded(record.region as string));
+
+    await page.locator('#ins-presets button', { hasText: 'Paid orders with VAT' }).click();
+    await expect(statistic(page, 'Strategy')).toHaveText('top-k');
+    await expect(statistic(page, 'Rows returned')).toHaveText('10,000');
+    const top = (await records())[0];
+    expect(top.gross as number).toBeCloseTo((top.net as number) * 1.19, 9);
+    expect(top.net).toBe(Math.max(...rows.filter((row) => row.status === 'Paid').map((row) => row.amount)));
+
+    await page.locator('#reports-plan').selectOption('eu');
+    await expect(statistic(page, 'totals.orders')).toHaveText(count(rows.filter((row) => row.region === 'EU').length));
+    await page.locator('#reports-size .toggle[value="10000"]').click();
+    await expect(statistic(page, 'Orders').first(), 'the first statistic is the order count').toHaveText('10,000');
+    await expect(statistic(page, 'totals.orders')).toHaveText(count(orders(10_000).filter((row) => row.region === 'EU').length));
   });
 
   test('Files: the tree grid expands, collapses and filters', async ({ page }) => {

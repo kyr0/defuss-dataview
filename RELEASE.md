@@ -1,6 +1,6 @@
-# Release 0.5.0
+# Release 0.6.0
 
-0.5.0 is the next npm release after 0.4.0 and has not been published yet. Releases are published from a tagged commit of this repository; no credentials are stored here.
+0.6.0 follows 0.5.0, which is tagged `v0.5.0` and not yet on npm; publish 0.5.0 from its tag first. Releases are published from a tagged commit of this repository; no credentials are stored here.
 
 bun 1.4.3 is the package manager (`packageManager` in package.json, `bun.lock`); Node 22 or newer runs the tests and scripts:
 

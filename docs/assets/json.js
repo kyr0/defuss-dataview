@@ -23,3 +23,30 @@ export function jsonLines(text) {
     return line;
   });
 }
+
+// JavaScript highlighting for short, trusted samples such as the compute panel's plans: comments, strings and keywords
+// in the block's token classes, numbers and literals in .dv-json-literal, and called method names as keys. A sample
+// written for this page never needs a real parser; this covers the subset those samples use.
+// VERIFIED: tests/e2e/docs.spec.ts finds the keyword and string tokens in the compute panel's plan.
+const CODE = /(\/\/.*$)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\b(const|let|await|async|import|export|from|new|return|for|of|if|else|undefined)\b|\b(true|false|null|-?\d+(?:\.\d+)?n?)\b|\.([A-Za-z_$][\w$]*)(?=\()/g;
+
+/** The lines of a JavaScript sample as highlighted <span> elements. */
+export function codeLines(text) {
+  return text.split('\n').map((source) => {
+    const line = document.createElement('span');
+    let last = 0;
+    for (const match of source.matchAll(CODE)) {
+      if (match.index > last) line.append(source.slice(last, match.index));
+      const token = document.createElement('span');
+      if (match[5]) { line.append('.'); token.className = 'dv-code-call'; token.textContent = match[5]; }
+      else {
+        token.className = match[1] ? 'mk-code-block-c' : match[2] ? 'mk-code-block-s' : match[3] ? 'mk-code-block-k' : 'dv-json-literal';
+        token.textContent = match[0];
+      }
+      line.append(token);
+      last = match.index + match[0].length;
+    }
+    line.append(source.slice(last) || (last ? '' : ' '));
+    return line;
+  });
+}

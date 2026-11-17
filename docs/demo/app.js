@@ -6,7 +6,7 @@
 // Each tab generates its records on first use rather than all at load: VERIFIED (Chromium probe): 1,000,000 orders add
 // about 64 MB of heap, so a visitor who never opens a tab never pays for its data.
 import { orders, files, taxonomy, logs } from './data.js';
-import { jsonLines } from '../assets/json.js';
+import { codeLines, jsonLines } from '../assets/json.js';
 
 const $ = (id) => document.getElementById(id);
 const { dataGrid, dataTree, virtualList, autocomplete, propertyGrid } = df$.shadcn;
@@ -18,7 +18,7 @@ const frame = () => new Promise((resolve) => requestAnimationFrame(() => request
 // ---- inspector ------------------------------------------------------------------------------------------------------
 const inspector = {
   stats: $('ins-stats'), presets: $('ins-presets'), query: $('ins-query'), record: $('ins-record'),
-  ms: $('ins-ms'), what: $('ins-ms-what'), note: $('ins-query-note'),
+  ms: $('ins-ms'), what: $('ins-ms-what'), note: $('ins-query-note'), label: document.querySelector('.dv-query .mk-code-block-file'),
 };
 const defaultNote = [...inspector.note.childNodes].map((node) => node.cloneNode(true));
 
@@ -58,7 +58,7 @@ function refresh() {
     const tab = TABS[active];
     if (!tab.loaded) return;
     inspector.stats.replaceChildren(...tab.stats().map(([title, value]) => statistic(title, value)));
-    inspector.query.replaceChildren(...jsonLines(JSON.stringify(tab.query(), null, 2)));
+    inspector.query.replaceChildren(...(tab.code ? codeLines(tab.code()) : jsonLines(JSON.stringify(tab.query(), null, 2))));
   });
 }
 
@@ -66,6 +66,8 @@ function activateInspector(name) {
   const tab = TABS[name];
   $('ins-component').textContent = tab.component;
   $('ins-api').textContent = tab.api;
+  inspector.label.textContent = tab.codeLabel ?? 'el.api.getState().config';
+  $('ins-query-label').textContent = tab.code ? 'The plan behind the grid' : 'The query the component holds';
   if (tab.note) inspector.note.textContent = tab.note;
   else inspector.note.replaceChildren(...defaultNote.map((node) => node.cloneNode(true)));
   inspector.record.dataset.emptyText = tab.recordHint;
@@ -94,7 +96,7 @@ async function loadOrders(count) {
   ordersGrid.api.setState('loading');
   await frame(); // let the skeleton paint before a long synchronous generation
   const started = performance.now();
-  const rows = orders(count);
+  const rows = ordersOf(count);
   const generated = performance.now() - started;
   measure(`dataGrid.setSource() with ${number.format(count)} orders (generated in ${number.format(Math.round(generated))} ms)`,
     () => dataGrid.setSource(ordersGrid, rows, { cells: { status: statusCell } }));
@@ -131,6 +133,183 @@ for (const grid of [ordersGrid, $('files')]) {
   grid.addEventListener('click', (event) => { const record = gridRecord(grid, event); if (record) showRecord(record); }, { capture: true });
   grid.addEventListener('data-grid-activate', (event) => showRecord(event.detail.record));
 }
+
+// ---- Reports: defuss-dataview/compute plans over the orders, shown in a Data Grid ----------------------------------------
+// The plans run on this site's local build of defuss-dataview/compute (site-build pins the path below to the version
+// under review); the components above query through the defuss-dataview that defuss-shadcn bundles.
+// A report's columns differ per plan, so each run builds a fresh grid element with that plan's headers; defuss-shadcn
+// initializes grids added after load (its MutationObserver). The bundle loads when the tab opens.
+const COMPUTE = '../assets/defuss-dataview@0.6.0/browser-compute.mjs';
+const reportsHost = $('reports-host');
+const reportsPlan = $('reports-plan');
+let reportCount = 100_000;
+let reportRun = null;
+const generatedOrders = new Map();
+function ordersOf(count) {
+  if (!generatedOrders.has(count)) generatedOrders.set(count, orders(count));
+  return generatedOrders.get(count);
+}
+
+const money = 'currency:EUR';
+const REPORTS = {
+  regionProduct: {
+    columns: [['region', 'Region', '7rem'], ['product', 'Product', '9rem'], ['orders', 'Orders', '7rem', 'number'], ['paidRevenue', 'Paid revenue', '10rem', money],
+      ['averageOrder', 'Average order', '9rem', money], ['largest', 'Largest', '8rem', money]],
+    plan: (q) => q.aggregate({
+      groupBy: { region: q.field('region'), product: q.field('product') },
+      measures: {
+        orders: q.count(),
+        paidRevenue: q.sum(q.field('amount'), { where: q.eq(q.field('status'), q.literal('Paid')) }),
+        averageOrder: q.avg(q.field('amount')),
+        largest: q.max(q.field('amount')),
+      },
+      orderBy: [{ field: 'paidRevenue', direction: 'desc' }],
+    }),
+    code: `const q = forRows();
+const byRegionProduct = q.aggregate({
+  groupBy: { region: q.field('region'), product: q.field('product') },
+  measures: {
+    orders: q.count(),
+    paidRevenue: q.sum(q.field('amount'), { where: q.eq(q.field('status'), q.literal('Paid')) }),
+    averageOrder: q.avg(q.field('amount')),
+    largest: q.max(q.field('amount')),
+  },
+  orderBy: [{ field: 'paidRevenue', direction: 'desc' }],
+});
+const { rows, summary } = await byRegionProduct.evaluate(source, {}, { count: 'exact' });`,
+  },
+  refunds: {
+    columns: [['region', 'Region', '7rem'], ['orders', 'Orders', '7rem', 'number'], ['refunded', 'Refunded', '7rem', 'number'], ['refundedAmount', 'Refunded amount', '10rem', money],
+      ['failed', 'Failed', '6rem', 'number'], ['pending', 'Pending', '6rem', 'number']],
+    plan: (q) => {
+      const status = (value) => q.eq(q.field('status'), q.literal(value));
+      return q.aggregate({
+        groupBy: { region: q.field('region') },
+        measures: {
+          orders: q.count(),
+          refunded: q.count(undefined, { where: status('Refunded') }),
+          refundedAmount: q.sum(q.field('amount'), { where: status('Refunded') }),
+          failed: q.count(undefined, { where: status('Failed') }),
+          pending: q.count(undefined, { where: status('Pending') }),
+        },
+        orderBy: [{ field: 'refundedAmount', direction: 'desc' }],
+      });
+    },
+    code: `const status = (value) => q.eq(q.field('status'), q.literal(value));
+const refunds = q.aggregate({
+  groupBy: { region: q.field('region') },
+  measures: {
+    orders: q.count(),
+    refunded: q.count(undefined, { where: status('Refunded') }),
+    refundedAmount: q.sum(q.field('amount'), { where: status('Refunded') }),
+    failed: q.count(undefined, { where: status('Failed') }),
+    pending: q.count(undefined, { where: status('Pending') }),
+  },
+  orderBy: [{ field: 'refundedAmount', direction: 'desc' }],
+});
+const { rows } = await refunds.evaluate(source, {}, { count: 'exact' });`,
+  },
+  vat: {
+    columns: [['id', 'ID', '6rem', ''], ['customer', 'Customer', 'minmax(11rem, 1fr)'], ['region', 'Region', '7rem'], ['net', 'Net', '9rem', money],
+      ['vat', 'VAT 19 %', '8rem', money], ['gross', 'Gross', '9rem', money]],
+    page: { limit: 10_000 },
+    plan: (q) => {
+      const net = q.field('amount');
+      const gross = q.mul(net, q.literal(1.19));
+      return q.rows({
+        filters: [{ field: 'status', op: 'eq', value: 'Paid' }],
+        select: { id: q.field('id'), customer: q.field('customer'), region: q.field('region'), net, vat: q.sub(gross, net), gross },
+        orderBy: [{ expr: gross, direction: 'desc' }, { expr: q.field('id') }],
+      });
+    },
+    code: `const net = q.field('amount');
+const gross = q.mul(net, q.literal(1.19));
+const withVat = q.rows({
+  filters: [{ field: 'status', op: 'eq', value: 'Paid' }],
+  select: { id: q.field('id'), customer: q.field('customer'), region: q.field('region'), net, vat: q.sub(gross, net), gross },
+  orderBy: [{ expr: gross, direction: 'desc' }, { expr: q.field('id') }],
+});
+// the 10,000 largest paid orders; vat and gross are computed for these rows only
+const { rows, summary } = await withVat.evaluate(source, { limit: 10_000 }, { count: 'exact' });`,
+  },
+  eu: {
+    columns: [['id', 'ID', '6rem', ''], ['date', 'Date', '8rem', 'date'], ['customer', 'Customer', 'minmax(11rem, 1fr)'], ['product', 'Product', '9rem'],
+      ['status', 'Status', '7.5rem'], ['amount', 'Amount', '9rem', money]],
+    page: { limit: 1_000 },
+    plan: (q) => q.view({
+      filters: [{ field: 'region', op: 'eq', value: 'EU' }],
+      select: { id: q.field('id'), date: q.field('date'), customer: q.field('customer'), product: q.field('product'), status: q.field('status'), amount: q.field('amount') },
+      totals: { orders: q.count(), revenue: q.sum(q.field('amount')), averageOrder: q.avg(q.field('amount')) },
+      orderBy: [{ expr: q.field('date'), direction: 'desc' }, { expr: q.field('id') }],
+    }),
+    code: `const eu = q.view({
+  filters: [{ field: 'region', op: 'eq', value: 'EU' }],
+  select: { id: q.field('id'), date: q.field('date'), customer: q.field('customer'),
+    product: q.field('product'), status: q.field('status'), amount: q.field('amount') },
+  totals: { orders: q.count(), revenue: q.sum(q.field('amount')), averageOrder: q.avg(q.field('amount')) },
+  orderBy: [{ expr: q.field('date'), direction: 'desc' }, { expr: q.field('id') }],
+});
+// the newest 1,000 EU orders and totals over every EU order, from one scan
+const { rows, totals } = await eu.evaluate(source, { limit: 1_000 });`,
+  },
+};
+
+function newReportGrid(columns) {
+  const el = document.createElement('div');
+  el.className = 'data-grid';
+  el.setAttribute('aria-label', reportsPlan.selectedOptions[0].textContent);
+  el.dataset.persist = 'none';
+  el.dataset.emptyText = 'The report returned no rows.';
+  const headers = columns.map(([field, label, width, format]) => {
+    const numeric = format !== undefined && format !== 'date';
+    const filter = numeric ? 'number' : format === 'date' ? '' : 'text';
+    const attrs = [`data-field="${field}"`, `data-width="${width}"`, numeric ? 'data-type="number"' : '', format !== undefined ? `data-format="${format === 'number' ? 'number' : format}"` : '', filter ? `data-filter="${filter}"` : ''];
+    return `<div class="data-grid-header" ${attrs.filter(Boolean).join(' ')}>${label}</div>`;
+  }).join('');
+  el.innerHTML = `<div class="data-grid-viewport"><div class="data-grid-head"><div class="data-grid-row">${headers}</div></div><div class="data-grid-body"></div></div>`;
+  reportsHost.replaceChildren(el);
+  return el;
+}
+
+let reportGeneration = 0;
+async function runReport() {
+  const current = ++reportGeneration;
+  const name = reportsPlan.value;
+  const spec = REPORTS[name];
+  const grid = newReportGrid(spec.columns);
+  await frame(); // the new grid initializes, and its skeleton paints before a long synchronous generation
+  if (current !== reportGeneration) return;
+  grid.api.setState('loading');
+  await frame();
+  const generatedBefore = generatedOrders.has(reportCount);
+  let result, ms;
+  try {
+    const { forRows, createImmutableArraySource } = await import(COMPUTE);
+    const rows = ordersOf(reportCount);
+    const plan = spec.plan(forRows());
+    const started = performance.now();
+    result = await plan.evaluate(createImmutableArraySource(rows), spec.page ?? {}, name === 'eu' ? {} : { count: 'exact' });
+    ms = performance.now() - started;
+  } catch (failure) {
+    // A failed bundle load or plan leaves an empty grid that says why, instead of a skeleton that never ends.
+    if (current !== reportGeneration) return;
+    grid.dataset.emptyText = `The report failed: ${failure instanceof Error ? failure.message : String(failure)}`;
+    dataGrid.setSource(grid, []);
+    throw failure;
+  }
+  if (current !== reportGeneration) return;
+  dataGrid.setSource(grid, result.rows);
+  grid.addEventListener('click', (event) => { const record = gridRecord(grid, event); if (record) showRecord(record); }, { capture: true });
+  grid.store.subscribe(() => { if (active === 'reports') refresh(); });
+  reportRun = { name, result };
+  report(`plan.evaluate() over ${number.format(reportCount)} orders${generatedBefore ? '' : ' (generated first, not timed)'}: ${number.format(result.summary.returnedRows)} rows`, ms);
+  refresh();
+}
+$('reports-size').addEventListener('click', (event) => {
+  const toggle = event.target.closest('.toggle');
+  if (toggle && Number(toggle.value) !== reportCount) { reportCount = Number(toggle.value); void runReport(); }
+});
+reportsPlan.addEventListener('change', () => { activateInspector('reports'); void runReport(); });
 
 // ---- Files: tree grid -----------------------------------------------------------------------------------------------
 const filesGrid = $('files');
@@ -224,6 +403,23 @@ const TABS = {
       ['Reset', 'dataGrid.query() back to the source order', () => dataGrid.query(ordersGrid, { filters: [], sorters: [], locked: ['id'], selected: [], page: 0 })],
     ],
   },
+  reports: {
+    component: 'Data Grid + defuss-dataview/compute', api: 'forRows().aggregate() · rows() · view()', recordHint: 'Click a row.',
+    note: 'The plan that produced the grid\'s rows. Plans are prepared once and run on a snapshot source; the grid then sorts and filters what the plan returned.',
+    codeLabel: 'plan.js',
+    load: () => runReport(),
+    code: () => REPORTS[reportsPlan.value].code,
+    stats: () => {
+      if (!reportRun) return [['Orders', reportCount]];
+      const { summary, totals } = reportRun.result;
+      return [['Orders', reportCount], ['Rows returned', summary.returnedRows], ['Strategy', summary.strategy], ['Scanned', summary.scannedRows],
+        ...Object.entries(totals ?? {}).map(([name, value]) => [`totals.${name}`, typeof value === 'number' && !Number.isInteger(value) ? Math.round(value * 100) / 100 : value])];
+    },
+    presets: Object.keys(REPORTS).map((name) => [
+      [...reportsPlan.options].find((option) => option.value === name).textContent.replace(/ \(.*\)$/, ''), null,
+      () => { reportsPlan.value = name; reportsPlan.dispatchEvent(new Event('change')); },
+    ]),
+  },
   files: {
     component: 'Data Grid (tree grid)', api: 'df$.shadcn.dataGrid', recordHint: 'Click a row.',
     load() {
@@ -285,7 +481,7 @@ const TABS = {
 
 for (const [name, tab] of Object.entries(TABS)) {
   const el = { orders: ordersGrid, files: filesGrid, taxonomy: tree, logs: list, search: place }[name];
-  el.store.subscribe(() => { if (name === active) refresh(); });
+  el?.store.subscribe(() => { if (name === active) refresh(); }); // a report grid subscribes when it is built
   tab.loaded = false;
 }
 

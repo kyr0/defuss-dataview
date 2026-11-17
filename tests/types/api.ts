@@ -57,3 +57,33 @@ const cachedSource = createImmutableArraySource([{id:1,score:2}], { keyCache: {m
 const cacheBytes: Promise<number | undefined> = cachedSource.prepareKeys(['score']).then(stats => stats?.bytes);
 cachedSource.clearKeyCache();
 void cacheBytes;
+
+import { forRows } from 'defuss-dataview/compute';
+import type { Expr } from 'defuss-dataview/compute';
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type Order = { id: number; country: string; quantity: number; unitPrice: number | null; meta?: unknown };
+const cq = forRows<Order>();
+const revenue = cq.mul(cq.field('quantity'), cq.field('unitPrice'));
+const grouped = cq.aggregate({ groupBy: { country: cq.field('country') }, measures: { orders: cq.count(), revenue: cq.sum(revenue), top: cq.max(cq.field('unitPrice')), big: cq.sumBigInt(cq.literal(1n)) } });
+type Grouped = Awaited<ReturnType<typeof grouped.evaluate>>['rows'][number];
+const exactGroup: Grouped = { country: 'x', orders: 1, revenue: null, top: null, big: null };
+const exactBack: { country: string; orders: number; revenue: number | null; top: number | null; big: bigint | null } = exactGroup;
+const noAnyGroup: IsAny<Grouped['orders']> = false;
+// @ts-expect-error Aliases are exact: an undeclared output property does not exist.
+void exactGroup.missing;
+// @ts-expect-error Arithmetic takes numeric operands only.
+cq.mul(cq.field('country'), cq.field('quantity'));
+// @ts-expect-error field() names an existing top-level key.
+cq.field('nope');
+// @ts-expect-error A path is unknown until narrowed with number().
+cq.add(cq.path('meta.x'), cq.literal(1));
+const narrowed: Expr<number | null> = cq.add(cq.number(cq.path('meta.x')), cq.literal(1));
+const shown = cq.view({ select: { id: cq.field('id'), price: cq.field('unitPrice') }, totals: { n: cq.count(), mean: cq.avg(cq.field('unitPrice')) } });
+type Shown = Awaited<ReturnType<typeof shown.evaluate>>;
+const shownRow: { id: number; price: number | null } = {} as Shown['rows'][number];
+const shownTotals: { n: number; mean: number | null } = {} as Shown['totals'];
+const dynamic: Record<string, Expr<unknown>> = { id: cq.field('id') };
+const honest = cq.rows({ select: dynamic });
+const honestRow: Record<string, unknown> = {} as Awaited<ReturnType<typeof honest.evaluate>>['rows'][number];
+const noAnyHonest: IsAny<Awaited<ReturnType<typeof honest.evaluate>>['rows'][number][string]> = false;
+void [exactBack, noAnyGroup, narrowed, shownRow, shownTotals, honestRow, noAnyHonest];

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.6.0
+
+Tagged `v0.6.0` on 2026-11-17 and not yet on npm. It follows 0.5.0, tagged `v0.5.0` and also not yet on npm; publish 0.5.0 first.
+
+### Projection and aggregation
+
+- New entry point `defuss-dataview/compute` with `forRows<T>()`: typed expression builders and prepared `rows`, `aggregate` and `view` plans with `evaluate`, `stream` and `explain`.
+- Measures `count`, `sum`, `avg`, `min`, `max` and `sumBigInt`, each with an optional `where`; HAVING, output ordering and paging; `totalResultRows` under `count: 'exact'`.
+- Grouping by exact typed equality on a trie of native Maps; value-mode binary keys are copied.
+- Compensated (default) or sequential sums in source order, identical for every batch size; overflow, division by zero and count overflow throw.
+- `maxWorkingBytes`, `maxGroups`, `maxOutputRows`, `maxOutputBytes` and `sizeOfOutput`, enforced with reservations before allocation.
+- Strategies: scan, ordered, top-k and sort for rows; scalar, hash, certified ordered groups and grouping-only first-seen pages for aggregates.
+- Plans lease already-built key-cache columns for one execution and never build columns themselves.
+- Standalone browser module `dist/browser-compute.mjs`, which also exports the stream API so sources and plans share one module instance; it runs under a CSP without `unsafe-eval`.
+- `bun run benchmark:mongodb-compute` compares the plans with MongoDB aggregation pipelines: over 1,000,000 orders they took 1.6× to 4.4× less time than the faster MongoDB variant.
+
+### Website
+
+- A live compute panel runs five plans on up to 1,000,000 seeded orders, with or without prepared columns, and shows the MongoDB comparison.
+- Code samples are syntax-highlighted, including the install commands and the stream page's summary.
+- The header switches to the menu sheet below about 1,000 px instead of wrapping its links.
+- The comparison card explains prepared columns and shows row reads and `prepareKeys()` as code in two tabs.
+- The query explorer also runs compute plans written as JSON (`"aggregate"`, `"rows"` or `"view"`), with five examples.
+- The Ledger demo has a Reports tab: four compute plans over the orders, each shown in a Data Grid.
+- The flow diagram shows the Aggregate and Project steps, and the API section has a projection and aggregation tab.
+
+### Internal
+
+- `src/stream/driver.ts` holds session validation, shared by stream queries and compute plans, and the batch reader compute uses.
+- The key cache can lend existing columns through a lease and derives a column's value domain on first request.
+
 ## 0.5.0
 
 Unreleased successor of 0.4.0. Internal development stages before this release were never published.

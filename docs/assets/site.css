@@ -9,6 +9,10 @@
      the page the containing block of absolute descendants (sr-only labels), so the clip holds them too: with reduced
      motion no section has a transform that would contain them, and a phone then scrolled sideways. */
   .dv-page { position: relative; overflow-x: clip; }
+  /* Seven section links fit on one line only from about 62rem of header width; narrower headers use the menu sheet
+     instead of wrapping links onto two lines. The library switches at 40rem in the same container query. */
+  @container mk-header (width < 62rem) { .mk-header-nav { display: none; } .mk-header-menu { display: inline-flex; } }
+  .mk-header-nav .nav-menu-link { white-space: nowrap; }
   .dv-main { display: flex; flex-direction: column; gap: clamp(5rem, 11vw, 9rem); padding-block-end: clamp(5rem, 11vw, 9rem); }
   .dv-section { width: 100%; max-width: 76rem; padding-inline: 1rem; scroll-margin-top: 5rem; }
   /* section links move focus to the section (tabindex -1) for screen readers; it is not a control, so no ring */
@@ -57,8 +61,8 @@
   /* the row shapes read as units; phones wrap them, they would not fit */
   @media (min-width: 40rem) { .dv-how-grid .mk-process-step-desc code, .dv-type .card-description code { white-space: nowrap; } }
   @media (max-width: 60rem) { .dv-how-grid { grid-template-columns: minmax(0, 1fr); } }
-  /* wider boxes and gaps than the defaults (10.5rem, 4rem, 2.5rem): createDataview() and the wire labels need the room */
-  .dv-flow { --diagram-node-w: 12.5rem; --diagram-gap-x: 5.5rem; --diagram-gap-y: 3.5rem; margin-block-start: clamp(3rem, 6vw, 4.5rem); }
+  /* five columns: boxes a little wider than the default 10.5rem for "or forRows().aggregate()", gaps (default 4rem, 2.5rem) wide enough for the wire labels */
+  .dv-flow { --diagram-node-w: 11rem; --diagram-gap-x: 4.5rem; --diagram-gap-y: 3.5rem; margin-block-start: clamp(3rem, 6vw, 4.5rem); }
   .dv-flow-detail { display: block; min-height: 3rem; margin-block-start: .75rem; font-size: .875rem; color: var(--muted-foreground); text-wrap: pretty; }
 
   /* query explorer: three stacked steps in one card, so the rows and the result get the full width */
@@ -95,6 +99,7 @@
   .dv-editor-input::selection { background: oklch(0.6 0.12 250 / .45); color: transparent; }
   .dv-editor:has(.dv-editor-input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
   .dv-json-literal { color: oklch(0.82 0.12 70); }
+  .dv-code-call { color: oklch(0.8 0.11 230); }
   .dv-apply { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
   .dv-stale { color: var(--foreground); font-weight: 500; }
 
@@ -106,6 +111,24 @@
   .dv-result-grid .data-grid-content[data-kind="true"] { color: light-dark(#15803d, #4ade80); }
   .dv-result-grid .data-grid-content[data-kind="false"] { color: var(--muted-foreground); }
   .dv-state pre { max-height: 20rem; overflow: auto; }
+
+  .dv-compute { margin-block-start: 2.5rem; }
+  .dv-compute .dv-examples .btn[aria-pressed="true"] { pointer-events: none; }
+  .dv-compute .dv-counts .statistic-value { font-size: 1.125rem; overflow-wrap: anywhere; }
+  .dv-compute-table .table-cell, .dv-compute-table .table-head { white-space: nowrap; }
+  .dv-compute-table [data-numeric] { text-align: end; font-variant-numeric: tabular-nums; }
+  .dv-compute-totals { display: grid; gap: .75rem 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+    padding: .875rem; border: 1px dashed var(--border); border-radius: var(--radius-lg); }
+  .dv-compute-totals .statistic-value { font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+  .dv-cp-vs { margin-block-start: 1.5rem; padding: 0; overflow: hidden; }
+  .dv-cp-vs .dv-vs-scope { margin: 0; }
+  .dv-compute-table .table-cell[data-fastest] { font-weight: 700; color: var(--foreground); }
+  .dv-compute-table .table-cell[data-verdict="win"] { color: light-dark(#15803d, #4ade80); font-weight: 600; }
+  .dv-compute-table .table-cell[data-verdict="loss"] { color: light-dark(#b91c1c, #f87171); font-weight: 600; }
+  .dv-cp-vs .dv-compute-table .table-cell:first-child { white-space: normal; min-width: 10rem; }
+  .dv-cp-vs .dv-compute-table .table-head { white-space: normal; }
+  .dv-compute-features { display: grid; gap: 1rem; margin-block-start: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); }
+  .dv-compute-features .card { margin: 0; }
 
   .dv-dl { display: grid; gap: .5rem; margin: 0; }
   .dv-dl > div { display: grid; grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr); gap: .75rem; align-items: baseline; padding-block: .375rem; border-block-end: 1px dashed var(--border); }
@@ -147,7 +170,7 @@
   .dv-vs-hit[data-kind="loss"] strong { color: var(--dv-fail); }
   .dv-vs-hit span { color: var(--muted-foreground); line-height: 1.45; font-size: .875rem; }
   .dv-vs-panel { margin-top: 1rem; padding: clamp(1rem, 3vw, 1.75rem); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); }
-  .dv-vs-controls { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
+  .dv-vs-controls, .dv-cp-controls { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
   .dv-vs-control { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; font-size: .875rem; color: var(--muted-foreground); }
   .dv-vs-gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1.75rem 1rem; margin-top: 1.5rem; }
   .dv-vs-gauge { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: start; gap: .4rem; text-align: center; min-inline-size: 0; }
