@@ -101,3 +101,5 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T01:24:31Z s=9ef67782 FINDING docs/assets/site.js:PAIRINGS|showComparison; docs/index.html #mongodb; tests/e2e/docs.spec.ts learn=test: tests/e2e/docs.spec.ts checks the headline count, loss/cross card, every gauge per switch, both chart row counts and the paired table against mongodb.json
 2026-11-17T01:27:57Z s=9ef67782 DONE fp=1419cdea29fa cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+63)
 2026-11-17T01:28:25Z s=9ef67782 DONE fp=2b32b168e60a cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+62)
+2026-11-17T01:32:09Z s=9ef67782 DONE fp=4eea20d35a3b cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+118)
+2026-11-17T01:32:09Z s=9ef67782 FINDING branch release/0.5.0 diff against origin/main; SHA256SUMS learn=none: review of already tested code plus a file deletion; no new defect found

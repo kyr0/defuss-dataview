@@ -17,14 +17,14 @@ bun publish --access public
 
 1. Lint, type checks and the build, including the website bundle in `docs/assets/defuss-dataview@<version>/`.
 2. Coverage without the website unit test, which depends on fresh metrics; then the Chromium suite; then `scripts/site-metrics.mjs`, which times the build for the website.
-3. The complete coverage suite, `site-metrics.mjs --reports-only` to record its counts, the tarball consumer (`artifacts/defuss-dataview-<version>.tgz` plus `artifacts/package-verification.json`) and `npm run verify`.
+3. The complete coverage suite, `site-metrics.mjs --reports-only` to record its counts, the tarball consumer (`artifacts/defuss-dataview-<version>.tgz` plus `artifacts/package-verification.json`) and `bun run verify`.
 
 This order resolves the dependency between coverage and website metrics in a clean checkout without stale reports. Documentation browser checks allow 60 seconds for integrity-pinned CDN assets.
 
 ## Before tagging
 
 - Compare with the previous release on one idle machine: download `https://registry.npmjs.org/defuss-dataview/-/defuss-dataview-0.4.0.tgz`, unpack it outside the repository, then `bun run benchmark:paired -- <unpacked>/package/dist/index.mjs`. Update the README's speed section from `docs/assets/metrics.json` and that report.
-- Commit the refreshed `docs/` and `SHA256SUMS`. `SHA256SUMS` also hashes the gitignored `dist/` and `artifacts/`, which every build rewrites, so regenerate it right before tagging.
+- Commit the refreshed `docs/`. The registry records the tarball's sha512 integrity, which `bun run test:package` also computes into `artifacts/package-verification.json`.
 - For a later version, set `version` in package.json, update the changelog and rerun the check. The packing, website and metrics scripts read the version from `package.json`.
 
 ## Browsers
