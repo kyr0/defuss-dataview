@@ -4,8 +4,6 @@
 Agents append `<UTC ISO> s=<session> LESSON <Signan>` only for a falsified HYPOTHESIS, a dead end, or a root cause.
 A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then delete its lines. -->
 
-2026-10-04T10:16:17Z s=cd9fdf13 FINDING src/fields.ts:31|setField learn=test: src/regressions.test.ts 'moves class-instance rows like updateRows and 0.3.1 do' failed before fix
-2026-10-04T10:16:17Z s=cd9fdf13 FINDING src/dataview.ts:18|evaluateFlat; src/tree.ts:100|evaluateTree learn=test: src/regressions.test.ts 'treats non-JSON row IDs as unselected…' failed before fix (flat unsorted+sorted)
 2026-10-04T10:16:17Z s=cd9fdf13 FINDING scripts/package-tests.mjs:18|consumer learn=test: make e2e runs test:package each gate; failed before fix, passes after
 2026-10-04T10:16:17Z s=cd9fdf13 FINDING .github/workflows/verify.yml|steps learn=none: workflow not executed locally; first CI run on origin is the evidence
 2026-10-04T10:19:56Z s=cd9fdf13 LESSON commit hook checks the whole Bash command before it runs → `vae.py gate` AND `git commit` REQUIRE separate tool calls; fingerprint is relative to HEAD → gate again after EVERY commit
@@ -103,3 +101,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T01:28:25Z s=9ef67782 DONE fp=2b32b168e60a cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+62)
 2026-11-17T01:32:09Z s=9ef67782 DONE fp=4eea20d35a3b cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+118)
 2026-11-17T01:32:09Z s=9ef67782 FINDING branch release/0.5.0 diff against origin/main; SHA256SUMS learn=none: review of already tested code plus a file deletion; no new defect found
+2026-11-17T01:33:37Z s=9ef67782 FAIL hygiene.probes,ci.bun-only
+2026-11-17T01:34:12Z s=9ef67782 DONE fp=6352023ebad6 cov=99.0% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+119)
+2026-11-17T01:34:12Z s=9ef67782 FINDING .github/workflows/ci.yml learn=verifier: .vae/VERIFY.py rule ci.bun-only (not_regex over .github/workflows/*.yml) matches all four npm uses in the old ci.yml; a temporary 'npm ci' line made the gate fa

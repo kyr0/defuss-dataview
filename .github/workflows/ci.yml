@@ -17,10 +17,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run check
+      # bun is the package manager (package.json packageManager); Node from the matrix runs the scripts and tests.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run check
       - uses: actions/upload-artifact@v4
         with:
           name: defuss-dataview-node-${{ matrix.node }}

@@ -32,4 +32,11 @@ RULES = [{
     # artifacts/ is gitignored: a test importing from it passes locally and fails in CI and fresh clones.
     "pattern": r"""from\s+['"](?:\.\./)+artifacts/""",
     "claim": "TypeScript sources and tests import no gitignored artifacts/; commit oracles under tests/reference/",
+}, {
+    "id": "ci.bun-only",
+    "kind": "not_regex",
+    "glob": ".github/workflows/*.yml",
+    # VERIFIED 2026-11-17: ci.yml kept `cache: npm` and `npm ci` after the bun migration and failed without package-lock.json.
+    "pattern": r"cache:\s*npm\b|\bnpm\s+(?:ci|install|run)\b|\bnpx\s",
+    "claim": "CI workflows install and run through bun (bun.lock), never npm",
 }]
