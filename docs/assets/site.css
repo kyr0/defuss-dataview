@@ -37,7 +37,7 @@
      28rem band shows, so its empty top and bottom are pulled into the neighbouring gaps */
   .dv-flythrough { padding-inline: 1rem; margin-block: calc(-1 * clamp(4rem, 12vh, 9rem)); }
   .dv-flythrough .parallax-stage { clip-path: inset(max(0px, calc((100dvh - 28rem) / 2)) 0 round var(--radius-xl)); }
-  .dv-fly-word { margin: 0; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #9db2ff, #7cf0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .dv-fly-word { margin: 0; text-align: center; text-wrap: balance; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #9db2ff, #7cf0ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   /* the demo window */
   .dv-window {
@@ -127,7 +127,7 @@
   .dv-type .card-title code { font-size: 1rem; }
 
   /* numbers */
-  .mk-stats-desc a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .mk-stats-desc a, .mk-hero-desc a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
   .mk-stat-value .badge { vertical-align: middle; }
   .dv-metrics { margin: 0; align-self: center; display: flex; flex-direction: column; gap: .5rem; aspect-ratio: auto; overflow: visible; background: none; }
   .dv-metrics .mockup-code { margin: 0; }
@@ -137,6 +137,31 @@
     display: flex; flex-direction: column; gap: 1.25rem; margin-block-start: clamp(2.5rem, 5vw, 3.5rem); }
   :root.dark .dv-perf { --dv-series-2: #d95926; }
   .dv-perf-title { margin: 0; font-size: 1.25rem; font-weight: 600; }
+  /* MongoDB comparison below the hero: headline figures, three gauges that follow the size and query switches, two
+     dumbbell charts with every pairing, then the table. Green where dataview was faster, the series orange where not. */
+  .dv-vs { --dv-ok: oklch(0.55 0.15 150); --dv-fail: #c4501f; }
+  :root.dark .dv-vs { --dv-ok: oklch(0.74 0.16 150); --dv-fail: #f07a45; }
+  .dv-vs-hits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; margin-top: 2rem; }
+  .dv-vs-hit { display: grid; align-content: start; gap: .5rem; padding: 1.15rem 1.3rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); }
+  .dv-vs-hit strong { font-size: clamp(2.3rem, 5vw, 3.2rem); line-height: 1; font-weight: 800; letter-spacing: -.04em; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .dv-vs-hit[data-kind="loss"] strong { color: var(--dv-fail); }
+  .dv-vs-hit span { color: var(--muted-foreground); line-height: 1.45; font-size: .875rem; }
+  .dv-vs-panel { margin-top: 1rem; padding: clamp(1rem, 3vw, 1.75rem); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); }
+  .dv-vs-controls { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
+  .dv-vs-control { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; font-size: .875rem; color: var(--muted-foreground); }
+  .dv-vs-gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1.75rem 1rem; margin-top: 1.5rem; }
+  .dv-vs-gauge { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: start; gap: .4rem; text-align: center; min-inline-size: 0; }
+  .dv-vs-gauge .tacho { --tacho-size: 15rem; --tacho-optimum: var(--dv-ok); --tacho-worst: var(--dv-fail); max-width: 100%; }
+  .dv-vs-gauge figcaption { display: grid; gap: .1rem; }
+  .dv-vs-gauge figcaption strong { font-size: 1.05rem; }
+  .dv-vs-gauge figcaption span { font-size: .875rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .dv-vs-key, .dv-vs-scope { margin: 1.5rem 0 0; font-size: .875rem; color: var(--muted-foreground); max-width: 52rem; text-wrap: pretty; }
+  .dv-vs-scope a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .dv-vs-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: 1rem; margin-top: 1rem; }
+  .dv-vs-charts .chart-frame { min-inline-size: 0; margin: 0; }
+  .dv-vs-chart { height: 24rem; }
+  .dv-vs-details { margin-top: 1rem; max-width: none; }
+  .dv-vs-table td:nth-child(n+2) { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dv-perf-lead { margin: 0; max-width: 52rem; color: var(--muted-foreground); text-wrap: pretty; }
   .dv-perf-charts { display: grid; gap: 1.5rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); }
   .dv-perf-charts .chart-frame { min-width: 0; margin: 0; }

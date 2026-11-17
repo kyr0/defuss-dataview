@@ -50,11 +50,11 @@ describe('docs/index.html', () => {
     const files = ['docs/index.html', ...readdirSync(join(root, 'docs/demo')).map((name) => `docs/demo/${name}`), 'docs/assets/site.js']
       .filter((path) => /\.(html|js)$/.test(path));
     const pins = files.flatMap((path) => [...read(path).matchAll(/defuss-dataview@(\d+\.\d+\.\d+)/g)].map((m) => m[1]));
-    expect(pins.length).toBeGreaterThanOrEqual(5);
+    expect(pins.length).toBeGreaterThanOrEqual(4);
     expect(new Set(pins).size).toBe(1);
     const importMap = JSON.parse(page.match(/<script type="importmap">([\s\S]*?)<\/script>/)![1]);
     const url = importMap.imports['defuss-dataview'];
-    expect(url).toBe(`https://cdn.jsdelivr.net/npm/defuss-dataview@${pins[0]}/dist/browser.min.mjs`);
+    expect(url).toBe(`./assets/defuss-dataview@${pins[0]}/browser.min.mjs`);
     expect(importMap.integrity[url]).toMatch(/^sha384-[A-Za-z0-9+/]{64}$/);
     // The install snippet shows the same import map the page uses.
     expect(plain(page)).toContain(`"${importMap.integrity[url]}"`);

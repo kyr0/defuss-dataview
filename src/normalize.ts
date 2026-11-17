@@ -1,5 +1,6 @@
 import { fieldParts } from './fields.js';
 import { uniqueIds } from './identity.js';
+import { normalizeSemantics } from './values.js';
 import type { DataviewFilterOperator, DataviewMeta, DataviewRequest, DataviewSortDirection, DataviewState } from './types.js';
 
 const operators: readonly DataviewFilterOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'startsWith', 'endsWith'];
@@ -19,7 +20,7 @@ export function createDataview(request: DataviewRequest = {}): DataviewState {
   const filters = (request.filters === undefined ? [] : array(request.filters, 'filters') as NonNullable<DataviewRequest['filters']>).map(filter => {
     fieldParts(filter?.field);
     if (!operators.includes(filter.op)) throw new TypeError(`Dataview filter op '${String(filter.op)}' is not supported.`);
-    // Preserve strict reference equality for eq/neq and array membership filters.
+    // Compilation captures scalar value operands; opaque objects retain identity.
     return { field: filter.field, op: filter.op, value: filter.value };
   });
   const sorters = (request.sorters === undefined ? [] : array(request.sorters, 'sorters') as NonNullable<DataviewRequest['sorters']>).map(sorter => {
@@ -53,5 +54,7 @@ export function createDataview(request: DataviewRequest = {}): DataviewState {
   }
   const idField = request.idField ?? tree?.idField ?? 'id';
   fieldParts(idField);
-  return { filters, sorters, page, pageSize, idField, meta: normalizeMeta(request.meta), tree };
+  // VERIFIED: validating here makes a malformed `semantics` fail in createDataview, as every other field does, instead of
+  // being ignored or crashing at evaluation (src/regressions.test.ts 'rejects malformed semantics at normalization').
+  return { filters, sorters, page, pageSize, idField, meta: normalizeMeta(request.meta), tree, semantics: request.semantics === undefined ? undefined : normalizeSemantics(request.semantics) };
 }

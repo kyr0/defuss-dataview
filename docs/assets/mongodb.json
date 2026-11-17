@@ -1,0 +1,265 @@
+{
+  "queries": {
+    "top": "score >= 500, sort score desc + key, first 50, exact count",
+    "page": "first 50 by key"
+  },
+  "method": "1 warmup that also cross-checks results, then median of 7 alternating runs, gc between runs when --expose-gc; MongoDB over loopback, count and page issued concurrently",
+  "sizes": {
+    "100000": {
+      "measuredAt": "2026-11-17T01:07:49.190Z",
+      "environment": {
+        "node": "v26.13.1",
+        "platform": "darwin 25.6.0 arm64",
+        "cpu": "Apple M5 Max",
+        "mongodb": "9.0.8",
+        "storageEngine": "wiredTiger"
+      },
+      "loads": [
+        {
+          "engine": "DBSONL memory",
+          "ms": 315.433583
+        },
+        {
+          "engine": "DBSONL file",
+          "ms": 438.81845799999996
+        },
+        {
+          "engine": "MongoDB",
+          "ms": 242.47508299999993
+        },
+        {
+          "engine": "MongoDB + index",
+          "ms": 295.05050000000006
+        }
+      ],
+      "builds": [
+        {
+          "index": "DBSONL file projection of value.score",
+          "ms": 343.345542
+        },
+        {
+          "index": "fixed-query index for the top query",
+          "ms": 51.75499999999988
+        },
+        {
+          "index": "fixed-query index for the page query",
+          "ms": 41.268167000000176
+        }
+      ],
+      "results": [
+        {
+          "query": "top",
+          "engine": "dataview + immutable array",
+          "medianMs": 7.500250000000051,
+          "minMs": 7.230416999999761
+        },
+        {
+          "query": "top",
+          "engine": "dataview fixed-query index",
+          "medianMs": 0.12125000000014552,
+          "minMs": 0.09720799999968222
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL memory",
+          "medianMs": 259.6693749999995,
+          "minMs": 255.01737499999945
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL file",
+          "medianMs": 318.23962500000016,
+          "minMs": 311.73975000000064
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL file, same revision",
+          "medianMs": 17.052291999999852,
+          "minMs": 10.30591700000059
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB",
+          "medianMs": 30.43208400000003,
+          "minMs": 21.666207999999642
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB + index",
+          "medianMs": 7.0154999999999745,
+          "minMs": 6.555374999999913
+        },
+        {
+          "query": "page",
+          "engine": "dataview + immutable array",
+          "medianMs": 0.0950410000004922,
+          "minMs": 0.07491699999991397
+        },
+        {
+          "query": "page",
+          "engine": "dataview fixed-query index",
+          "medianMs": 0.09987499999988358,
+          "minMs": 0.08266699999967386
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL memory",
+          "medianMs": 1.7775000000001455,
+          "minMs": 1.256666999999652
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL file",
+          "medianMs": 1.7349169999997684,
+          "minMs": 1.603041999999732
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL file, same revision",
+          "medianMs": 0.7733329999991838,
+          "minMs": 0.6967920000006416
+        },
+        {
+          "query": "page",
+          "engine": "MongoDB",
+          "medianMs": 0.9515000000001237,
+          "minMs": 0.7507080000004862
+        },
+        {
+          "query": "page",
+          "engine": "MongoDB + index",
+          "medianMs": 0.9517500000001746,
+          "minMs": 0.8125420000005761
+        }
+      ]
+    },
+    "1000000": {
+      "measuredAt": "2026-11-17T01:09:04.982Z",
+      "environment": {
+        "node": "v26.13.1",
+        "platform": "darwin 25.6.0 arm64",
+        "cpu": "Apple M5 Max",
+        "mongodb": "9.0.8",
+        "storageEngine": "wiredTiger"
+      },
+      "loads": [
+        {
+          "engine": "DBSONL memory",
+          "ms": 3097.904
+        },
+        {
+          "engine": "DBSONL file",
+          "ms": 4413.979209000001
+        },
+        {
+          "engine": "MongoDB",
+          "ms": 1872.6060000000007
+        },
+        {
+          "engine": "MongoDB + index",
+          "ms": 2367.721416999999
+        }
+      ],
+      "builds": [
+        {
+          "index": "DBSONL file projection of value.score",
+          "ms": 4477.509708
+        },
+        {
+          "index": "fixed-query index for the top query",
+          "ms": 612.9282500000008
+        },
+        {
+          "index": "fixed-query index for the page query",
+          "ms": 422.916624999998
+        }
+      ],
+      "results": [
+        {
+          "query": "top",
+          "engine": "dataview + immutable array",
+          "medianMs": 75.71975000000384,
+          "minMs": 73.83204200000182
+        },
+        {
+          "query": "top",
+          "engine": "dataview fixed-query index",
+          "medianMs": 0.13341700000091805,
+          "minMs": 0.11183300000266172
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL memory",
+          "medianMs": 2547.008208000003,
+          "minMs": 2491.133708000001
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL file",
+          "medianMs": 3191.464,
+          "minMs": 3102.061084000001
+        },
+        {
+          "query": "top",
+          "engine": "dataview + DBSONL file, same revision",
+          "medianMs": 80.32324999999764,
+          "minMs": 72.11362500000178
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB",
+          "medianMs": 166.41712499999994,
+          "minMs": 152.1422910000001
+        },
+        {
+          "query": "top",
+          "engine": "MongoDB + index",
+          "medianMs": 31.5836249999993,
+          "minMs": 30.074625000001106
+        },
+        {
+          "query": "page",
+          "engine": "dataview + immutable array",
+          "medianMs": 0.12879200000315905,
+          "minMs": 0.1038330000010319
+        },
+        {
+          "query": "page",
+          "engine": "dataview fixed-query index",
+          "medianMs": 0.11516700001084246,
+          "minMs": 0.09795799999847077
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL memory",
+          "medianMs": 2.0216249999939464,
+          "minMs": 1.6184579999971902
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL file",
+          "medianMs": 1.928249999997206,
+          "minMs": 1.6555420000076992
+        },
+        {
+          "query": "page",
+          "engine": "dataview + DBSONL file, same revision",
+          "medianMs": 1.1284160000068368,
+          "minMs": 0.8473330000124406
+        },
+        {
+          "query": "page",
+          "engine": "MongoDB",
+          "medianMs": 1.2332920000044396,
+          "minMs": 0.9580839999980526
+        },
+        {
+          "query": "page",
+          "engine": "MongoDB + index",
+          "medianMs": 1.0836250000138534,
+          "minMs": 1.0558750000054715
+        }
+      ]
+    }
+  }
+}

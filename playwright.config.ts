@@ -14,7 +14,8 @@ const bind = (port: number) => new Promise<number>((resolve, reject) => {
 process.env.PORT ??= String(await bind(4179).catch(() => bind(0)));
 const origin = `http://127.0.0.1:${process.env.PORT}`;
 export default defineConfig({
-  testDir: './tests/e2e', timeout: 20000, expect: { timeout: 5000 }, workers: 2, retries: 0,
+  // Documentation tests load integrity-pinned CDN assets; allow slow networks without weakening assertions.
+  testDir: './tests/e2e', timeout: 60000, expect: { timeout: 5000 }, workers: 2, retries: 0,
   // VERIFIED: JSON in artifacts/ is release evidence (SHA256SUMS); the HTML report in output/ is the fresh per-run e2e evidence the vae gate checks.
   reporter: [['list'], ['json', { outputFile: 'artifacts/browser-results.json' }], ['html', { outputFolder: 'output/playwright-report', open: 'never' }]],
   use: { baseURL: origin, headless: true, launchOptions: {

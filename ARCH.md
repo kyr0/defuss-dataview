@@ -1,56 +1,60 @@
-# Architecture and audit
+# Architecture
 
-Source baseline: `kyr0/defuss`, `packages/dataview`, commit `50aae32aa9aea45612510703e75875ed98aa6386`, package 0.3.1. The GitHub plugin confirmed this as main during preparation. The standalone package preserves every original test and benchmark; fixture and test hashes are checked by `npm run verify`.
+Version 0.5.0 builds on standalone DataView commit `7ff0498e426f1d40ceaeff409f4fb725dbe81223` (package 0.4.0). DBSONL integration was designed against `kyr0/defuss-dbjsonl` commit `a6063a50e84f872d442efc4bef0ec03cb0986c08`, package 0.4.0, and tested against the npm package.
 
-## Reproduced issues
+## Boundaries
 
-| Issue | Upstream observation | Change |
-| --- | --- | --- |
-| Parent cycle with default ancestors | Exceeded subprocess deadline; parent walk never terminates | Break cycles once before all hierarchy operations |
-| 20k-deep tree | `RangeError: Maximum call stack size exceeded` | Iterative traversal |
-| Cycle plus unrelated root | Cyclic component omitted | Every normalized component receives a root |
-| Explicit empty expansion | Child still visible | Explicit expand-all flag; empty list collapses |
-| Structurally equal ID | Selection false | Canonical JSON identity shared across operations |
-| Nested patch identifier | Matching row unchanged | Shared dot-path access |
-| Equal patch | New array/row allocated | Shallow own-property comparison; lazy copy |
-| View subtype metadata update | Extra property lost despite return type T | Preserve view with spread; replace only meta |
-| Inherited filter field | Prototype value matched | Own-property traversal |
-| Descending NaN ties | Input order reversed | Stable invalid-value equivalence and type ordering |
+| Layer | Responsibility |
+| --- | --- |
+| values/query/fields | Deterministic equality, ordering, safe access and query compilation |
+| table/tree evaluator | Synchronous exact grid results, forest normalization, UI metadata |
+| stream executor | One owned snapshot, global query state, bounded sorting/paging/counts |
+| record source | Scoped stable records, order/count capabilities, batching and cleanup |
+| DBSONL adapter | Map read-session lifecycle and key ranges to the source protocol |
+| storage/database/graph | Bytes, durability, mutation/index planning and graph traversal outside this package |
 
-`scripts/audit-upstream.mjs` writes reproducible observations to `artifacts/upstream-audit.json`. The pinned original source is retained under `tests/fixtures/upstream-src` in the source distribution only. The current regressions directly assert corrected behavior, including an isolated-process cycle deadline, 50k-deep and 150k-wide trees. A seeded differential test compares 160 ordinary forest/filter/sort/paging cases with the original implementation.
+Runtime entries import no Node/DOM modules and have no package dependencies. Query compilation captures configuration explicitly; no mutable-descriptor cache or global data registry exists. Platform/storage APIs remain in caller-provided sources. DBSONL types are structural, so tree-shaking and browser consumers never resolve its native backend through DataView.
 
-## Modules
+## Execution
 
-- `types.ts`: public descriptor, state, entry, result and metadata types.
-- `normalize.ts`: validation/defaults, explicit expansion mode, detached metadata IDs.
-- `fields.ts`: validated own-property reads and immutable nested parent writes.
-- `identity.ts`: canonical JSON identity, duplicate removal and ID-list equality.
-- `query.ts`: compiled predicates and stable comparison rules; no code generation.
-- `tree.ts`: cycle normalization, hierarchy inclusion, sorted iterative traversal.
-- `dataview.ts`: flat execution and shared pagination result contract.
-- `view-meta.ts`: state-preserving UI helpers.
-- `data-patch.ts`: immutable shallow batches and guarded tree moves.
+Filtering uses one compiled own-property accessor per field. Sort keys use one coherent total preorder; no ad-hoc pairwise coercion. Stable encounter ordinals extend that preorder for heap retention. Source ordering can satisfy a requested prefix only with the same comparator fingerprint. Default code-unit string ordering matches DBSONL keys; locale collation creates a different fingerprint.
 
-No module stores user data globally or imports a browser/Node API at runtime. There are no runtime dependencies. Request compilation is per apply; descriptors remain ordinary mutable JavaScript objects, so implicit caching would require a new invalidation contract and is intentionally absent.
+Unsorted/matching-order execution maintains global offset/limit counters across batches. Unknown hasMore needs a lookahead match; exact filtered totals need exhaustion. The source's exact count may answer an unfiltered total without exhaustion. Summary counts never substitute an observed prefix for an exact total.
 
-## Hierarchy algorithm
+An unordered finite sorted page retains k = offset + limit candidates in a max-heap. Invariant: after examining i matching rows, the heap contains the best min(i,k) under (query comparison, encounter ordinal); its root is the worst retained row. A new candidate replaces the root only if strictly better. Final sorting of the retained prefix produces the global page. Time O(n log k + k log k), memory O(k), with independent row/byte admission. Unpaged sorting retains all matches subject to the same budgets. No full external sort is hidden behind a streaming API.
 
-Build a first-wins ID index and parent-index array. Color-walk this functional graph, cutting the lowest-index cycle member's parent edge in each component. The resulting forest permits finite parent and child walks while retaining every row. Build child lists only for parents that have children; sort roots/siblings when requested.
+Batches use pull-based iteration and no background prefetch. Periodic configurable host task yields prevent synchronous/in-memory sources from starving timer or message cancellation. Synchronous input rows batch without one awaited promise per row. defuss-dbsonl 0.6.0 supplies native batches; row-only providers retain per-record work. Output arrays are fresh and never reused. Batch events precede final success, so consumers must understand partial output on later failure.
 
-Evaluate filters once per row. Ancestor propagation uses a processed bitset: each ancestor edge is visited at most once, fixing quadratic work on chains. Descendant propagation also uses a visited bitset and single-value stack pushes, avoiding both duplicate work and engine argument-count limits. Iterative preorder tracks original hierarchy depth, applies expansion/depth visibility, counts visible entries, and allocates entry/meta objects only for the requested page.
+## Resource lifetime
 
-With primitive IDs and fixed predicate/path costs, hierarchy construction, cycle handling, inclusion and traversal are O(n) time and O(n) working memory. Sibling sorting adds O(sum(k log k)) and comparator work. Canonical composite IDs additionally cost serialization and sorting of their object keys. Deep nested identifiers themselves are not promised stack-unbounded; only row hierarchy traversal is iterative.
+Configuration is compiled at call time; a snapshot opens at first pull. The executor owns it until completion, error, cancellation or consumer return. It calls both iterator return and session close, including when one cleanup fails. Cleanup errors aggregate, preserving the processing error first. Completion is emitted only after cleanup succeeds. Cancellation is cooperative and does not abandon pending I/O. Paused iterators intentionally retain snapshot pins.
 
-Flat filtered/unsorted evaluation counts matches in one pass and allocates O(pageSize) result entries when paged. With neither filters nor sorters, counts come directly from array length and only the requested page is read: O(pageSize). Sorting still materializes all candidates and performs a full stable sort, then reads only its requested page. No top-k algorithm, persistent index or incremental query engine is introduced. Filtered exact totals require scanning all candidates.
+Budgets account rows, full binary backings and candidate overhead. VM overhead, caller memory, source buffers, input/output batches, sorting and collector scopes are disclosed separately. Estimates are deterministic accounting, not proof of a physical heap ceiling. Getters are excluded from default accounting; a custom pure sizeOf may represent other trusted row classes.
 
-## Compatibility and trade-offs
+## Arrays and forests
 
-0.4.0 is a pre-1.0 minor release because empty expansion, malformed paths, invalid identifiers, parent cycles, mixed-type sorting and unsafe integers have corrected semantics. See README migration notes. The previous entry points, ESM/CommonJS formats, runtime engine range, procedural signatures and all 67 original tests are retained.
+Array sources default to cloning values on open; immutable mode trusts caller immutability. The synchronous table/tree API retains row identities. Tree evaluation builds an ID index and parent array, cuts cycles deterministically, propagates inclusion with visited state, and walks preorder iteratively. Its hierarchy memory is O(n); sorting adds sibling work. Selection uses canonical JSON IDs, distinct from value equality.
 
-Canonical JSON IDs support descriptor round trips without reference-identity mismatch. Filter equality deliberately remains strict equality; changing it would alter unrelated filtering semantics. Object-key order is ignored only for identifiers. Native string collation remains host-dependent, matching upstream behavior; callers needing exact cross-locale ordering should normalize their sort keys.
+## Evidence
 
-Local benchmark reports contain raw samples and disclose regressions as well as gains. Safer access, composite identity and exact counts have costs. The primary performance guarantee is elimination of quadratic ancestor traversal and recursion/argument-limit failures, not a universal latency improvement.
+Tests exercise real memory/native/OPFS storage, seeded array/stream equivalence, adversarial ties and late winners, mixed-type comparator laws, explicit limits, source contract errors, cleanup failure aggregation and package consumption. `tests/fixtures/` preserves historical source/tests as immutable provenance; the current contract is tested under src/. Differential tests compare the optimized compiler and byte accounting with a committed pre-optimization build in `tests/reference/`, whose hashes `npm run verify` checks; benchmark reports and their environment land in `artifacts/`.
 
-## Packaging gates
+The optimization design and benchmark reproduction are in [documentation/PERFORMANCE.md](documentation/PERFORMANCE.md). Source-private measured scans, fused external validation, admission-before-allocation top-k, guarded scalar query paths and versioned immutable array snapshots preserve the common engine contracts.
 
-pkgroll creates ESM/CJS JavaScript and matching declarations; esbuild creates direct browser ESM assets and measured sizes. Type checks run without DOM ambient libraries against a tarball installed outside the workspace. Runtime smoke tests import ESM and CommonJS while browser-global access throws. Playwright exercises the built minified bundle and a real module worker. Unit coverage excludes original fixture implementation; it measures current runtime source only.
+
+## Revision cache and explicit indexes
+
+Each immutable membership revision owns a lazy bounded numeric accounting cache.
+No generic object-identity memoization exists. A prepared query captures compilation
+alone; each invocation still owns its session and execution buffers. The optional
+index owns a filtered, stable-sorted row-reference array and uses a WeakSet to
+validate process-local cursor authority and exact revision. Rebuild publication
+is atomic; its synchronous cost and separate source memory limits are explicit.
+
+defuss-dbsonl 0.6.0 snapshots supply bounded batch pulls (`scanBatches`); the
+adapter uses them when present and batches `scan()` rows itself otherwise, so an
+older or row-only database still works. The adapter's own size check keeps
+structural-provider validation intact. Library consumers install defuss-dbsonl
+only if they use the adapter.
+
+Optional revision key caches retain raw field columns across queries. Exact revision/field identities, admission reservations and private pinned leases separate cache efficiency from correctness. Block summaries only bypass predicates after full batch validation. See [documentation/KEY-CACHE.md](documentation/KEY-CACHE.md) and [src/stream/ARCH.md](src/stream/ARCH.md) for lifecycle and memory boundaries.

@@ -8,13 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # Release tooling targets Node 22/24 (RELEASE.md); the runner default may differ.
+      # Release tooling targets Node 22 or newer (RELEASE.md); the runner default may differ.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      # setup installs a missing uv/bun with the official installers; later steps get their dirs on PATH.
-      - run: make setup && printf '%s\n' "$HOME/.local/bin" "$HOME/.bun/bin" >> "$GITHUB_PATH"
+      # bun is the package manager (package.json packageManager); Node runs the tests and scripts.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - run: make setup
       # Chromium system libraries need root; make setup stays sudo-free for local use.
-      - run: npx playwright install-deps chromium
+      - run: bunx playwright install-deps chromium
       - run: make verify

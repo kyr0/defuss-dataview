@@ -1,17 +1,19 @@
 defuss-dataview
 Copyright: see the original MIT LICENSE shipped with this package.
 
-Based on https://github.com/kyr0/defuss/tree/main/packages/dataview
-Pinned commit: 50aae32aa9aea45612510703e75875ed98aa6386
-Upstream package version: 0.3.1
-Prepared standalone version: 0.4.0
+Version 0.5.0 starts from kyr0/defuss-dataview commit
+7ff0498e426f1d40ceaeff409f4fb725dbe81223 (package 0.4.0).
+That standalone project originated at kyr0/defuss/packages/dataview commit
+50aae32aa9aea45612510703e75875ed98aa6386 (package 0.3.1).
 
-All 67 original tests and the original benchmark are retained. Original
-implementation files are copied to tests/fixtures/upstream-src solely for
-reproducible auditing and differential tests. SHA-256 provenance appears in
-tests/fixtures/provenance.json. Fixture code is excluded from the npm package.
-README documentation was rewritten to reflect the corrected behavior.
+Historical implementation and original tests are retained byte-for-byte in
+tests/fixtures/ for provenance, not as a promise of behavioral compatibility.
+SHA-256 provenance appears in tests/fixtures/provenance.json. Historical
+fixtures are excluded from the npm package. Current tests live under src/.
 
-This distribution retains the original MIT license and author attribution.
-No dependency is embedded in the runtime. Development tools remain governed
-by their own licenses and are installed separately from the exact lockfile.
+The original MIT license and author attribution are retained. Runtime package
+entries have zero dependencies. Development tools are installed from the exact
+lockfile. The build additionally writes a real-browser test worker bundle,
+artifacts/dbsonl.worker.mjs, containing defuss-dbsonl 0.6.0, defuss-dson 1.5.1
+and defuss-storage 0.3.1, all MIT licensed by Aron Homberg (see their LICENSE
+files in node_modules/). The worker bundle is not part of the npm package.

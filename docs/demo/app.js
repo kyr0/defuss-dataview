@@ -1,5 +1,5 @@
 // Ledger: one defuss-shadcn Big Data component per tab, each querying generated records through defuss-dataview
-// (defuss-shadcn 0.9.8 bundles defuss-dataview 0.4.0), and an inspector that shows what the active component holds.
+// (VERIFIED: defuss-shadcn 0.9.14's package.json depends on defuss-dataview 0.4.0), and an inspector that shows what the active component holds.
 // The page reaches the components only through df$.shadcn.*, el.api, el.store and their CustomEvents.
 // VERIFIED (Chromium probe, 2026-10-10): dataGrid.query() and setSource() apply synchronously, so timing the call
 // times the query; with 1,000,000 rows setSource took 14 ms, a text filter 65 ms and a sort 691 ms.

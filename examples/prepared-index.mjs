@@ -1,0 +1,12 @@
+import { createImmutableArraySource, prepareStreamQuery, createIndexedArraySource } from '../dist/stream.mjs';
+const records = Array.from({ length: 1000 }, (_, id) => Object.freeze({ id, score: id % 37 }));
+const source = createImmutableArraySource(records, { maxCachedBytes: 8000 });
+await source.prepare();
+const descriptor = { filters: [{ field: 'score', op: 'gte', value: 20 }], sorters: [{ field: 'score', direction: 'desc' }] };
+const plan = prepareStreamQuery(descriptor);
+const result = await plan.evaluate(source, { limit: 10 });
+const index = createIndexedArraySource(records, descriptor);
+const first = await index.readPage({ limit: 10 });
+if (JSON.stringify(first.rows) !== JSON.stringify(result.rows)) throw Error('Index and full scan disagree');
+const second = await index.readPage({ after: first.nextCursor, limit: 10 });
+console.log({ revision: String(result.summary.revision), firstIds: first.rows.map(r => r.id), secondIds: second.rows.map(r => r.id), indexRows: index.count, cacheBytes: source.cachedBytes });

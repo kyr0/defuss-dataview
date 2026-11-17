@@ -11,6 +11,8 @@ import os from 'node:os';
 import { createDataview, evaluateDataview } from '../dist/index.mjs';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+/** Trimmed git output, or undefined without git or a repository. */
+const git = (args) => { try { return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return undefined; } };
 const median = (values) => { const sorted = [...values].sort((a, b) => a - b); return sorted[Math.floor(sorted.length / 2)]; };
 const round = (ms) => Math.round(ms * 1000) / 1000;
 
@@ -54,7 +56,11 @@ const SIZE_SCENARIOS = [
   ['filter + sort siblings + page', { tree: TREE, filters: [{ field: 'score', op: 'gte', value: 90 }], sorters: [{ field: 'score', direction: 'desc' }], page: 0, pageSize: 50 }],
 ];
 
-const benchmarks = { lists: [], depth: [], size: [] };
+const reportsOnly = process.argv.includes('--reports-only');
+const prior = reportsOnly ? JSON.parse(await readFile('docs/assets/metrics.json', 'utf8')) : undefined;
+if (prior && prior.version !== pkg.version) throw new Error('Run full site metrics for this version before refreshing reports.');
+const benchmarks = prior?.benchmarks ?? { lists: [], depth: [], size: [] };
+if (!reportsOnly) {
 for (const count of LENGTHS) {
   const rows = list(count);
   for (const [scenario, request] of LIST_SCENARIOS) benchmarks.lists.push({ scenario, rows: count, ...time(rows, request, runsFor(count)) });
@@ -68,28 +74,28 @@ for (const count of SIZES) {
   for (const [scenario, request] of SIZE_SCENARIOS) benchmarks.size.push({ scenario, rows: count, ...time(rows, request, runsFor(count)) });
 }
 
+}
+
 // Coverage and test counts come from the runs `make site-metrics` did just before; their dates go into the file too.
 const json = async (path) => ({ data: JSON.parse(await readFile(path, 'utf8')), at: (await stat(path)).mtime.toISOString() });
 const coverage = await json('coverage/coverage-summary.json');
 const unit = await json('artifacts/unit-results.json');
 const browser = await json('artifacts/browser-results.json');
-const provenance = JSON.parse(await readFile('tests/fixtures/provenance.json', 'utf8'));
-const originalFiles = new Set(provenance.originalTests.map((file) => file.path));
-const originalTests = unit.data.testResults.filter((file) => [...originalFiles].some((path) => file.name.endsWith(path)))
-  .reduce((sum, file) => sum + file.assertionResults.length, 0);
 const pct = (key) => coverage.data.total[key].pct;
 
 const metrics = {
   version: pkg.version,
-  commit: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim(),
-  measuredAt: new Date().toISOString(),
+  // VERIFIED: outside a git checkout (an unpacked tarball) git fails, so commit and sourceStatus fall back to 'unknown'.
+  commit: git(['rev-parse', '--short', 'HEAD']) ?? 'unknown',
+  sourceStatus: (() => { const status = git(['status', '--porcelain']); return status === undefined ? 'unknown' : status ? 'commit plus uncommitted changes' : 'clean commit'; })(),
+  measuredAt: prior?.measuredAt ?? new Date().toISOString(),
+  reportsUpdatedAt: new Date().toISOString(),
   environment: { node: process.version, platform: `${os.platform()} ${os.release()} ${os.arch()}`, cpu: os.cpus()[0]?.model ?? 'unknown', cores: os.cpus().length },
   method: 'Median of 15 timed evaluateDataview() calls (9 at 100,000 rows, 5 at 1,000,000) after 3 untimed ones, on dist/index.mjs. Rows are generated before timing; createDataview() runs once per scenario.',
   benchmarks,
   coverage: { lines: pct('lines'), statements: pct('statements'), functions: pct('functions'), branches: pct('branches'), at: coverage.at },
   tests: {
     unit: { total: unit.data.numTotalTests, passed: unit.data.numPassedTests, files: unit.data.numTotalTestSuites, at: unit.at },
-    original: originalTests,
     browser: { total: browser.data.stats.expected + browser.data.stats.unexpected + browser.data.stats.flaky + browser.data.stats.skipped, passed: browser.data.stats.expected, at: browser.at },
   },
 };

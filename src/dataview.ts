@@ -2,6 +2,7 @@ import { compileAccessor } from './fields.js';
 import { idKey, selectionKey } from './identity.js';
 import { compileQuery } from './query.js';
 import { evaluateTree } from './tree.js';
+import { flatPage } from './flat-page.js';
 import type { DataviewEntry, DataviewResult, DataviewRow, DataviewState } from './types.js';
 export { createDataview } from './normalize.js';
 
@@ -23,7 +24,15 @@ function evaluateFlat<T extends DataviewRow>(rows: readonly T[], view: DataviewS
     }
     matchedRows++;
   }
-  if (view.sorters.length || !view.filters.length) {
+  // A shallow page needs only its best prefix. Native adaptive sorting remains
+  // preferable for small inputs or a large retained fraction. Ordinals preserve
+  // stable ties even though heap storage itself has no stable iteration order.
+  if (view.sorters.length && rows.length >= 1024 && end <= rows.length / 16) {
+    const result = flatPage(rows, query, end);
+    matchedRows = offset;
+    for (let i = offset; i < result.rows.length; i++) append(result.rows[i]);
+    matchedRows = result.total;
+  } else if (view.sorters.length || !view.filters.length) {
     const ordered = view.filters.length ? rows.filter(query.matches) : view.sorters.length ? [...rows] : rows;
     if (view.sorters.length) (ordered as T[]).sort(query.compare);
     // Counts are already known; unfiltered/unsorted paging remains O(pageSize).

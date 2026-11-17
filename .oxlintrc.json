@@ -1,1 +1,1 @@
-{"ignorePatterns": ["tests/fixtures/**"]}
+{"ignorePatterns": ["tests/fixtures/**", "tests/reference/**", "docs/assets/defuss-dataview@*/**"]}

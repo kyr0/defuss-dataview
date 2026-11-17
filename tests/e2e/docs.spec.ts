@@ -1,6 +1,6 @@
 /** The website (docs/) in Chromium: the landing page, the descriptor explorer and every tab of the Big Data demo.
  * scripts/serve.mjs serves docs/ as static files, as GitHub Pages does, and the pages load defuss-shadcn and
- * defuss-dataview from jsDelivr over the real network; vendoring them would hide a broken pin or integrity hash.
+ * the local built defuss-dataview; CDN shadcn assets retain their real network/integrity checks.
  * Every test fails on console errors, page errors, failed requests and HTTP errors.
  * HYPOTHESIS: an offline run fails rather than passing; falsified by a green run without network. */
 import { readFileSync } from 'node:fs';
@@ -26,22 +26,23 @@ const explorerCount = (page: Page, name: string) => page.locator(`#ex-counts [da
 test.describe('landing page', () => {
   test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
-  test('pins the newest published release and shows its published sizes', async ({ page, request }) => {
-    const latest = (await (await request.get('https://registry.npmjs.org/defuss-dataview/latest')).json()).version as string;
+  test('uses this local build and shows its measured sizes', async ({ page, request }) => {
+    const latest = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
     await page.goto('/docs/');
     const pinned = await page.evaluate(() => {
       const map = JSON.parse(document.querySelector('script[type="importmap"]')!.textContent!);
       return /@(\d+\.\d+\.\d+)\//.exec(map.imports['defuss-dataview'])![1];
     });
-    expect(pinned, 'the site pins npm\'s latest defuss-dataview; bump the pin and its integrity hash').toBe(latest);
+    expect(pinned, 'the site must use the build under test').toBe(latest);
     await expect(page.locator('.mk-hero-pill .badge')).toHaveText(`v${pinned}`);
-    const stats = await (await request.get(`https://cdn.jsdelivr.net/npm/defuss-dataview@${pinned}/dist/stats.json`)).json();
+    const stats = await (await request.get(`/docs/assets/defuss-dataview@${pinned}/stats.json`)).json();
     await expect(page.locator('#stat-gzip .mk-stat-value')).toContainText(`${count(stats.browserGzipBytes)} B`);
     await expect(page.locator('#stat-gzip .mk-stat-label')).toContainText(`${count(stats.browserMinifiedBytes)} B minified`);
     for (const [id, key] of [['stats-esm', 'esmBytes'], ['stats-cjs', 'commonjsBytes'], ['stats-min', 'browserMinifiedBytes'], ['stats-gzip', 'browserGzipBytes']]) {
       await expect(page.locator(`#${id}`)).toContainText(`"${key}": ${stats[key]}`);
     }
     await expect(page.locator('.mk-hero-pill')).toContainText(`${(stats.browserGzipBytes / 1000).toFixed(1)} kB gzip`);
+    await expect(page.locator('#intro-size')).toHaveText(`${(stats.browserMinifiedBytes / 1000).toFixed(1)} kB (${(stats.browserGzipBytes / 1000).toFixed(1)} kB gzip)`);
   });
 
   test('header links reach their sections without adding history entries', async ({ page }) => {
@@ -94,7 +95,7 @@ test.describe('landing page', () => {
     const cell = (index: number, field: string) => page.locator(`#ex-rows [data-index="${index}"] input[data-field="${field}"]`);
 
     // filter, sort, page runs on load over the seeded rows; the oracle is plain JavaScript, not defuss-dataview
-    const high = rows.filter((row) => row.score >= 80).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    const high = rows.filter((row) => row.score >= 80).sort((a, b) => b.score - a.score || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     await expect(explorerCount(page, 'totalRows')).toHaveText('10000');
     await expect(explorerCount(page, 'matchedRows')).toHaveText(String(high.length));
     await expect(explorerCount(page, 'pageCount')).toHaveText(String(Math.ceil(high.length / 20)));
@@ -160,9 +161,10 @@ test.describe('landing page', () => {
     await page.locator('#ex-query').fill('{ "pageSize": ');
     await page.locator('#ex-apply').click();
     await expect(page.locator('#ex-error-title')).toHaveText('The JSON does not parse');
-    await example('unsafe path');
+    await page.locator('#ex-query').fill('{"pageSize":-1}');
+    await page.locator('#ex-apply').click();
     await expect(page.locator('#ex-error-title')).toHaveText('createDataview() threw');
-    await expect(page.locator('#ex-error-message')).toContainText('__proto__.polluted');
+    await expect(page.locator('#ex-error-message')).toContainText('pageSize');
     await example('a cycle terminates');
     await expect(page.locator('#ex-error')).toBeHidden();
     await expect(page.locator('#ex-row-count')).toHaveText('5');
@@ -184,6 +186,40 @@ test.describe('landing page', () => {
     expect(await points('perf-depth')).toEqual([count('depth', 'all open + page'), count('size', 'all open + page')]);
     await page.locator('#perf summary').click();
     await expect(page.locator('#perf-table tr')).toHaveCount(Object.values(metrics.benchmarks).flat().length);
+  });
+
+  test('the MongoDB comparison shows mongodb.json: pairings, gauges per switch, both charts and the table', async ({ page }) => {
+    const data = JSON.parse(readFileSync('docs/assets/mongodb.json', 'utf8'));
+    const pairs = { scan: ['dataview + immutable array', 'MongoDB'], index: ['dataview fixed-query index', 'MongoDB + index'], stored: ['dataview + DBSONL file, same revision', 'MongoDB'] };
+    const median = (rows: string, query: string, engine: string) => data.sizes[rows].results.find((r: { query: string; engine: string }) => r.query === query && r.engine === engine).medianMs;
+    const ratio = (rows: string, query: string, pairing: keyof typeof pairs) => median(rows, query, pairs[pairing][1]) / median(rows, query, pairs[pairing][0]);
+    const all = Object.keys(data.sizes).flatMap((rows) => ['top', 'page'].flatMap((query) => (Object.keys(pairs) as Array<keyof typeof pairs>).map((p) => ratio(rows, query, p))));
+    await page.goto('/docs/');
+    await expect(page.locator('#vs-wins')).toHaveText(`${all.filter((r) => r >= 1).length} of ${all.length}`);
+    const lost = all.filter((r) => r < 1).length, largestRows = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
+    const cross = median(largestRows, 'top', pairs.scan[0]) / median(largestRows, 'top', 'MongoDB + index');
+    // With no lost pairing the card shows the cross-pairing: MongoDB's index against dataview's unindexed scan.
+    await expect(page.locator('#vs-hit-losses')).toHaveText(lost ? `${lost} of ${all.length}` : `${cross < 10 ? cross.toFixed(1) : Math.round(cross)}×`);
+    await page.locator('#mongodb').scrollIntoViewIfNeeded();
+    const gauge = (pairing: string) => page.locator(`#vs-${pairing} .tacho-meter`);
+    const expectGauges = async (rows: string, query: string) => {
+      for (const pairing of Object.keys(pairs) as Array<keyof typeof pairs>) {
+        await expect.poll(async () => Number(await gauge(pairing).getAttribute('value'))).toBeCloseTo(Math.log2(ratio(rows, query, pairing)), 2);
+      }
+    };
+    const largest = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
+    await expectGauges(largest, 'top');
+    await page.locator('.dv-vs-controls [data-value="100000"]').click();
+    await page.locator('.dv-vs-controls [data-value="page"]').click();
+    await expect(page.locator('.dv-vs-controls [data-value="100000"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.dv-vs-controls [data-value="1000000"]')).toHaveAttribute('aria-pressed', 'false');
+    await expectGauges('100000', 'page');
+    await page.waitForFunction(() => ['vs-chart-top', 'vs-chart-page'].every((id) => df$.shadcn.chart.instance(document.getElementById(id))));
+    const rowsOf = (id: string) => page.evaluate((id) => (df$.shadcn.chart.instance(document.getElementById(id))!.getOption().yAxis as Array<{ data: unknown[] }>)[0].data.length, id);
+    expect(await rowsOf('vs-chart-top')).toBe(Object.keys(pairs).length * Object.keys(data.sizes).length);
+    expect(await rowsOf('vs-chart-page')).toBe(Object.keys(pairs).length * Object.keys(data.sizes).length);
+    await page.locator('#mongodb summary').click();
+    await expect(page.locator('#vs-table tr')).toHaveCount(new Set(Object.values(pairs).flat()).size);
   });
 
   test('API tabs and copy buttons', async ({ page, context }) => {
@@ -215,6 +251,22 @@ test.describe('landing page', () => {
     await page.locator('#dv-menu a[href="#api"]').click();
     await expect(page.locator('#dv-menu')).toBeHidden();
     await expect(page).toHaveURL(/#api$/);
+  });
+
+  test('the flythrough phrases stay centered when they wrap', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/docs/');
+    // Each phrase wraps at phone width; every line must keep equal gaps to the left and right of its layer.
+    const gaps = await page.$$eval('.dv-fly-word', words => words.map(word => {
+      const layer = word.parentElement!.getBoundingClientRect(), range = document.createRange();
+      range.selectNodeContents(word);
+      return [...range.getClientRects()].map(line => Math.abs((line.left - layer.left) - (layer.right - line.right)));
+    }));
+    expect(gaps).toHaveLength(3);
+    for (const lines of gaps) {
+      expect(lines.length).toBeGreaterThan(1);
+      for (const gap of lines) expect(gap).toBeLessThan(2);
+    }
   });
 });
 

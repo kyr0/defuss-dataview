@@ -1,22 +1,33 @@
-# Release 0.4.0
+# Release 0.5.0
 
-The ZIP contains full source, exact development lockfile, tests, example, provenance/audit evidence, built modules/types/maps and a verified npm tarball. No repository push, npm publication or tag is part of preparation.
+0.5.0 is the next npm release after 0.4.0 and has not been published yet. Releases are published from a tagged commit of this repository; no credentials are stored here.
 
-Use Node 22 or 24 for release tooling:
+bun 1.4.3 is the package manager (`packageManager` in package.json, `bun.lock`); Node 22 or newer runs the tests and scripts:
 
 ```sh
-npm ci
-npx playwright install --with-deps chromium
-npm run check
-npm publish --access public
+bun install --frozen-lockfile
+bunx playwright install --with-deps chromium
+bun run check
+bun publish --access public
 ```
 
-Run from the extracted `defuss-dataview` directory. npm authentication, authorization for the existing package name and any required OTP are handled by npm. `prepublishOnly` repeats the full check. 0.4.0 was published on 2026-10-04 from commit `669ab2c`; a further release needs a new, unused version (see "For a subsequent version" below). No credentials are included.
+`bun publish` takes the registry and its credentials from `.npmrc`, `bunfig.toml` or the environment (`bun publish --help`); a one-time password goes through the browser by default or `--otp`. `prepublishOnly` repeats the full check. VERIFIED: `bun publish --dry-run --ignore-scripts` listed the same 84 files as the tarball check (85 since `examples/dbsonl-projection.mjs`; not rerun), for defuss-dataview@0.5.0 on the public npm registry. UNKNOWN: a real `bun publish` from this machine has not run yet; 0.4.0 was published with `npm publish`.
 
-`npm run check` creates `artifacts/defuss-dataview-0.4.0.tgz` and a report with its integrity hash after installation into a separate temporary consumer. It verifies both JS formats, both NodeNext declaration formats, Bundler resolution without DOM types, SSR imports and browser bundling. The full ZIP additionally carries source/tests/scripts; the npm tarball contains only built distribution, package metadata and documentation/licenses.
+## What `bun run check` does
 
-The browser gate normally uses Playwright's installed Chromium. On provisioned systems, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` can select a binary; optional `PLAYWRIGHT_CHROMIUM_ARGS` is a JSON flag array. The delivered run used Node 24 and Chromium 153 from an external `@sparticuz/chromium@153.0.0` installation because the standard browser CDN was unavailable. Origin protections remained enabled. That alternate browser installation is not a package dependency. CI uses the standard Playwright browser.
+1. Lint, type checks and the build, including the website bundle in `docs/assets/defuss-dataview@<version>/`.
+2. Coverage without the website unit test, which depends on fresh metrics; then the Chromium suite; then `scripts/site-metrics.mjs`, which times the build for the website.
+3. The complete coverage suite, `site-metrics.mjs --reports-only` to record its counts, the tarball consumer (`artifacts/defuss-dataview-<version>.tgz` plus `artifacts/package-verification.json`) and `npm run verify`.
 
-Use `npm run audit:upstream`, `npm run benchmark:compare`, and `npm run benchmark` for optional reproducible audit/performance evidence. These are not publish gates; benchmark latency is environment-sensitive. For a subsequent version, update with `npm version <version> --no-git-tag-version`, update the changelog and rerun the gate. The packing scripts read the version from package metadata.
+This order resolves the dependency between coverage and website metrics in a clean checkout without stale reports. Documentation browser checks allow 60 seconds for integrity-pinned CDN assets.
 
-Before deploying the update into existing apps, apply the README's 0.3.1 migration notes, especially old stored empty expansion lists. No GitHub repository was modified by preparing this standalone distribution.
+## Before tagging
+
+- Compare with the previous release on one idle machine: download `https://registry.npmjs.org/defuss-dataview/-/defuss-dataview-0.4.0.tgz`, unpack it outside the repository, then `bun run benchmark:paired -- <unpacked>/package/dist/index.mjs`. Update the README's speed section from `docs/assets/metrics.json` and that report.
+- Commit the refreshed `docs/` and `SHA256SUMS`. `SHA256SUMS` also hashes the gitignored `dist/` and `artifacts/`, which every build rewrites, so regenerate it right before tagging.
+- For a later version, set `version` in package.json, update the changelog and rerun the check. The packing, website and metrics scripts read the version from `package.json`.
+
+## Browsers
+
+The browser gate uses Playwright's Chromium. On provisioned systems `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects a binary, and optional `PLAYWRIGHT_CHROMIUM_ARGS` is a JSON flag array.
+

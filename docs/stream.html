@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DataView · Snapshot streams</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:960px;margin:48px auto;padding:24px;color:#152a35;background:#f4f8fa}h1{font-size:44px;letter-spacing:-2px}button,select,input{font:inherit;padding:8px}pre{overflow:auto;background:#e3ecf1;padding:20px;border-radius:12px}table{border-collapse:collapse;width:100%}td,th{padding:8px;text-align:left;border-bottom:1px solid #c8d7e0}.controls{display:flex;gap:16px;flex-wrap:wrap}label{display:grid}a{color:#12667d}</style>
+<body><a href="./">← DataView</a><h1>Snapshot streams.</h1><p>Filter 100,000 records, choose an execution strategy and inspect exact counts and retained candidates. Every query uses the built DataView streaming module.</p>
+<div class="controls"><label>Minimum score<input id="minimum" type="number" value="80" min="0" max="100"></label><label>Order<select id="ordering"><option value="desc">Highest score first</option><option value="scan">Source order</option></select></label><label>Offset<input id="offset" type="number" value="0" min="0"></label><label>Count<select id="count"><option value="exact">Exact</option><option value="none">No forced scan</option></select></label><button id="run">Run query</button></div>
+<p id="status" role="status">Ready</p><table><thead><tr><th>ID</th><th>Score</th></tr></thead><tbody id="rows"></tbody></table><pre id="summary"></pre>
+<p>The unordered sorted page examines every candidate and retains only offset + limit rows. Source-order paging can stop early. Unknown totals are null. Byte accounting is separate from actual VM heap size.</p>
+<h2>Repeated queries and cursor pages</h2><p><code>createImmutableArraySource</code> caches default row accounting within a bounded immutable revision. <code>prepareStreamQuery</code> reuses compilation while each execution owns a fresh snapshot. <code>createIndexedArraySource</code> materializes one filter/order scope, then <code>readPage</code> uses revision-bound cursors to avoid rescanning earlier rows. Index builds and source caches have separate costs and budgets.</p>
+<script type="module">
+import { createArraySource, evaluateStream } from './assets/defuss-dataview@0.5.0/browser-stream.mjs';
+const rows = Array.from({length:100000},(_,id)=>Object.freeze({id,score:(id*7919)%101}));
+const source = createArraySource(rows,{isolation:'immutable',revision:'demo-1'});
+const $=id=>document.getElementById(id);
+$('run').onclick=async()=>{
+  $('run').disabled=true;$('status').textContent='Running…';
+  try{
+    const start=performance.now();
+    const result=await evaluateStream(source,{filters:[{field:'score',op:'gte',value:Number($('minimum').value)}],sorters:$('ordering').value==='desc'?[{field:'score',direction:'desc'}]:[],offset:Number($('offset').value),limit:10},{count:$('count').value,batchSize:128});
+    $('rows').replaceChildren(...result.rows.map(row=>{const tr=document.createElement('tr');for(const value of [row.id,row.score]){const td=document.createElement('td');td.textContent=String(value);tr.append(td);}return tr;}));
+    $('summary').textContent=JSON.stringify(result.summary,null,2);$('status').textContent=`${result.rows.length} rows in ${(performance.now()-start).toFixed(1)} ms`;
+  }catch(error){$('status').textContent=String(error);}finally{$('run').disabled=false;}
+};
+$('run').click();
+</script></body></html>

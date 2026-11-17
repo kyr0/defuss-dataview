@@ -7,7 +7,7 @@
 // VERIFIED: a module worker can import the pinned jsDelivr build (CORS allows any origin; tmp probe, 2026-10-10).
 // Module workers do not read the page's import map, so this import carries no integrity hash; the exact version pin
 // is its only guard, and tests/unit/docs.test.ts keeps it equal to the page's pinned version.
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from '../assets/defuss-dataview@0.5.0/browser.min.mjs';
 import { places } from './data.js';
 
 const PLACES = 100_000;

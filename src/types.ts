@@ -21,7 +21,7 @@ export type DataviewFilterOperator =
 export interface DataviewFilter {
   field: string;
   op: DataviewFilterOperator;
-  value: DataviewJsonValue;
+  value: unknown;
 }
 
 export type DataviewSortDirection = "asc" | "desc";
@@ -33,6 +33,7 @@ export interface DataviewSorter {
 }
 
 export interface DataviewRequest {
+  semantics?: import('./values.js').QuerySemantics;
   filters?: DataviewFilter[];
   sorters?: DataviewSorter[];
   page?: number;
@@ -49,6 +50,7 @@ export interface DataviewMeta {
 }
 
 export interface DataviewState {
+  semantics?: import('./values.js').QuerySemantics;
   filters: DataviewFilter[];
   sorters: Array<DataviewSorter & { direction: DataviewSortDirection }>;
   page: number;
@@ -70,7 +72,8 @@ export interface DataviewState {
   };
 }
 
-export type DataviewRow = Record<string, unknown>;
+/** Record-like rows may be declared as interfaces; no artificial string index signature is required. */
+export type DataviewRow = object;
 
 export interface DataviewTreeOptions {
   idField: string;

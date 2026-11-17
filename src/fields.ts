@@ -11,6 +11,13 @@ export function compileAccessor(field: string): (row: unknown) => unknown {
   const parts = fieldParts(field);
   if (parts.length === 1) return row => typeof row === 'object' && row !== null && Object.hasOwn(row, field)
     ? (row as Record<string, unknown>)[field] : undefined;
+  // Fixed shallow paths let engines inline the same own-property/null guards.
+  const own = (value: unknown, key: string): unknown => typeof value === 'object' && value !== null && Object.hasOwn(value, key)
+    ? (value as Record<string, unknown>)[key] : undefined;
+  const [a, b, c, d] = parts;
+  if (parts.length === 2) return row => own(own(row, a), b);
+  if (parts.length === 3) return row => own(own(own(row, a), b), c);
+  if (parts.length === 4) return row => own(own(own(own(row, a), b), c), d);
   return row => {
     let current = row;
     for (const part of parts) {

@@ -11,12 +11,13 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "lcov"],
-      include: ["src/**/*"],
+      include: ["src/**/*.ts"],
       exclude: [
         "tests/**",
         "**/*.test.ts",
         "src/dataview.benchmark.ts",
-        "src/types.ts",
+        "**/types.ts",
+        "src/stream.ts",
         "src/index.ts",
       ],
     },

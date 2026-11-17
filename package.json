@@ -1,12 +1,13 @@
 {
   "name": "defuss-dataview",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
+  "packageManager": "bun@1.4.3",
   "publishConfig": {
     "access": "public"
   },
   "license": "MIT",
-  "description": "Isomorphic functional data view (filters, sorters, paging, meta UI state) for table and tree grids.",
+  "description": "High-performance isomorphic table/tree views and bounded snapshot queries over DSON record streams on top of defuss-dbsonl.",
   "keywords": [
     "dataview",
     "filter",
@@ -23,27 +24,32 @@
     "tree"
   ],
   "repository": {
-    "url": "git+https://github.com/kyr0/defuss.git",
     "type": "git",
-    "directory": "packages/dataview"
+    "url": "git+https://github.com/kyr0/defuss-dataview.git"
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "node scripts/clean.mjs dist && pkgroll --sourcemap && node scripts/browser.mjs",
+    "build": "node scripts/clean.mjs dist && pkgroll --sourcemap && node scripts/browser.mjs && node scripts/site-build.mjs",
     "typecheck": "tsc --noEmit && tsc -p tests/types/tsconfig.json",
     "lint": "oxlint --deny-warnings src tests scripts docs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --reporter=default --reporter=json --outputFile=artifacts/unit-results.json",
     "test:browser": "playwright test",
-    "e2e": "npm run test:browser",
+    "e2e": "bun run test:browser",
     "test:package": "node scripts/package-tests.mjs",
     "benchmark": "node --import tsx src/dataview.benchmark.ts",
     "audit:upstream": "node scripts/audit-upstream.mjs",
     "benchmark:compare": "node scripts/benchmark-compare.mjs",
+    "benchmark:dbsonl": "node --expose-gc scripts/benchmark-dbsonl.mjs",
+    "benchmark:mongodb": "node --expose-gc --max-old-space-size=8192 scripts/benchmark-mongodb.mjs",
+    "benchmark:paired": "node scripts/benchmark-paired.mjs",
     "verify": "node scripts/verify.mjs",
-    "check": "npm run lint && npm run typecheck && npm run build && npm run test:coverage && npm run test:browser && npm run test:package && npm run verify",
-    "prepublishOnly": "npm run check",
-    "dev": "node scripts/serve.mjs"
+    "check": "bun run lint && bun run typecheck && bun run build && bun run test:coverage -- --exclude tests/unit/docs.test.ts && bun run test:browser && node scripts/site-metrics.mjs && bun run test:coverage && node scripts/site-metrics.mjs --reports-only && bun run test:package && bun run verify",
+    "prepublishOnly": "bun run check",
+    "dev": "node scripts/serve.mjs",
+    "benchmark:stream": "node scripts/benchmark-stream.mjs",
+    "benchmark:binary": "node scripts/benchmark-binary.mjs",
+    "benchmark:cache": "node scripts/benchmark-cache-policies.mjs"
   },
   "author": "Aron Homberg <info@aron-homberg.de>",
   "sideEffects": false,
@@ -57,6 +63,36 @@
         "types": "./dist/index.d.mts",
         "default": "./dist/index.mjs"
       }
+    },
+    "./query": {
+      "import": {
+        "types": "./dist/query.d.mts",
+        "default": "./dist/query.mjs"
+      },
+      "require": {
+        "types": "./dist/query.d.cts",
+        "default": "./dist/query.cjs"
+      }
+    },
+    "./stream": {
+      "import": {
+        "types": "./dist/stream.d.mts",
+        "default": "./dist/stream.mjs"
+      },
+      "require": {
+        "types": "./dist/stream.d.cts",
+        "default": "./dist/stream.cjs"
+      }
+    },
+    "./adapters/dbsonl": {
+      "import": {
+        "types": "./dist/adapters/dbsonl.d.mts",
+        "default": "./dist/adapters/dbsonl.mjs"
+      },
+      "require": {
+        "types": "./dist/adapters/dbsonl.d.cts",
+        "default": "./dist/adapters/dbsonl.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -69,16 +105,20 @@
     "CHANGELOG.md",
     "RELEASE.md",
     "NOTICE",
-    "LICENSE"
+    "LICENSE",
+    "documentation",
+    "examples"
   ],
   "engines": {
-    "node": "^18.17.1 || ^20.3.0 || >=21.0.0"
+    "node": ">=20.19.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@types/node": "22.19.15",
     "@vitest/coverage-v8": "4.0.17",
+    "defuss-dbsonl": "0.6.0",
     "esbuild": "0.27.4",
+    "mongodb": "7.8.0",
     "oxlint": "1.81.0",
     "pkgroll": "2.28.1",
     "tsx": "4.21.0",

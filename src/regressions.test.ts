@@ -128,9 +128,9 @@ describe('grid counts, validation and immutable moves', () => {
       expect(applyDataview([{}, { n: null }, { n: NaN }, { n: new Date('bad') }], createDataview({ filters: [{ field: 'n', op, value: 0 }] }))).toEqual([]);
     }
   });
-  it('keeps strict in-filter semantics identical across the Set optimization threshold', () => {
+  it('keeps SameValueZero membership identical across the Set optimization threshold', () => {
     const small = [NaN], big = [...Array.from({ length: 17 }, (_, n) => n), NaN];
-    for (const value of [small, big]) expect(applyDataview([{ n: NaN }], createDataview({ filters: [{ field: 'n', op: 'in', value }] }))).toEqual([]);
+    for (const value of [small, big]) expect(applyDataview([{ n: NaN }], createDataview({ filters: [{ field: 'n', op: 'in', value }] }))).toHaveLength(1);
   });
   it('rejects unsafe paging and malformed runtime options', () => {
     for (const request of [{ page: Number.MAX_SAFE_INTEGER + 1 }, { page: Number.MAX_SAFE_INTEGER, pageSize: 2 }, { pageSize: Infinity }, { filters: {} }, { sorters: [{ field: 'id', direction: 1 }] }, { tree: { ...tree, expandAll: 'yes' } }, { tree: { ...tree, expandedIds: {} } }]) {
@@ -184,5 +184,48 @@ describe('grid counts, validation and immutable moves', () => {
     for (const view of [createDataview({ meta: { selectedRowIds: [2] } }), createDataview({ sorters: [{ field: 'id' }], meta: { selectedRowIds: [2] } })]) {
       expect(applyDataview(rows, view).filter(entry => entry.meta.isSelected).map(entry => entry.row.id)).toEqual([2]);
     }
+  });
+});
+
+describe('table/tree semantics', () => {
+  const rows = [{ id: 0, s: 'b' }, { id: 1, s: 'ä' }, { id: 2, s: 'a' }];
+  const sorters = [{ field: 's', direction: 'asc' as const }];
+  it('honors locale ordering and identity equality through createDataview', () => {
+    expect(ids(applyDataview(rows, createDataview({ sorters })))).toEqual([2, 0, 1]);
+    expect(ids(applyDataview(rows, createDataview({ sorters, semantics: { strings: 'locale', locale: 'de' } })))).toEqual([2, 1, 0]);
+    const dated = [{ id: 0, at: new Date(5) }];
+    const filters = [{ field: 'at', op: 'eq' as const, value: new Date(5) }];
+    expect(applyDataview(dated, createDataview({ filters }))).toHaveLength(1);
+    expect(applyDataview(dated, createDataview({ filters, semantics: { equality: 'identity' } }))).toHaveLength(0);
+  });
+  it('rejects malformed semantics at normalization', () => {
+    for (const semantics of [null, 'locale', 42, true, [], { equality: 'bogus' }, { strings: 'locale', locale: 'de', extra: 1, equality: 'x' }, { locale: 'de' }]) {
+      expect(() => createDataview({ semantics } as never), JSON.stringify(semantics)).toThrow(TypeError);
+    }
+  });
+  it('copies semantics, so later caller mutation cannot change a normalized view', () => {
+    const semantics: { strings?: 'locale'; locale?: string } = { strings: 'locale', locale: 'de' };
+    const view = createDataview({ sorters, semantics });
+    delete semantics.strings; delete semantics.locale;
+    expect(ids(applyDataview(rows, view))).toEqual([2, 1, 0]);
+    expect(Object.isFrozen(view.semantics)).toBe(true);
+  });
+});
+
+describe('tree parent identity', () => {
+  // README "Tree": canonical JSON identity; numbers and strings stay distinct, -0 and 0 share one identity,
+  // duplicate IDs resolve parents to the first occurrence, non-finite identifiers are rejected.
+  const shape = (rows: object[]) => applyDataview(rows, createDataview({ tree }))
+    .map(entry => `${(entry.row as { name: string }).name}@${entry.meta.depth}`);
+  it('keeps numeric and string IDs apart and joins -0 with 0', () => {
+    expect(shape([{ id: 1, name: 'num' }, { id: '1', name: 'str' }, { id: 2, parentId: '1', name: 'ofStr' }, { id: 3, parentId: 1, name: 'ofNum' }]))
+      .toEqual(['num@0', 'ofNum@1', 'str@0', 'ofStr@1']);
+    expect(shape([{ id: 0, name: 'zero' }, { id: 5, parentId: -0, name: 'child' }])).toEqual(['zero@0', 'child@1']);
+    expect(shape([{ id: { a: 1, b: 2 }, name: 'obj' }, { id: 2, parentId: { b: 2, a: 1 }, name: 'child' }])).toEqual(['obj@0', 'child@1']);
+  });
+  it('resolves duplicate IDs to the first row and rejects non-finite parents', () => {
+    expect(shape([{ id: 7, name: 'first' }, { id: 7, name: 'dup' }, { id: 8, parentId: 7, name: 'child' }])).toEqual(['first@0', 'child@1', 'dup@0']);
+    for (const parentId of [NaN, Infinity]) expect(() => shape([{ id: 1, name: 'a' }, { id: 2, parentId, name: 'b' }])).toThrow(TypeError);
+    expect(() => shape([{ id: NaN, name: 'a' }])).toThrow(TypeError);
   });
 });

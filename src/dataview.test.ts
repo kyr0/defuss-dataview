@@ -333,7 +333,7 @@ describe("applyDataview", () => {
     ).toEqual([]);
   });
 
-  it("supports boolean, date and fallback comparator paths", () => {
+  it("supports boolean, date and numeric BigInt comparator paths", () => {
     const booleanRows = [
       { id: 1, flag: true },
       { id: 2, flag: false },
@@ -377,7 +377,7 @@ describe("applyDataview", () => {
       bigintRows,
       createDataview({ sorters: [{ field: "value", direction: "asc" }] }),
     );
-    expect(fallbackSorted.map((entry) => entry.row.id)).toEqual([1, 2]);
+    expect(fallbackSorted.map((entry) => entry.row.id)).toEqual([2, 1]);
   });
 
   it("returns undefined for dot-path when parent segment is not object", () => {
@@ -390,14 +390,13 @@ describe("applyDataview", () => {
     expect(result).toEqual([]);
   });
 
-  it("returns false for unknown filter op in unsafe state", () => {
+  it("rejects an unknown filter op in unsafe state", () => {
     const unsafeView = {
       ...createDataview(),
       filters: [{ field: "id", op: "unknown", value: 1 }],
     } as unknown as ReturnType<typeof createDataview>;
 
-    const result = applyDataview([{ id: 1 }], unsafeView);
-    expect(result).toEqual([]);
+    expect(() => applyDataview([{ id: 1 }], unsafeView)).toThrow(TypeError);
   });
 
   it("handles non-object flat rows in unsafe state", () => {

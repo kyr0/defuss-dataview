@@ -21,14 +21,14 @@
   <!-- defuss-dataview: the newest published release from jsDelivr, checked against its hash before it runs. -->
   <script type="importmap">
     {
-      "imports": { "defuss-dataview": "https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs" },
-      "integrity": { "https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs": "sha384-0IouHJZBV5KbHLxZssSnyRJHXfDiocaEDcMQtIQTtISenm3I6/2yuKaqXAewyJoq" }
+      "imports": { "defuss-dataview": "./assets/defuss-dataview@0.5.0/browser.min.mjs" },
+      "integrity": { "./assets/defuss-dataview@0.5.0/browser.min.mjs": "sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M" }
     }
   </script>
   <!-- defuss-shadcn from jsDelivr at an exact release, pinned by Subresource Integrity. -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/core.min.css" integrity="sha384-XTkN5+CRRKO70LZ4OcV6O+kj6BY5lxdsRQ02oMz3kDCm9kd4B+16jbojkbgrbL0e" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/theme/utils/shapes.min.css" integrity="sha384-Ql86bF5zW5vFVk35X7GH6sUNZRTsmU93YO1iJBw/sYwgnlr4sgF+hBn1S5vDPI2G" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.css" integrity="sha384-3N21mZZQYTo6BWRxl629QHRrstw0IXVKRonDLdRbrYlODgFskMA/kODfnDX/gNk4" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.14/dist/components/core.min.css" integrity="sha384-qUQCm/MM2DNkdT3uEdx8Mpocj+GwXlgLat0FnWv657c16tHWOouZFT2nV7kg5pBE" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.14/dist/theme/utils/shapes.css" integrity="sha384-aZOejDS3Wl7RTrk7xhF91OV7MwlLT5+HBFqsCgc1NJAObqjt5bamU3NxzVEdhZew" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.14/dist/components/all.min.css" integrity="sha384-QHZIomKTCz1n9HXZdL3JffvgKM6pWhrqeOj6Fr4/pqM0SpOyPLzZS7oh/mhmH33+" crossorigin="anonymous">
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
@@ -74,10 +74,12 @@
       <a href="#top" class="mk-header-brand"><svg class="dv-icon dv-brand-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-header-name">defuss-dataview</span></a>
       <nav class="mk-header-nav" aria-label="Main">
         <ul class="nav-menu-list">
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#mongodb">vs MongoDB</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#demo">Demo</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#how">How it works</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#explorer">Explorer</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#api">API</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="stream.html">Streams</a></li>
           <li class="nav-menu-item"><a class="nav-menu-link" href="#install">Install</a></li>
         </ul>
       </nav>
@@ -101,10 +103,12 @@
         <div class="sheet-body">
           <p class="mk-header-sheet-label">This page</p>
           <ul class="mk-header-sheet-nav">
+            <li><a href="#mongodb" data-sheet-close>vs MongoDB <small>The same queries against MongoDB 9.0</small></a></li>
             <li><a href="#demo" data-sheet-close>Demo <small>Five Big Data components, up to a million rows</small></a></li>
             <li><a href="#how" data-sheet-close>How it works</a></li>
             <li><a href="#explorer" data-sheet-close>Query explorer</a></li>
             <li><a href="#api" data-sheet-close>API</a></li>
+            <li><a href="stream.html">Snapshot streams <small>The same queries over DBSONL and batched sources</small></a></li>
             <li><a href="#install" data-sheet-close>Install</a></li>
           </ul>
         </div>
@@ -129,7 +133,7 @@
     <div class="parallax-content">
       <section class="mk-hero" style="width:100%">
         <div class="mk-hero-copy">
-          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.4.0</span>Zero dependencies · 4.6&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.5.0</span>Zero dependencies · 6.3&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
           <h1 class="mk-hero-title">Filter, sort and page big data grids &amp; trees using <strong>one JSON descriptor</strong> that</h1>
           <p class="dv-flip"><span class="text-rotate"><span>
               <span class="dv-accent">runs in a page, worker or server</span>
@@ -138,7 +142,7 @@
               <span class="dv-accent">never mutates your rows</span>
               <span class="dv-accent">terminates on cyclic trees</span>
           </span></span></p>
-          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler.</p>
+          <p class="mk-hero-desc"><code>defuss-dataview</code> is the query engine behind <strong>defuss-shadcn's Big Data components</strong>. You describe filters, sorters, paging, tree expansion and selection as plain JSON; <code>evaluateDataview()</code> returns the requested page together with the counts your grid controls need. It touches no DOM, Node API or storage, so the same descriptor works in a component, a module worker and an API handler. For records in a database or arriving in batches, <a href="stream.html"><code>defuss-dataview/stream</code></a> runs the same filters and sorters over snapshot sources such as DBSONL, with bounded top-k and exact counts.</p>
           <div class="mk-hero-actions">
             <a class="btn" data-size="lg" href="#demo">Try the live demo<svg class="dv-icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
             <a class="btn" data-variant="outline" data-size="lg" href="#explorer">Run a descriptor</a>
@@ -170,7 +174,7 @@
         <section class="dv-intro-item" aria-labelledby="intro-5">
           <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-feather"/></svg></span>
           <h3 id="intro-5">Zero dependencies</h3>
-          <p>ESM and CommonJS with TypeScript declarations, plus a standalone browser module of <strong>12.7&nbsp;kB</strong> (<strong>4.6&nbsp;kB gzip</strong>). No globals, subscriptions or storage access.</p>
+          <p>ESM and CommonJS with TypeScript declarations, plus a standalone browser module of <span id="intro-size"><strong>17.7&nbsp;kB</strong> (<strong>6.3&nbsp;kB gzip</strong>)</span>. No globals, subscriptions or storage access.</p>
         </section>
         <section class="dv-intro-item" aria-labelledby="intro-6">
           <span class="dv-intro-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-shield"/></svg></span>
@@ -179,6 +183,93 @@
         </section>
       </div>
     </div>
+  </section>
+
+  <section id="mongodb" class="container dv-section dv-vs parallax-reveal" aria-labelledby="vs-title">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">defuss-dataview against MongoDB 9.0</span>
+        <h2 class="mk-section-header-title" id="vs-title">Faster than MongoDB in <span id="vs-wins">12 of 12</span> pairings</h2>
+        <p class="mk-section-header-desc">The same documents and the same two queries, answered like for like: dataview's scan against MongoDB's collection scan, dataview's fixed-query index against a MongoDB index, and dataview over defuss-dbsonl file storage, at an unchanged revision, against MongoDB. dataview runs in the measuring process; MongoDB 9.0.8 answers over loopback through the Node.js driver. Each pairing runs at 100,000 and 1,000,000 documents.</p>
+      </div>
+    </header>
+    <div class="dv-vs-hits">
+      <div class="dv-vs-hit"><strong id="vs-hit-wins">12 of 12</strong><span>pairings in which defuss-dataview took less time than MongoDB</span></div>
+      <div class="dv-vs-hit"><strong id="vs-hit-index">237×</strong><span id="vs-hit-index-text">faster with a fixed-query index than MongoDB with its index over 1,000,000 documents: 0.13 ms against 32 ms for a filtered, sorted page with an exact count</span></div>
+      <div class="dv-vs-hit"><strong id="vs-hit-scan">2.2×</strong><span id="vs-hit-scan-text">faster scanning 1,000,000 documents in memory than MongoDB without an index: 76 ms against 166 ms</span></div>
+      <div class="dv-vs-hit" data-kind="loss"><strong id="vs-hit-losses">2.4×</strong><span id="vs-hit-losses-text">faster for MongoDB with an index than defuss-dataview's unindexed scan of 1,000,000 documents: 32 ms against 76 ms; one MongoDB index serves every range on its fields, a fixed-query index only its own query</span></div>
+    </div>
+
+    <div class="dv-vs-panel">
+      <div class="dv-vs-controls">
+        <div class="dv-vs-control"><span id="vs-size-label">Documents</span>
+          <div class="toggle-group" data-variant="outline" role="group" aria-labelledby="vs-size-label" data-key="size">
+            <button class="toggle" type="button" aria-pressed="false" data-value="100000">100,000</button>
+            <button class="toggle" type="button" aria-pressed="true" data-value="1000000">1,000,000</button>
+          </div>
+        </div>
+        <div class="dv-vs-control"><span id="vs-query-label">Query</span>
+          <div class="toggle-group" data-variant="outline" role="group" aria-labelledby="vs-query-label" data-key="query">
+            <button class="toggle" type="button" aria-pressed="true" data-value="top">Filter, sort, count</button>
+            <button class="toggle" type="button" aria-pressed="false" data-value="page">First page by key</button>
+          </div>
+        </div>
+      </div>
+      <div class="dv-vs-gauges">
+        <figure class="dv-vs-gauge">
+          <div class="tacho" id="vs-scan" data-sweep="240" data-ticks="2" data-format="vs-mongodb">
+            <meter class="tacho-meter" min="-6" max="8" low="0" high="0" optimum="8" value="1.14" aria-label="No index: dataview's scan against MongoDB's collection scan">2.2 times faster</meter>
+            <output class="tacho-value"></output>
+          </div>
+          <figcaption><strong>No index</strong><span id="vs-scan-times">76 ms against 166 ms</span></figcaption>
+        </figure>
+        <figure class="dv-vs-gauge">
+          <div class="tacho" id="vs-index" data-sweep="240" data-ticks="2" data-format="vs-mongodb">
+            <meter class="tacho-meter" min="-6" max="8" low="0" high="0" optimum="8" value="7.89" aria-label="Indexed: dataview's fixed-query index against a MongoDB index">237 times faster</meter>
+            <output class="tacho-value"></output>
+          </div>
+          <figcaption><strong>Indexed</strong><span id="vs-index-times">0.13 ms against 32 ms</span></figcaption>
+        </figure>
+        <figure class="dv-vs-gauge">
+          <div class="tacho" id="vs-stored" data-sweep="240" data-ticks="2" data-format="vs-mongodb">
+            <meter class="tacho-meter" min="-6" max="8" low="0" high="0" optimum="8" value="1.05" aria-label="Stored on disk: dataview over a defuss-dbsonl projection of one revision against MongoDB">2.1 times faster</meter>
+            <output class="tacho-value"></output>
+          </div>
+          <figcaption><strong>Stored on disk</strong><span id="vs-stored-times">80 ms against 166 ms</span></figcaption>
+        </figure>
+      </div>
+      <p class="dv-vs-key">Right of 1× defuss-dataview was faster; each step on the scale is four times the last. Times are defuss-dataview's, then MongoDB's.</p>
+    </div>
+
+    <div class="dv-vs-charts">
+      <figure class="chart-frame">
+        <h3 class="chart-title">Filter, sort, first 50, exact count</h3>
+        <p class="chart-dek"><code>score &gt;= 500</code>, sorted by <code>score</code> descending then <code>key</code>, with the number of matches. The line spans the gap between the two engines; the scale is logarithmic.</p>
+        <div id="vs-chart-top" class="chart dv-vs-chart" role="img" aria-label="Dumbbell chart of the filtered, sorted query. defuss-dataview took less time in every pairing: without an index, with an index and over defuss-dbsonl storage at an unchanged revision, 1.8 to 237 times less."></div>
+      </figure>
+      <figure class="chart-frame">
+        <h3 class="chart-title">First 50 documents by key</h3>
+        <p class="chart-dek">A page in key order, which every engine can stop after 50 rows. Same scale, so the two charts compare.</p>
+        <div id="vs-chart-page" class="chart dv-vs-chart" role="img" aria-label="Dumbbell chart of the first page by key. defuss-dataview took less time in every pairing: in memory and with an index about 10 times less, over defuss-dbsonl storage at an unchanged revision 1.1 to 1.2 times less."></div>
+      </figure>
+    </div>
+
+    <div class="accordion dv-accordion dv-vs-details">
+      <details class="accordion-item">
+        <summary class="accordion-trigger"><span>Every engine and size as a table</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+        <div class="accordion-content">
+          <div class="table-container">
+            <table class="table dv-table dv-vs-table">
+              <caption class="sr-only">Median time per query, engine and number of documents</caption>
+              <thead><tr class="table-row"><th class="table-head" scope="col">Engine</th><th class="table-head" scope="col">Filter, sort, count: 100,000</th><th class="table-head" scope="col">1,000,000</th><th class="table-head" scope="col">First page: 100,000</th><th class="table-head" scope="col">1,000,000</th></tr></thead>
+              <tbody id="vs-table"></tbody>
+            </table>
+          </div>
+          <p>Preparing the data, once before any query: <span id="vs-prepare">loading in batches of 5,000, and building each fixed-query index.</span></p>
+        </div>
+      </details>
+    </div>
+    <p class="dv-vs-scope">Every figure is a repeated query after a warm-up run. MongoDB answers from its cache. Over defuss-dbsonl, defuss-dataview answers from a projection of the queried fields that one full scan of the revision kept; that scan took <span id="vs-full-scan">40×</span> as long as a repeated query, is listed with the preparation steps, and runs again after any write. <span id="vs-source">Measured on one machine with <code>bun run benchmark:mongodb</code>.</span> <a href="https://github.com/kyr0/defuss-dataview/blob/main/documentation/MONGODB.md">The full comparison</a>.</p>
   </section>
 
   <div class="dv-flythrough">
@@ -329,7 +420,7 @@
       <div class="mk-section-header-copy">
         <span class="mk-section-header-eyebrow">Query explorer</span>
         <h2 class="mk-section-header-title" id="explorer-title">🔎 Run a query on your own rows</h2>
-        <p class="mk-section-header-desc">Edit the rows, write the request <code>createDataview()</code> takes, and press Apply: this page runs <code>evaluateDataview()</code> from defuss-dataview 0.4.0, imported from jsDelivr and checked against its hash, and shows what it returns.</p>
+        <p class="mk-section-header-desc">Edit the rows, write the request <code>createDataview()</code> takes, and press Apply: this page runs <code>evaluateDataview()</code> from this local DataView build, checked against its hash, and shows what it returns.</p>
       </div>
     </header>
     <div class="dv-explorer card">
@@ -366,7 +457,6 @@
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"name","op":"contains","value":"storage"}]}'>case-sensitive contains</button>
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"page":1000,"pageSize":20}'>page past the end</button>
           <button type="button" class="btn" data-variant="secondary" data-size="xs" data-rows="cycle" data-descriptor='{"tree":{"idField":"id","parentIdField":"parentId"}}'>a cycle terminates</button>
-          <button type="button" class="btn" data-variant="secondary" data-size="xs" data-descriptor='{"filters":[{"field":"__proto__.polluted","op":"eq","value":true}]}'>unsafe path</button>
         </div>
         <figure class="mk-code-block dv-editor" data-variant="file">
           <div class="mk-code-block-head">
@@ -519,9 +609,9 @@
           <table class="table dv-table">
             <thead><tr class="table-row"><th class="table-head">Operator</th><th class="table-head">A cell matches when</th></tr></thead>
             <tbody>
-              <tr class="table-row"><td class="table-cell"><code>eq</code>, <code>neq</code></td><td class="table-cell">It is (or is not) strictly equal to the value; object operands compare by reference.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>eq</code>, <code>neq</code></td><td class="table-cell">It is (or is not) value-equal: SameValueZero primitives, Date timestamps and visible binary bytes. Other objects compare by reference.</td></tr>
               <tr class="table-row"><td class="table-cell"><code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code></td><td class="table-cell">The relational comparison holds. Null, missing, <code>NaN</code> and invalid-date cells never match.</td></tr>
-              <tr class="table-row"><td class="table-cell"><code>in</code></td><td class="table-cell">It strictly equals an element of the array value. A value that is not an array matches nothing.</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>in</code></td><td class="table-cell">It is value-equal to an element of the array value. A value that is not an array matches nothing.</td></tr>
               <tr class="table-row"><td class="table-cell"><code>contains</code>, <code>startsWith</code>, <code>endsWith</code></td><td class="table-cell">The string operation holds. String operations are case-sensitive.</td></tr>
             </tbody>
           </table>
@@ -529,11 +619,11 @@
         <div class="accordion dv-accordion">
           <details class="accordion-item" open>
             <summary class="accordion-trigger"><span>Sort order</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-            <div class="accordion-content"><p>Equal values keep their input order. Mixed values sort in this ascending type order: booleans, numbers, BigInts, strings, valid Dates, other values, invalid numbers and dates, nullish values; descending reverses it. Numbers and Dates sort numerically, strings with the runtime's <code>localeCompare</code>, which can differ between host locales.</p></div>
+            <div class="accordion-content"><p>Equal values keep their input order. Mixed values sort in this ascending type order: booleans, numbers, BigInts, strings, valid Dates, binary values, opaque values, invalid numbers and dates, nullish values; descending reverses it. Numbers, BigInts and Dates sort numerically; strings use deterministic code-unit order. Explicit locale sorting is available through <code>semantics</code>. Binary values sort by visible bytes.</p></div>
           </details>
           <details class="accordion-item">
             <summary class="accordion-trigger"><span>Portable queries</span><svg class="accordion-chevron dv-icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-            <div class="accordion-content"><p>JSON-compatible filter values serialize, but reference equality for object values does not survive a JSON round trip. Use scalar field predicates for queries you send to a server or store.</p></div>
+            <div class="accordion-content"><p>JSON-compatible filter values serialize, but reference equality for object values does not survive a JSON round trip. Dates, BigInts and binary filter operands require a codec that preserves their types, such as DSON.</p></div>
           </details>
         </div>
       </div>
@@ -608,23 +698,23 @@
         <div class="mk-stats-copy">
           <div class="mk-stats-head">
             <h2 class="mk-stats-title" id="numbers-title">Small, tested, measured</h2>
-            <p class="mk-stats-desc">Sizes are <code>dist/stats.json</code> from the published 0.4.0 package. Coverage, test counts and the timings below come from <code>make site-metrics</code>, which runs the test suites and then times the built package: <span id="metrics-source">loading the measurements…</span></p>
+            <p class="mk-stats-desc">Sizes are <code>dist/stats.json</code> from this local package build. Coverage, test counts and the timings below come from <code>make site-metrics</code>, which runs the test suites and then times the built package: <span id="metrics-source">loading the measurements…</span></p>
           </div>
           <div class="mk-stats-grid">
-            <div class="mk-stat" id="stat-gzip"><span class="mk-stat-value">4,624 B <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">12,658 B minified: the standalone browser module this page loads</span></div>
+            <div class="mk-stat" id="stat-gzip"><span class="mk-stat-value">6,252 B <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">17,711 B minified: the standalone browser module this page loads</span></div>
             <div class="mk-stat" id="stat-coverage"><span class="mk-stat-value">–</span><span class="mk-stat-label">of source lines covered by the unit tests</span></div>
             <div class="mk-stat" id="stat-tests"><span class="mk-stat-value">–</span><span class="mk-stat-label">unit and browser tests</span><a href="https://github.com/kyr0/defuss-dataview/tree/main/tests/e2e" class="btn mk-stat-link" data-variant="link" data-size="default">The browser suites</a></div>
             <div class="mk-stat"><span class="mk-stat-value">0</span><span class="mk-stat-label">runtime dependencies; ESM, CommonJS and TypeScript declarations in one package</span></div>
           </div>
         </div>
         <figure class="mk-stats-media dv-metrics">
-          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.4.0">
+          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.5.0">
             <pre data-prefix="$"><code>cat dist/stats.json</code></pre>
             <pre data-prefix=""><code>{</code></pre>
-            <pre data-prefix="" id="stats-esm"><code>  "esmBytes": 22954,</code></pre>
-            <pre data-prefix="" id="stats-cjs"><code>  "commonjsBytes": 23266,</code></pre>
-            <pre data-prefix="" id="stats-min"><code>  "browserMinifiedBytes": 12658,</code></pre>
-            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  "browserGzipBytes": 4624</code></pre>
+            <pre data-prefix="" id="stats-esm"><code>  "esmBytes": 14395,</code></pre>
+            <pre data-prefix="" id="stats-cjs"><code>  "commonjsBytes": 14788,</code></pre>
+            <pre data-prefix="" id="stats-min"><code>  "browserMinifiedBytes": 17711,</code></pre>
+            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  "browserGzipBytes": 6252</code></pre>
             <pre data-prefix=""><code>}</code></pre>
           </div>
           <figcaption class="dv-figcaption">Gzip is Node's <code>zlib</code> at its default level.</figcaption>
@@ -699,7 +789,7 @@
         <p class="dv-way-desc"><code>dist/browser.min.mjs</code> is one self-contained module. This page loads it exactly like this; browsers that support import-map integrity check the hash before the module runs.</p>
         <figure class="mk-code-block" data-variant="file">
           <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="dv-icon" aria-hidden="true"><use href="#i-file"/></svg>index.html</span><button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="dv-icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
-          <pre><code><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"importmap"</span><span class="mk-code-block-k">&gt;</span></span><span>{</span><span>  <span class="mk-code-block-s">"imports"</span>: { <span class="mk-code-block-s">"defuss-dataview"</span>: <span class="mk-code-block-s">"https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs"</span> },</span><span>  <span class="mk-code-block-s">"integrity"</span>: { <span class="mk-code-block-s">"https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs"</span>:</span><span>    <span class="mk-code-block-s">"sha384-0IouHJZBV5KbHLxZssSnyRJHXfDiocaEDcMQtIQTtISenm3I6/2yuKaqXAewyJoq"</span> }</span><span>}</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"module"</span><span class="mk-code-block-k">&gt;</span></span><span>  <span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span></code></pre>
+          <pre><code><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"importmap"</span><span class="mk-code-block-k">&gt;</span></span><span>{</span><span>  <span class="mk-code-block-s">"imports"</span>: { <span class="mk-code-block-s">"defuss-dataview"</span>: <span class="mk-code-block-s">"./assets/defuss-dataview@0.5.0/browser.min.mjs"</span> },</span><span>  <span class="mk-code-block-s">"integrity"</span>: { <span class="mk-code-block-s">"./assets/defuss-dataview@0.5.0/browser.min.mjs"</span>:</span><span>    <span class="mk-code-block-s">"sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M"</span> }</span><span>}</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span><span><span class="mk-code-block-k">&lt;script</span> type=<span class="mk-code-block-s">"module"</span><span class="mk-code-block-k">&gt;</span></span><span>  <span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span><span class="mk-code-block-k">&lt;/script&gt;</span></span></code></pre>
           <span class="mk-code-block-status" role="status"></span>
         </figure>
       </div>
@@ -717,7 +807,7 @@
         </div>
         <pre data-tab="grid" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> data = [</span><span>  { id: 1, name: <span class="mk-code-block-s">'Ada'</span>, score: 92 },</span><span>  { id: 2, name: <span class="mk-code-block-s">'Grace'</span>, score: 98 },</span><span>  { id: 3, name: <span class="mk-code-block-s">'Linus'</span>, score: 75 },</span><span>];</span><span><span class="mk-code-block-k">const</span> view = createDataview({</span><span>  filters: [{ field: <span class="mk-code-block-s">'score'</span>, op: <span class="mk-code-block-s">'gte'</span>, value: 80 }],</span><span>  sorters: [{ field: <span class="mk-code-block-s">'score'</span>, direction: <span class="mk-code-block-s">'desc'</span> }],</span><span>  page: 0, pageSize: 1,</span><span>  meta: { selectedRowIds: [2], lockedColumns: [<span class="mk-code-block-s">'name'</span>] },</span><span>});</span><span></span><span data-highlight><span class="mk-code-block-k">const</span> entries = applyDataview(data, view); <span class="mk-code-block-c">// Existing [{ row, meta }] contract.</span></span><span>console.log(entries[0].row.name);         <span class="mk-code-block-c">// Grace</span></span><span>console.log(entries[0].meta.isSelected);  <span class="mk-code-block-c">// true</span></span><span></span><span data-highlight><span class="mk-code-block-k">const</span> result = evaluateDataview(data, view);</span><span>console.log(result.matchedRows); <span class="mk-code-block-c">// 2</span></span><span>console.log(result.pageCount);   <span class="mk-code-block-c">// 2</span></span><span>console.log(result.hasNextPage); <span class="mk-code-block-c">// true</span></span></code></pre>
         <pre data-tab="tree" data-numbers><code><span><span class="mk-code-block-k">import</span> { createDataview, applyDataview, toggleExpanded, setExpandedIds } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'defuss-dataview'</span>;</span><span></span><span><span class="mk-code-block-k">const</span> rows = [</span><span>  { id: 1, parentId: <span class="mk-code-block-k">null</span>, name: <span class="mk-code-block-s">'Root'</span> },</span><span>  { id: 2, parentId: 1, name: <span class="mk-code-block-s">'Child'</span> },</span><span>];</span><span data-highlight><span class="mk-code-block-k">let</span> view = createDataview({ tree: { idField: <span class="mk-code-block-s">'id'</span>, parentIdField: <span class="mk-code-block-s">'parentId'</span> } });</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 2: omitted expansion list opens all.</span></span><span>view = toggleExpanded(view, 1);</span><span>console.log(applyDataview(rows, view).length); <span class="mk-code-block-c">// 1: toggling closes this root.</span></span><span>view = setExpandedIds(view, []);              <span class="mk-code-block-c">// Explicitly collapse all.</span></span></code></pre>
-        <pre data-tab="worker" data-numbers><code><span><span class="mk-code-block-c">// query.worker.js: no DOM or Node globals needed, so the query runs off the main thread.</span></span><span><span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'https://cdn.jsdelivr.net/npm/defuss-dataview@0.4.0/dist/browser.min.mjs'</span>;</span><span></span><span><span class="mk-code-block-k">let</span> rows = [];</span><span>onmessage = ({ data }) =&gt; {</span><span>  <span class="mk-code-block-k">if</span> (data.rows) rows = data.rows;</span><span data-highlight>  <span class="mk-code-block-k">const</span> result = evaluateDataview(rows, createDataview(data.request));</span><span>  postMessage({ rows: result.entries.map((entry) =&gt; entry.row), total: result.matchedRows, hasMore: result.hasNextPage });</span><span>};</span><span></span><span><span class="mk-code-block-c">// main.js</span></span><span><span class="mk-code-block-k">const</span> worker = <span class="mk-code-block-k">new</span> Worker(<span class="mk-code-block-k">new</span> URL(<span class="mk-code-block-s">'./query.worker.js'</span>, <span class="mk-code-block-k">import</span>.meta.url), { type: <span class="mk-code-block-s">'module'</span> });</span><span>worker.postMessage({ rows, request: { filters: [{ field: <span class="mk-code-block-s">'level'</span>, op: <span class="mk-code-block-s">'eq'</span>, value: <span class="mk-code-block-s">'error'</span> }], page: 0, pageSize: 50 } });</span></code></pre>
+        <pre data-tab="worker" data-numbers><code><span><span class="mk-code-block-c">// query.worker.js: no DOM or Node globals needed, so the query runs off the main thread.</span></span><span><span class="mk-code-block-k">import</span> { createDataview, evaluateDataview } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">'./assets/defuss-dataview@0.5.0/browser.min.mjs'</span>;</span><span></span><span><span class="mk-code-block-k">let</span> rows = [];</span><span>onmessage = ({ data }) =&gt; {</span><span>  <span class="mk-code-block-k">if</span> (data.rows) rows = data.rows;</span><span data-highlight>  <span class="mk-code-block-k">const</span> result = evaluateDataview(rows, createDataview(data.request));</span><span>  postMessage({ rows: result.entries.map((entry) =&gt; entry.row), total: result.matchedRows, hasMore: result.hasNextPage });</span><span>};</span><span></span><span><span class="mk-code-block-c">// main.js</span></span><span><span class="mk-code-block-k">const</span> worker = <span class="mk-code-block-k">new</span> Worker(<span class="mk-code-block-k">new</span> URL(<span class="mk-code-block-s">'./query.worker.js'</span>, <span class="mk-code-block-k">import</span>.meta.url), { type: <span class="mk-code-block-s">'module'</span> });</span><span>worker.postMessage({ rows, request: { filters: [{ field: <span class="mk-code-block-s">'level'</span>, op: <span class="mk-code-block-s">'eq'</span>, value: <span class="mk-code-block-s">'error'</span> }], page: 0, pageSize: 50 } });</span></code></pre>
         <pre data-tab="shadcn" data-numbers><code><span><span class="mk-code-block-c">// defuss-shadcn's Data Grid, Data Tree, Virtual List and Autocomplete query through defuss-dataview.</span></span><span><span class="mk-code-block-k">const</span> grid = document.querySelector(<span class="mk-code-block-s">'#orders'</span>);</span><span data-highlight>df$.shadcn.dataGrid.setSource(grid, orders);</span><span>df$.shadcn.dataGrid.query(grid, { sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }] });</span><span>grid.store.subscribe(({ config }) =&gt; console.log(config.filters, config.sorters));</span><span></span><span><span class="mk-code-block-c">// The bundled engine is df$.dataview: create, evaluate and the patch helpers.</span></span><span data-highlight><span class="mk-code-block-k">const</span> view = df$.dataview.create({ sorters: [{ field: <span class="mk-code-block-s">'amount'</span>, direction: <span class="mk-code-block-s">'desc'</span> }], pageSize: 20 });</span><span>console.log(df$.dataview.evaluate(orders, view).pageCount);</span></code></pre>
         <span class="mk-code-block-status" role="status"></span>
       </figure>
@@ -773,7 +863,7 @@
           <a class="btn" data-size="lg" href="https://github.com/kyr0/defuss-dataview" target="_blank" rel="noopener">View on GitHub<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
           <a class="btn" data-variant="outline" data-size="lg" href="https://www.npmjs.com/package/defuss-dataview" target="_blank" rel="noopener">npm package<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
         </div>
-        <p class="mk-cta-note">MIT licensed · 0.4.0 · zero runtime dependencies</p>
+        <p class="mk-cta-note">MIT licensed · 0.5.0 · zero runtime dependencies</p>
       </div>
     </section>
   </div>
@@ -796,6 +886,7 @@
         <div class="mk-footer-col">
           <h3 class="mk-footer-heading">This page</h3>
           <ul class="mk-footer-list">
+            <li><a href="#mongodb">vs MongoDB</a></li>
             <li><a href="#demo">Live demo</a></li>
             <li><a href="#how">How it works</a></li>
             <li><a href="#explorer">Query explorer</a></li>
@@ -838,7 +929,7 @@
   <a class="btn fab-trigger" href="#top" aria-label="Back to top"><span class="fab-icon" aria-hidden="true"><svg class="dv-icon"><use href="#i-arrow-up"/></svg></span></a>
 </div>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.8/dist/components/all.min.js" integrity="sha384-Lk87A4KViuU62PT7Hy5Qw2DHzw0iEtvi2huW/2h9963U/cZLBARdRf7LZMCsirTa" crossorigin="anonymous"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/defuss-shadcn@0.9.14/dist/components/all.min.js" integrity="sha384-sqAevTacLdpjQj6DQOMbnJyCUtuL973QDLVhsN3QTYy3+I1q9aDQf9UEJ85VtiPP" crossorigin="anonymous"></script>
 <script type="module" src="assets/site.js"></script>
 </body>
 </html>

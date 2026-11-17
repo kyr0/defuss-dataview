@@ -1,7 +1,7 @@
 // The landing page script. index.html loads defuss-shadcn (df$) from jsDelivr first; this module wires the page and runs
-// the query explorer on defuss-dataview, which the page's import map pins to the newest published release.
-// VERIFIED: tests/e2e/docs.spec.ts fails while that pin differs from npm's latest version, and the browser refuses the
-// module when its bytes do not match the integrity hash, so the explorer shows what `npm install` gets.
+// the query explorer on defuss-dataview, which the page's import map pins to this local build.
+// VERIFIED: tests/e2e/docs.spec.ts fails while that pin differs from the local package version, and the browser refuses the
+// module when its bytes do not match the integrity hash, so the explorer exercises exactly the built artifact.
 import { createDataview, evaluateDataview } from 'defuss-dataview';
 import { units } from '../demo/data.js';
 import { jsonLines } from './json.js';
@@ -325,10 +325,10 @@ function showMetrics(m) {
     $(id).querySelector('.mk-stat-value').textContent = value;
     $(id).querySelector('.mk-stat-label').textContent = label;
   };
-  const { unit, browser, original } = m.tests;
+  const { unit, browser } = m.tests;
   const failing = unit.total - unit.passed + browser.total - browser.passed;
   stat('stat-coverage', `${m.coverage.lines}%`, `of source lines covered by the unit tests; ${m.coverage.branches}% of branches, ${m.coverage.functions}% of functions`);
-  stat('stat-tests', number.format(unit.passed + browser.passed), `tests passing: ${unit.passed} unit tests, ${original} of them kept from the original package, and ${browser.passed} in Chromium${failing ? `; ${failing} failing` : ''}`);
+  stat('stat-tests', number.format(unit.passed + browser.passed), `tests passing: ${unit.passed} unit/integration tests and ${browser.passed} in Chromium${failing ? `; ${failing} failing` : ''}`);
   $('metrics-source').textContent = `${m.environment.cpu}, Node ${m.environment.node}, ${m.environment.platform}, ${m.measuredAt.slice(0, 10)}, commit ${m.commit}.`;
 
   const shapes = { lists: 'List', depth: 'Chain tree', size: 'Balanced tree' };
@@ -378,7 +378,9 @@ function drawCharts(m) {
   ]);
 }
 
-const loadEcharts = () => new Promise((resolve, reject) => {
+// One script element for both chart sections, whichever nears the viewport first.
+let echartsLoad;
+const loadEcharts = () => echartsLoad ??= new Promise((resolve, reject) => {
   const script = document.createElement('script');
   Object.assign(script, { src: ECHARTS.src, integrity: ECHARTS.integrity, crossOrigin: 'anonymous', onload: resolve });
   script.onerror = () => reject(new Error('ECharts did not load'));
@@ -390,3 +392,166 @@ new IntersectionObserver((records, observer) => {
   observer.disconnect();
   void Promise.all([loadEcharts(), metrics]).then(([, m]) => drawCharts(m));
 }, { rootMargin: '600px 0px' }).observe($('perf'));
+
+// ---- MongoDB comparison: assets/mongodb.json (bun run benchmark:mongodb) fills the figures, gauges, charts and table ---
+// Like-for-like pairings, each [dataview engine, MongoDB engine]; the gauges and verdicts show MongoDB time / dataview time.
+// VERIFIED: the docs e2e test derives the pairing counts and gauge values from mongodb.json and toggles both switches.
+const PAIRINGS = {
+  scan: { label: 'No index', dataview: 'dataview + immutable array', mongodb: 'MongoDB' },
+  index: { label: 'Indexed', dataview: 'dataview fixed-query index', mongodb: 'MongoDB + index' },
+  // Every figure is a repeated query after a warm-up. On defuss-dbsonl that means a projection of the queried fields,
+  // kept by one full scan of the revision; the full scan itself is listed with the other preparation steps.
+  stored: { label: 'Stored on disk', dataview: 'dataview + DBSONL file, same revision', mongodb: 'MongoDB' },
+};
+const FULL_SCAN = 'dataview + DBSONL file';
+const QUERIES = { top: 'Filter, sort, count', page: 'First page by key' };
+const comparison = fetch('assets/mongodb.json').then((response) => {
+  if (!response.ok) throw new Error(`assets/mongodb.json answered ${response.status}`);
+  return response.json();
+});
+const duration = (value) => (value >= 1000 ? `${(value / 1000).toFixed(1)} s` : value < 1 ? `${value.toFixed(2)} ms` : value < 10 ? `${value.toFixed(1)} ms` : `${Math.round(value)} ms`);
+const times = (value) => `${value < 10 ? value.toFixed(1) : number.format(Math.round(value))}×`;
+const verdict = (ratio) => (ratio >= 1 ? `${times(ratio)} faster` : `${times(1 / ratio)} slower`);
+const docs = (rows) => number.format(Number(rows));
+
+function pairings(data) {
+  return Object.entries(data.sizes).flatMap(([rows, run]) => {
+    const median = (query, engine) => run.results.find((result) => result.query === query && result.engine === engine)?.medianMs;
+    return Object.keys(QUERIES).flatMap((query) => Object.entries(PAIRINGS).map(([pairing, { dataview, mongodb }]) => {
+      const ours = median(query, dataview), theirs = median(query, mongodb);
+      return { rows, query, pairing, ours, theirs, ratio: theirs / ours };
+    }));
+  });
+}
+
+function showComparison(data) {
+  const all = pairings(data), wins = all.filter((p) => p.ratio >= 1), losses = all.filter((p) => p.ratio < 1);
+  const largest = Object.keys(data.sizes).map(Number).sort((a, b) => b - a)[0];
+  const pick = (query, pairing, rows = largest) => all.find((p) => p.query === query && p.pairing === pairing && Number(p.rows) === rows);
+  const index = pick('top', 'index'), scan = pick('top', 'scan'), worst = losses.reduce((a, b) => (b.ratio < a.ratio ? b : a), losses[0]);
+  $('vs-wins').textContent = $('vs-hit-wins').textContent = `${wins.length} of ${all.length}`;
+  $('vs-hit-index').textContent = times(index.ratio);
+  $('vs-hit-index-text').textContent = `faster with a fixed-query index than MongoDB with its index over ${docs(largest)} documents: ${duration(index.ours)} against ${duration(index.theirs)} for a filtered, sorted page with an exact count`;
+  $('vs-hit-scan').textContent = times(scan.ratio);
+  $('vs-hit-scan-text').textContent = `faster scanning ${docs(largest)} documents in memory than MongoDB without an index: ${duration(scan.ours)} against ${duration(scan.theirs)}`;
+  // Cross-pairing honesty: an indexed MongoDB against dataview's unindexed scan, on the filtered query. With no lost
+  // pairing, the loss card shows this instead.
+  const median = (rows, query, engine) => data.sizes[rows].results.find((r) => r.query === query && r.engine === engine)?.medianMs;
+  const indexedMongo = median(largest, 'top', 'MongoDB + index');
+  if (losses.length) {
+    $('vs-hit-losses').textContent = `${losses.length} of ${all.length}`;
+    $('vs-hit-losses-text').textContent = `went to MongoDB, by up to ${times(1 / worst.ratio)}`;
+  } else {
+    $('vs-hit-losses').textContent = times(scan.ours / indexedMongo);
+    $('vs-hit-losses-text').textContent = `faster for MongoDB with an index than defuss-dataview's unindexed scan of ${docs(largest)} documents: ${duration(indexedMongo)} against ${duration(scan.ours)}; one MongoDB index serves every range on its fields, a fixed-query index only its own query`;
+  }
+  const fullScan = median(largest, 'top', FULL_SCAN);
+  if (fullScan !== undefined) $('vs-full-scan').textContent = times(fullScan / pick('top', 'stored').ours);
+  const env = data.sizes[largest].environment;
+  $('vs-source').textContent = `Medians of 7 alternating runs with bun run benchmark:mongodb on an ${env.cpu}, Node.js ${env.node}, MongoDB ${env.mongodb} (${env.storageEngine}), ${data.sizes[largest].measuredAt.slice(0, 10)}.`;
+
+  const paired = new Set(Object.values(PAIRINGS).flatMap((p) => [p.dataview, p.mongodb]));
+  const engines = [...new Set(Object.values(data.sizes).flatMap((run) => run.results.map((r) => r.engine)))].filter((engine) => paired.has(engine));
+  const sizes = Object.keys(data.sizes).sort((a, b) => a - b);
+  const cell = (text, header) => { const el = document.createElement(header ? 'th' : 'td'); el.className = 'table-cell'; if (header) el.scope = 'row'; el.textContent = text; return el; };
+  $('vs-table').replaceChildren(...engines.map((engine) => {
+    const tr = document.createElement('tr');
+    tr.className = 'table-row';
+    tr.append(cell(engine, true), ...Object.keys(QUERIES).flatMap((query) => sizes.map((rows) => {
+      const value = data.sizes[rows].results.find((r) => r.query === query && r.engine === engine)?.medianMs;
+      return cell(value === undefined ? '–' : duration(value));
+    })));
+    return tr;
+  }));
+  $('vs-prepare').textContent = sizes.map((rows) => {
+    const { loads, builds } = data.sizes[rows];
+    return `${docs(rows)} documents: ${[...loads.map((l) => `load ${l.engine} ${duration(l.ms)}`), ...builds.map((b) => `dataview ${b.index} ${duration(b.ms)}`)].join(', ')}`;
+  }).join('. ') + '.';
+
+  const ui = window.df$?.shadcn;
+  if (!ui?.tacho) return all;
+  const tick = (power) => (power < 0 ? `1/${2 ** -power}×` : `${2 ** power}×`);
+  // The gauges show log2(MongoDB time / dataview time): 0 is a tie, and every labelled step is four times the last.
+  ui.tacho.format('vs-mongodb', (value, context) => (context.tick ? tick(Math.round(value)) : verdict(2 ** value)));
+  const choice = { size: String(largest), query: 'top' };
+  const show = () => {
+    for (const pairing of Object.keys(PAIRINGS)) {
+      const p = pick(choice.query, pairing, Number(choice.size));
+      ui.tacho.value(`#vs-${pairing}`, Math.log2(p.ratio));
+      $(`vs-${pairing}-times`).textContent = `${duration(p.ours)} against ${duration(p.theirs)}`;
+    }
+  };
+  // A document listener runs after the toggle group's own, so exactly one button of each group stays pressed.
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('.dv-vs-controls .toggle');
+    if (!button) return;
+    const group = button.closest('.toggle-group');
+    for (const toggle of group.querySelectorAll('.toggle')) toggle.setAttribute('aria-pressed', String(toggle === button));
+    choice[group.dataset.key] = button.dataset.value;
+    show();
+  });
+  show();
+  return all;
+}
+
+function dumbbell(el, all, query) {
+  const rows = all.filter((p) => p.query === query).sort((a, b) => Object.keys(PAIRINGS).indexOf(a.pairing) - Object.keys(PAIRINGS).indexOf(b.pairing) || a.rows - b.rows)
+    .map((p) => ({ ...p, label: `{w|${PAIRINGS[p.pairing].label}}\n{r|${docs(p.rows)} documents}`, title: `${PAIRINGS[p.pairing].label}, ${docs(p.rows)} documents` }));
+  const scale = (value) => (value >= 1000 ? `${value / 1000} s` : `${value} ms`);
+  // ECharts writes a generated description over the container's aria-label; it gets the authored one instead.
+  const description = el.getAttribute('aria-label');
+  df$.shadcn.chart.mount(el, {
+    baseOption: {
+      aria: { enabled: true, label: { description } },
+      legend: { right: 0, data: ['defuss-dataview', 'MongoDB'] },
+      grid: { left: 16, right: 96, top: 40, bottom: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (items) => { const row = rows[items[0].dataIndex]; return `<strong>${row.title}</strong><br>defuss-dataview: ${duration(row.ours)}<br>MongoDB: ${duration(row.theirs)}<br>${verdict(row.ratio)}`; },
+      },
+      xAxis: { type: 'log', min: 0.01, max: 10000, axisLabel: { formatter: scale } },
+      yAxis: {
+        type: 'category', inverse: true, data: rows.map((row) => row.label), axisLine: { show: false },
+        axisLabel: { lineHeight: 17, rich: { w: { color: 'var(--foreground)', fontWeight: 600, fontSize: 13 }, r: { color: 'var(--muted-foreground)', fontSize: 12 } } },
+      },
+      series: [
+        {
+          // The connector: a line between the two engines, green where dataview took less time.
+          type: 'custom', silent: true, tooltip: { show: false }, encode: { x: [0, 1], y: 2 },
+          data: rows.map((row, index) => [Math.min(row.ours, row.theirs), Math.max(row.ours, row.theirs), index, row.ratio >= 1 ? 1 : 0]),
+          renderItem: (_params, api) => {
+            const [x1, y] = api.coord([api.value(0), api.value(2)]), [x2] = api.coord([api.value(1), api.value(2)]);
+            return { type: 'line', shape: { x1, y1: y, x2, y2: y }, style: { stroke: df$.shadcn.chart.color(el, api.value(3) ? '--dv-ok' : '--dv-fail', 0.5), lineWidth: 5, lineCap: 'round' } };
+          },
+        },
+        { name: 'MongoDB', type: 'scatter', symbolSize: 14, z: 3, data: rows.map((row) => row.theirs), itemStyle: { opacity: 1, color: 'var(--card)', borderColor: 'var(--muted-foreground)', borderWidth: 2.5 } },
+        { name: 'defuss-dataview', type: 'scatter', symbolSize: 14, z: 4, data: rows.map((row) => row.ours), itemStyle: { opacity: 1, color: 'var(--primary)' } },
+        {
+          // The verdict, right of whichever engine took longer.
+          type: 'scatter', symbolSize: 0, silent: true, tooltip: { show: false },
+          label: { show: true, position: 'right', distance: 12, fontWeight: 700, formatter: ({ dataIndex }) => verdict(rows[dataIndex].ratio) },
+          data: rows.map((row) => ({ value: Math.max(row.ours, row.theirs), label: { color: row.ratio >= 1 ? 'var(--dv-ok)' : 'var(--dv-fail)' } })),
+        },
+      ],
+    },
+    // A phone-width chart labels two decades four apart and uses smaller verdicts, so the plot keeps its width.
+    media: [{
+      query: { maxWidth: 440 },
+      option: {
+        grid: { right: 76 },
+        xAxis: { axisLabel: { formatter: (value) => ([0.01, 100].includes(value) ? scale(value) : '') } },
+        series: [{}, {}, {}, { label: { fontSize: 11, distance: 8 } }],
+      },
+    }],
+  });
+}
+
+const compared = comparison.then(showComparison);
+new IntersectionObserver((records, observer) => {
+  if (!records.some((record) => record.isIntersecting)) return;
+  observer.disconnect();
+  void Promise.all([loadEcharts(), compared]).then(([, all]) => {
+    dumbbell($('vs-chart-top'), all, 'top');
+    dumbbell($('vs-chart-page'), all, 'page');
+  });
+}, { rootMargin: '600px 0px' }).observe($('mongodb'));

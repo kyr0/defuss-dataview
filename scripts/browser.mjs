@@ -8,3 +8,10 @@ const minified = await readFile('dist/browser.min.mjs');
 const stats = { esmBytes: (await readFile('dist/index.mjs')).length, commonjsBytes: (await readFile('dist/index.cjs')).length, browserMinifiedBytes: minified.length, browserGzipBytes: gzipSync(minified).length };
 await writeFile('dist/stats.json', JSON.stringify(stats, null, 2) + '\n');
 console.log(stats);
+// Focused, dependency-free browser entry points for streaming consumers.
+for (const [name, entry] of [['stream', 'src/stream.ts'], ['query', 'src/query.ts'], ['dbsonl', 'src/adapters/dbsonl.ts']]) {
+  await build({ entryPoints: [entry], bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, sourcemap: true, outfile: `dist/browser-${name}.mjs` });
+}
+// Browser integration tests consume the built package plus real DBSONL/OPFS dependencies.
+await build({ entryPoints: ['tests/browser/dbsonl.worker.ts'], bundle: true, format: 'esm', platform: 'browser', target: 'es2022', outfile: 'artifacts/dbsonl.worker.mjs' });
+
