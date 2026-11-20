@@ -87,3 +87,13 @@ const honest = cq.rows({ select: dynamic });
 const honestRow: Record<string, unknown> = {} as Awaited<ReturnType<typeof honest.evaluate>>['rows'][number];
 const noAnyHonest: IsAny<Awaited<ReturnType<typeof honest.evaluate>>['rows'][number][string]> = false;
 void [exactBack, noAnyGroup, narrowed, shownRow, shownTotals, honestRow, noAnyHonest];
+import type { PartialAggregate } from 'defuss-dataview/compute';
+const exactPlan = cq.aggregate({ groupBy: { country: cq.field('country') }, measures: { revenue: cq.sum(revenue) }, numberMode: 'exact' });
+const orderSource = createImmutableArraySource<Order>([]);
+const part: Promise<PartialAggregate> = exactPlan.partial(orderSource, { batchSize: 64, maxWorkingBytes: 1 << 20 });
+const mergedRow: Promise<{ country: string; revenue: number | null } | undefined> = part.then(p => exactPlan.merge([p], { limit: 10 }, { maxGroups: 10 })).then(r => r.rows[0]);
+// @ts-expect-error A partial scan has no output page.
+exactPlan.partial(orderSource, { maxOutputRows: 1 });
+// @ts-expect-error Only aggregate plans run as partials.
+void shown.partial;
+void mergedRow;

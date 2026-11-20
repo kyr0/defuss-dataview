@@ -30,45 +30,17 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:377 B09 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:12:11Z s=792882e7 FINDING README.md:335 B02 learn=none: Wording defect found and fixed in this page; not mechanically checkable beyond vae.py prose.
 2026-10-10T16:16:08Z s=792882e7 FINDING README.md:13 A04 learn=none: Human editorial choice, not a defect.
-2026-11-15T20:34:44Z s=9ef67782 FINDING scripts/verify.mjs:15 learn=memory: AGENTS.md project line: gates read only committed inputs; not regex-checkable for .mjs that legitimately write artifacts/
 2026-11-15T20:34:44Z s=9ef67782 FINDING .oxlintrc.json learn=none: the lint verb in the gate already detects it
-2026-11-15T20:34:44Z s=9ef67782 FINDING src/normalize.ts:57 createDataview learn=test: src/regressions.test.ts 'table/tree semantics' fails without the fix (2 tests)
 2026-11-15T20:34:44Z s=9ef67782 FINDING README.md:Behavior changes in 0.5.0 learn=none: documentation completeness is not mechanically checkable
-2026-11-15T20:34:44Z s=9ef67782 FINDING docs/index.html:intro-5 learn=test: tests/e2e/docs.spec.ts asserts #intro-size against stats.json
 2026-11-15T20:34:44Z s=9ef67782 FINDING CHANGELOG.md learn=none: one-off editing loss
 2026-11-15T20:34:44Z s=9ef67782 FINDING NOTICE:16 learn=none: factual correction
-2026-11-15T20:34:44Z s=9ef67782 FINDING README.md:19 T06 learn=verifier: vae.py prose enforces T06
 2026-11-15T20:34:44Z s=9ef67782 FINDING documentation/PERFORMANCE.md:binary kernels B01 learn=none: measurement-dependent
 2026-11-15T20:34:44Z s=9ef67782 FINDING README.md:Speed P09 learn=none: wording
-2026-11-15T20:34:44Z s=9ef67782 FINDING src/stream/key-cache.ts:149,199 + accounting-cache.ts:55 learn=test: src/stream/key-cache.test.ts 'timerless runtimes' child-process test fails on the old code
-2026-11-15T21:54:14Z s=9ef67782 DONE fp=884a07c3b09e cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+41)
-2026-11-15T21:54:14Z s=9ef67782 FINDING Makefile:dev learn=memory: .vae/CLI_GIST.md dev-site line + Makefile VERIFIED comment; an interactive server target is not gate-checkable
-2026-11-16T09:35:22Z s=9ef67782 DONE fp=d0d8d4d0b5b8 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+42)
-2026-11-16T09:35:22Z s=9ef67782 FINDING docs/assets/site.css:40 .dv-fly-word learn=test: tests/e2e/docs.spec.ts 'the flythrough phrases stay centered when they wrap' fails without the CSS, passes with it
-2026-11-16T10:51:25Z s=9ef67782 DONE fp=8155fc6dfe64 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+42)
 2026-11-16T10:51:25Z s=9ef67782 FINDING docs/index.html explorer 'unsafe path' preset learn=none: maintainer UX decision, no code defect; the __proto__ rejection stays covered by unit tests
-2026-11-16T19:58:04Z s=9ef67782 DONE fp=177de7b931b4 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+47)
-2026-11-16T19:58:04Z s=9ef67782 FINDING src/tree.ts:evaluateTree learn=test: src/regressions.test.ts 'tree parent identity' pins the README identity rules the fast path must keep (string vs number, -0/0, first duplicate, non-finite rejec
 2026-11-16T19:58:04Z s=9ef67782 FINDING package.json devDependencies defuss-dbsonl learn=none: measurement-dependent documentation; the adapter suite runs against 0.5.0 and the companion
-2026-11-16T20:12:37Z s=9ef67782 DONE fp=21843eed6ac4 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+49)
-2026-11-16T20:12:37Z s=9ef67782 FINDING scripts/benchmark-mongodb.mjs learn=memory: .vae/CLI_GIST.md mongo-bench line; a benchmark against a live local server is not a gate test
-2026-11-16T20:56:15Z s=9ef67782 DONE fp=8d1335b3d87f cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+49)
 2026-11-16T20:56:15Z s=9ef67782 FINDING scripts/benchmark-mongodb.mjs fixedIndex + documentation/MONGODB.md learn=none: measurement-dependent documentation
-2026-11-16T21:52:31Z s=9ef67782 FAIL env.example
-2026-11-16T21:55:47Z s=9ef67782 DONE fp=f71910f3df11 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+54)
-2026-11-16T21:55:47Z s=9ef67782 FINDING docs/index.html + docs/demo/index.html defuss-shadcn pins learn=test: tests/unit/docs.test.ts and the Playwright suite load every page with integrity and fail on failed requests
-2026-11-16T21:55:47Z s=9ef67782 FINDING docs/index.html#mongodb + docs/assets/site.js showComparison/dumbbell + docs/assets/mongodb.json learn=test: tests/e2e/docs.spec.ts 'the MongoDB comparison shows mongodb.json' derives pairing counts and gauge values from the JSON, toggles both switches and checks both 
-2026-11-16T21:55:47Z s=9ef67782 FINDING package.json packageManager + bun.lock + Makefile + .github/workflows/verify.yml + scripts/package-tests.mjs + scripts/verify.mjs learn=memory: .vae/MEMORY.md toolchain line now records the decision; verify.mjs requires bun.lock
 2026-11-16T21:55:47Z s=9ef67782 FINDING DBSJONL_HANDOFF.md learn=none: documentation for another repository's agent
-2026-11-16T21:58:18Z s=9ef67782 DONE fp=d3a9bce1f3d8 cov=98.9% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+54)
 2026-11-16T21:58:18Z s=9ef67782 FINDING docs/index.html hero + nav learn=none: copy and navigation change
-2026-11-16T23:17:38Z s=9ef67782 DONE fp=4bcc447a5269 cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+57)
-2026-11-16T23:17:38Z s=9ef67782 FINDING src/adapters/dbsonl.ts:nativeBatches learn=test: src/adapters/dbsonl.test.ts asserts one sizeOf call per row on the native path, and a new test proves a row swapped after sizing is measured on arrival and reje
-2026-11-17T00:55:13Z s=9ef67782 DONE fp=cd64e6a97c58 cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+59)
-2026-11-17T00:55:13Z s=9ef67782 FINDING package.json devDependencies defuss-dbsonl; src/adapters/dbsonl.test.ts matrix learn=test: the row-only matrix entries keep the fallback path tested against real storage, and the native test's scanBatches assertion fails if a future dbsonl drops the c
-2026-11-17T01:18:33Z s=9ef67782 DONE fp=4ed13d36e4b3 cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+64)
-2026-11-17T01:18:33Z s=9ef67782 FINDING src/adapters/dbsonl.ts:projector|projectedBatches; src/stream/executor.ts:emit; src/stream/projection.ts learn=test: src/adapters/dbsonl-projection.test.ts compares warm, cold and plain results on real memory and file storage and counts native scans; mutations (covers always t
-2026-11-17T01:24:31Z s=9ef67782 DONE fp=4814d281b0d9 cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+64)
 2026-11-17T01:24:31Z s=9ef67782 FINDING docs/assets/site.js:PAIRINGS|showComparison; docs/index.html #mongodb; tests/e2e/docs.spec.ts learn=test: tests/e2e/docs.spec.ts checks the headline count, loss/cross card, every gauge per switch, both chart row counts and the paired table against mongodb.json
 2026-11-17T01:27:57Z s=9ef67782 DONE fp=1419cdea29fa cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+63)
 2026-11-17T01:28:25Z s=9ef67782 DONE fp=2b32b168e60a cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+62)
@@ -104,3 +76,31 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T16:29:17Z s=9ef67782 DONE fp=3d265a6f7240 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
 2026-11-17T16:34:10Z s=9ef67782 DONE fp=0731552066a2 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
 2026-11-17T16:45:11Z s=9ef67782 DONE fp=a5c1bcd249b8 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-17T17:13:46Z s=9ef67782 DONE fp=948783512ae1 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
+2026-11-20T00:48:06Z s=8029794f FAIL lint
+2026-11-20T00:53:51Z s=8029794f DONE fp=cb525a469c9f cov=99.0% paths=CHANGELOG.md,README.md,docs/assets/defuss-dataview@0.6.0/browser-compute.mjs,docs/index.html(+23)
+2026-11-20T00:53:51Z s=8029794f FINDING src/compute/group-table.ts:own (now src/compute/aggregate.ts:ownBytes) learn=test: src/compute/grouping.test.ts 'copies a Node Buffer key instead of sharing its pooled memory' failed before the fix and passes after.
+2026-11-20T00:53:51Z s=8029794f FINDING documentation/COMPUTE_PERFORMANCE.md:55 B05 learn=none: prose accuracy against a benchmark run is a review check, not a mechanical rule
+2026-11-20T00:53:51Z s=8029794f FINDING documentation/COMPUTE_PERFORMANCE.md:57 B01 learn=none: epistemic labeling is a review check
+2026-11-20T00:53:51Z s=8029794f FINDING documentation/COMPUTE_SEMANTICS.md 'Partials and merge' P07; README.md compute bullets P07 learn=none: modality of prose claims is a review check
+2026-11-20T00:53:51Z s=8029794f FINDING documentation/COMPUTE_SEMANTICS.md Numbers B01 learn=none: source attribution is a review check
+2026-11-20T00:53:51Z s=8029794f FINDING documentation/COMPUTE_ARCHITECTURE.md 'Partial and final stages', src/compute/ARCH.md L01 learn=none: prose review
+2026-11-20T00:53:51Z s=8029794f FINDING src/compute/aggregate.ts:addNumber (default compensated path) learn=none: timing ratios are machine-dependent; not a reliable test or rule (same as the key-cache.ts finding of 2026-11-17)
+2026-11-20T14:33:52Z s=8029794f FAIL tests.e2e.1
+2026-11-20T14:36:17Z s=8029794f DONE fp=85552d339871 cov=99.0% paths=CHANGELOG.md,README.md,bun.lock,docs/assets/defuss-dataview@0.6.0/browser-compute.mjs(+33)
+2026-11-20T14:36:17Z s=8029794f FINDING src/adapters/dbsonl.ts:116|open.registerMeasuredScan learn=test: src/adapters/dbsonl.test.ts:176 asserts backend.parallel.scans grows by one per large scan and that rows equal the row-only path.
+2026-11-20T14:36:17Z s=8029794f FINDING src/adapters/dbsonl.ts:116|maxBatchBytes learn=test: src/adapters/dbsonl.test.ts:156 asserts every measured span stays within maxBatchBytes, sizeOf runs once per row and the rows come in order.
+2026-11-20T14:36:17Z s=8029794f FINDING src/adapters/dbsonl.ts:205|PREFIX_ROWS learn=test: src/adapters/dbsonl.test.ts:197 asserts a 50-row page leaves parallel.scans unchanged and a full scan starts the pool once; a mutation with PREFIX_ROWS = 0 fail
+2026-11-20T14:36:17Z s=8029794f FINDING src/adapters/dbsonl.ts:237|nativeBatches skip learn=test: src/adapters/dbsonl.test.ts:197 puts a 4,096-unit key at the end of the prefix and checks each row once, also for a provider that ignores limit; removing the sk
+2026-11-20T14:36:17Z s=8029794f FINDING examples/compute-partials.mjs:43|Worker learn=none: Not reproduced: no worker exited early in any run; the handler only turns a possible hang into an error.
+2026-11-20T14:36:17Z s=8029794f FINDING tests/e2e/dataview.spec.ts:2|beforeEach learn=none: Flake without a reproduced cause; a test or rule would pin one unexplained failure.
+2026-11-20T14:36:17Z s=8029794f FINDING documentation/STREAMING.md:48 P07; README.md:335 P07; documentation/SOURCES.md:92 P07; documentation/PERFORMANCE.md:65 P07; src/adapters/ARCH.md:13 P07 learn=none: Prose precision fixed on the pages; no mechanical check fits.
+2026-11-20T14:36:17Z s=8029794f FINDING documentation/COMPUTE_PERFORMANCE.md:57 P05 L01 B01 learn=none: Prose fixed against the measured figures.
+2026-11-20T14:36:17Z s=8029794f FINDING README.md:455 R05 learn=none: Prose fixed against the measured figures.
+2026-11-20T16:16:06Z s=8029794f FAIL tests.e2e.1
+2026-11-20T16:45:18Z s=8029794f DONE fp=a9248642c4d2 cov=99.0% paths=CHANGELOG.md,README.md,bun.lock,docs/assets/defuss-dataview@0.6.0/browser-compute.mjs(+38)
+2026-11-20T16:45:18Z s=8029794f FINDING docs/assets/site.js:569|ui.tacho.format('vs-mongodb') learn=test: tests/e2e/docs.spec.ts expects the clamped needle and an 'over' readout beyond the scale; with the old format it failed on '256× faster'.
+2026-11-20T16:45:18Z s=8029794f FINDING scripts/benchmark-mongodb.mjs:CACHE learn=none: The mechanism inside defuss-dbsonl's cache is not established; documented as UNKNOWN in SOURCES.md and reported to the storage side.
+2026-11-20T16:45:18Z s=8029794f FINDING scripts/benchmark-mongodb.mjs|first 1,000,000 run learn=none: Host load is environmental; the alternating method already exposes it through the reference engines, so no rule pins it.
+2026-11-20T16:45:18Z s=8029794f FINDING src/adapters/dbsonl.test.ts|merged in key order learn=test: The recipe documented in SOURCES.md is covered by this test.
+2026-11-20T16:45:18Z s=8029794f FINDING README.md:492 S06; documentation/MONGODB.md:76 L01 learn=none: Prose fixed on the pages.

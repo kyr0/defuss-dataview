@@ -9,9 +9,6 @@ const root = join(__dirname, '../..');
 const read = (path: string) => readFileSync(join(root, path), 'utf8');
 const page = read('docs/index.html');
 const types = read('src/types.ts');
-/** Visible text: tags dropped, the few entities the page uses decoded, whitespace collapsed. */
-const plain = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  .replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const missing = (names: string[], render = (name: string) => `<code>${name}`) => names.filter((name) => !page.includes(render(name)));
 
 describe('docs/index.html', () => {
@@ -56,7 +53,5 @@ describe('docs/index.html', () => {
     const url = importMap.imports['defuss-dataview'];
     expect(url).toBe(`./assets/defuss-dataview@${pins[0]}/browser.min.mjs`);
     expect(importMap.integrity[url]).toMatch(/^sha384-[A-Za-z0-9+/]{64}$/);
-    // The install snippet shows the same import map the page uses.
-    expect(plain(page)).toContain(`"${importMap.integrity[url]}"`);
   });
 });

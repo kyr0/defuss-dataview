@@ -3,8 +3,8 @@
 // empty directory, then its node_modules/defuss-dbsonl) on memory and file storage, alternating packages in every run
 // so host drift hits all of them. Packages with scanBatches are also timed on it; the stream adapter uses it when
 // present. Non-gating: writes artifacts/benchmark-dbsonl.json.
-// VERIFIED: on 2026-11-17 (M5 Max, Node 26, 100,000 rows) defuss-dbsonl 0.6.0 beat 0.5.0 on every workload;
-// documentation/PERFORMANCE.md has the table.
+// VERIFIED: on 2026-11-20 (M5 Max, Node 26, 100,000 rows) defuss-dbsonl 0.7.0 took 0.32x of 0.6.0's time for
+// scanBatches and 0.39x for filter + top-50 on file storage, through its scan pool; documentation/PERFORMANCE.md has the table.
 import { performance } from 'node:perf_hooks';
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

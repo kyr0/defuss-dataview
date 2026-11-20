@@ -43,6 +43,7 @@ Each row's evaluators are closures built once per execution. A field reads from 
 | `hash` | Grouped aggregates | One entry per group |
 | `ordered-groups` | Grouped aggregates over a certified ordering | One live group |
 | `first-seen` | Grouping-only first pages | `offset + limit + 1` groups |
+| `merge` | `merge()`: partials folded into one group table | One entry per merged group |
 
 Grouping uses a trie of native Maps, one level per key component. Each level splits keys into separate maps by family: primitives, value-mode Dates by timestamp, value-mode binary values by their bytes, and other objects by identity. SameValueZero on primitives gives exactly the grouping equality, so no key is serialized or joined with a delimiter that could merge distinct tuples.
 
@@ -55,6 +56,28 @@ Ordered groups need a certificate, because a wrong one would silently split a gr
 - every group field has a leased column whose values are all Booleans, all finite numbers, all BigInts or all strings.
 
 In those domains, comparator ties coincide with grouping equality. Nullish values, locale collation, identity Dates and mixed types fail the certificate and fall back to hashing.
+
+## Partial and final stages
+
+`partial()` and `merge()` split an aggregate plan into a partial stage per part of the snapshot and one final stage. Both run inside the same executor as `evaluate()`. A partial execution scans its part with hash or scalar grouping, then exports the group keys and state columns instead of finalizing them. A merge execution opens no source: `src/compute/partial.ts` folds the validated partials into a fresh group table and fresh state columns, and the usual finalization applies HAVING, ordering and paging.
+
+```mermaid
+flowchart LR
+  subgraph workers[one per key range]
+    S1[source part] --> P1[partial scan] --> X1[export: keys, states]
+  end
+  X1 -->|structuredClone or postMessage| V[validate envelopes, shapes]
+  V --> A[absorb in source order:<br/>group table, merge states]
+  A --> F[finalize: HAVING,<br/>order, page]
+```
+
+Why the final stage reuses the executor instead of a separate merge function: finalization, HAVING, ordering, paging, output batching and the memory ledger stay one implementation, so merged and single-pass results come from the same finalization code. Why partials carry states and not finished groups: HAVING, `avg` and ordering are only correct over whole groups, and a group can span parts.
+
+A partial never uses ordered groups, which keep one live group and discard it once closed. Each state kind exports its own column: counts as a `Float64Array`, exact sums as their term lists packed into one `Float64Array` with offsets, `min`, `max` and `sumBigInt` as value arrays. Each kind also merges its own slot: counts and BigInt sums add, `min` and `max` apply the normal update, and exact sums add every term of the other part. The export reserves its copies in the ledger.
+
+Why `numberMode: 'exact'` instead of merging compensated sums: a Neumaier pair from one part, added to another, gives a result that depends on where the parts were split. Shewchuk's expansion keeps nonoverlapping terms whose sum is exactly the sum of the inputs, so adding a part's terms is exact, and one final rounding gives the same double for every order and split. It costs a short array per group and a loop over its terms per addition (COMPUTE_PERFORMANCE.md).
+
+Group keys travel as their representative values. Value-mode Dates and binary values group by value, so a copy groups like the original. A plain object, or any object under identity equality, groups by identity, which a copy loses; partials reject such keys. The signature is a 53-bit fingerprint of the descriptor, walked in property order, and detects a partial of another plan by accident. Merge treats every partial as untrusted input: it checks the envelope and column shapes first, then each count, term and value while it folds them in.
 
 ## Memory
 

@@ -35,7 +35,26 @@ The plan ships an optional strategy only when it saves at least 10% latency on i
 
 - Ordered groups ship. VERIFIED: B16 took 10.8 ms against 13.3 ms with hashing (19% less), and they hold one group at a time instead of all of them. They run only with the certificate described in COMPUTE_ARCHITECTURE.md.
 - A compact open-addressed table does not ship. VERIFIED: as a standalone loop it matched Map at 16 and 1,000 groups and was 23% faster at 100,000 groups with single finite-number keys. HYPOTHESIS: inside a plan, Map lookups are a minority of the 150 ms for that case, so the table would save less than the 10% gate, and only for one key type and cardinality. Falsifier: an implementation behind `GroupTable` that cuts B11 at G=100,000 by 10% or more without slowing G=16.
-- Dense-domain grouping and parallel workers are not implemented; no measurement supports them yet.
+- Dense-domain grouping is not implemented; no measurement supports it yet.
+- Compute spawns no workers. `partial()` and `merge()` let an application split a scan; the measurements below show where that pays.
+
+## Exact sums and partial aggregation
+
+VERIFIED: from one run of `bun run benchmark:compute` on 2026-11-20 (Apple M5 Max, Node.js 26.13.1, 200,000 rows of 64 fields, or 100,000 DBSONL documents of 6 fields for B33, medians of 9 rounds, defuss-dbsonl 0.7.0). Compare these figures with each other, not with the table above, which comes from an earlier run.
+
+| Scenario | Variants |
+| --- | --- |
+| B10 sum of cancelling magnitudes | sequential 8.1 ms, compensated 8.4 ms, exact 15.4 ms |
+| B30 group `sum`/`count`, G=1,000 | compensated 82.1 ms, exact 88.9 ms; with prepared columns 15.2 and 20.6 ms |
+| B31 G=1,000, one pass against 4 parts plus merge | one pass 89.0 ms; parts in one thread 89.5 ms, also cloned 91.1 ms; 4 worker threads 24.3 ms |
+| B32 G=100,000, the same | one pass 179.4 ms; parts in one thread 216.3 ms, also cloned 229.8 ms; 4 worker threads 115.9 ms |
+| B33 DBSONL file, G=1,000, one pass against partials over `split()` ranges | one pass without the scan pool 261.6 ms, with defuss-dbsonl's pool 118.9 ms; 4 worker threads 86.9 ms; 8 worker threads 26.7 ms |
+
+`'exact'` costs 8% on B30 when reading rows dominates, and 36% with prepared columns, where the kernel dominates. In a sum-only kernel it costs about 1.8× as much as compensation, because every addition walks a short list of terms. With few groups, the partial stage and the merge cost less than 1% over one pass, and a structured clone of the partials added about 2% more. Four worker threads then took about a quarter of the one-pass time. With 100,000 groups, each part holds 50,000, and the merge folds all 200,000 partial groups in one thread. That costs 21% over one pass and limits four workers to 1.55×.
+
+B31 and B32 exclude worker startup (210 to 230 ms here) and the rows: each worker generated its own slice before timing. In B33 each worker opened its own file backend with `io: 'sync'` and its database handle before timing (40 to 65 ms), as a long-lived worker would. A timed round pins one snapshot, splits it, has every worker compute the partial of its range at that head, and merges. With storage, decoding runs in the workers too: eight workers took a tenth of the one-pass time without the pool and 0.22 of it with the pool, which decodes in its workers but returns every row to the calling thread.
+
+VERIFIED: a one-off probe that timed each worker's partial over the same database measured 2.6 to 3.0 µs per row with 2 to 6 workers and 2.0 µs with 8. UNKNOWN: why the time per row drops at 8 workers. In B33, four workers took 0.73 of the pool's time and eight took 0.22.
 
 ## Against MongoDB
 

@@ -6,7 +6,8 @@ test-results/
 playwright-report/
 tmp/
 *.tgz
-.env
+.env*
+!.env.example
 .venv/
 __pycache__/
 .pytest_cache/

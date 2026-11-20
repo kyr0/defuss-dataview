@@ -10,12 +10,35 @@ type Node = { v: 1; op: string; key?: string; path?: string; value?: unknown; ar
 type Descriptor = Record<string, any>;
 export type OracleResult = { rows: Record<string, unknown>[]; totals?: Record<string, unknown>; total: number; matches: number };
 
+/**
+ * The correctly rounded sum, from exact BigInt arithmetic: every finite double is an integer multiple of 2^-1074, so
+ * the scaled sum is exact, and one rounding with guard and sticky bits gives the nearest double, ties to even.
+ * It shares nothing with the expansion-based sum in src/compute/aggregate.ts.
+ */
+export function exactSum(values: readonly number[]): number {
+  let scaled = 0n;
+  for (const x of values) {
+    let m = Math.abs(x), e = 0;
+    while (!Number.isInteger(m)) { m *= 2; e++; }
+    scaled += (x < 0 ? -1n : 1n) * (BigInt(m) << BigInt(1074 - e));
+  }
+  if (scaled === 0n) return values.length && values.every(x => Object.is(x, -0)) ? -0 : 0;
+  const sign = scaled < 0n ? -1 : 1, a = scaled < 0n ? -scaled : scaled, bits = a.toString(2).length;
+  if (bits <= 53) return sign * Number(a) * 2 ** -1074;
+  const shift = bits - 55;
+  let kept = a >> BigInt(shift);
+  if (a & ((1n << BigInt(shift)) - 1n)) kept |= 1n;
+  const result = sign * Number(kept) * 2 ** (shift - 1074);
+  if (!Number.isFinite(result)) throw new RangeError('overflow');
+  return result;
+}
+
 function own(value: unknown, key: string): unknown {
   return typeof value === 'object' && value !== null && Object.hasOwn(value, key) ? (value as Record<string, unknown>)[key] : undefined;
 }
 export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input: readonly object[], page: { offset?: number; limit?: number } = {}): OracleResult {
   const ops = createValueOperations(d.semantics ?? {});
-  const skip = d.invalidNumbers === 'skip', compensated = d.numberMode !== 'sequential';
+  const skip = d.invalidNumbers === 'skip', compensated = d.numberMode === undefined || d.numberMode === 'compensated', exact = d.numberMode === 'exact';
   const num = (value: unknown): number | null => {
     if (value === null || value === undefined) return null;
     if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -73,15 +96,17 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
     }
     if (m.op === 'sum' || m.op === 'avg') {
       let sum = 0, correction = 0, n = 0;
+      const xs: number[] = [];
       for (const row of accepted) {
         const x = num(evaluate(m.arg!, row)); if (x === null) continue;
+        if (exact) { xs.push(x); n++; continue; }
         const t = sum + x;
         if (!Number.isFinite(t)) throw new RangeError('overflow');
         if (compensated) correction += Math.abs(sum) >= Math.abs(x) ? (sum - t) + x : (x - t) + sum;
         sum = t; n++;
       }
       if (!n) return null;
-      const total = compensated ? sum + correction : sum;
+      const total = exact ? exactSum(xs) : compensated ? sum + correction : sum;
       return m.op === 'sum' ? total : total / n;
     }
     if (m.op === 'min' || m.op === 'max') {

@@ -16,6 +16,14 @@ const amount = field('amount');
 const gross = q.mul(amount, q.literal(1.19));
 
 // Every preset pairs the plan it runs with the source text it shows; the text is written out, never evaluated.
+// Each text starts with the same imports, source and builder, so it runs as written once orders exist.
+const PRELUDE = `import { forRows } from 'defuss-dataview/compute';
+import { createImmutableArraySource } from 'defuss-dataview/stream';
+
+// orders: [{ id, customer, region, product, amount, date, status }, …]
+const source = createImmutableArraySource(orders);
+const q = forRows();
+`;
 const PLANS = {
   regions: {
     note: 'Hash grouping by region with four measures; the paid revenue counts only paid orders, through a measure predicate.',
@@ -30,8 +38,7 @@ const PLANS = {
       orderBy: [{ field: 'paidRevenue', direction: 'desc' }],
     }),
     page: {},
-    code: `const q = forRows();
-const amount = q.field('amount');
+    code: PRELUDE + `const amount = q.field('amount');
 const byRegion = q.aggregate({
   groupBy: { region: q.field('region') },
   measures: {
@@ -54,7 +61,7 @@ const { rows, summary } = await byRegion.evaluate(source, {}, { count: 'exact' }
       orderBy: [{ field: 'revenue', direction: 'desc' }],
     }),
     page: { limit: 10 },
-    code: `const amount = q.field('amount');
+    code: PRELUDE + `const amount = q.field('amount');
 const pairs = q.aggregate({
   where: q.neq(q.field('status'), q.literal('Failed')),
   groupBy: { region: q.field('region'), product: q.field('product') },
@@ -72,7 +79,7 @@ const { rows, summary } = await pairs.evaluate(source, { limit: 10 }, { count: '
       orderBy: [{ expr: gross, direction: 'desc' }, { expr: field('id') }],
     }),
     page: { limit: 10 },
-    code: `const gross = q.mul(q.field('amount'), q.literal(1.19));
+    code: PRELUDE + `const gross = q.mul(q.field('amount'), q.literal(1.19));
 const top = q.rows({
   filters: [{ field: 'status', op: 'eq', value: 'Paid' }],
   select: { id: q.field('id'), customer: q.field('customer'), net: q.field('amount'), gross },
@@ -89,7 +96,7 @@ const { rows, summary } = await top.evaluate(source, { limit: 10 }, { count: 'ex
       orderBy: [{ expr: field('date'), direction: 'desc' }, { expr: field('id') }],
     }),
     page: { limit: 10 },
-    code: `const amount = q.field('amount');
+    code: PRELUDE + `const amount = q.field('amount');
 const table = q.view({
   filters: [{ field: 'region', op: 'eq', value: 'EU' }],
   select: { id: q.field('id'), date: q.field('date'), customer: q.field('customer'), status: q.field('status'), amount },
@@ -107,7 +114,7 @@ const { rows, totals, summary } = await table.evaluate(source, { limit: 10 });`,
     note: 'Grouping without measures and a finite page: the plan stops once it has seen one group more than the page needs, so it scans only a few rows and reports the total as unknown.',
     plan: q.aggregate({ groupBy: { product: field('product') }, measures: {} }),
     page: { limit: 5 },
-    code: `const products = q.aggregate({ groupBy: { product: q.field('product') }, measures: {} });
+    code: PRELUDE + `const products = q.aggregate({ groupBy: { product: q.field('product') }, measures: {} });
 const { rows, summary } = await products.evaluate(source, { limit: 5 });
 // summary.strategy === 'first-seen', summary.totalResultRows === null`,
   },
@@ -260,23 +267,28 @@ async function run() {
 showPlan();
 
 // ---- row reads against prepared columns: the two ways to give a plan its source, as code in the comparison card ------
-const SOURCE_CODE = {
-  rows: `import { forRows } from 'defuss-dataview/compute';
+const PLAN_CODE = `import { forRows } from 'defuss-dataview/compute';
 import { createImmutableArraySource } from 'defuss-dataview/stream';
 
-// Nothing to prepare: every run reads row.region, row.amount and row.status.
+const q = forRows();
+const byRegion = q.aggregate({
+  groupBy: { region: q.field('region') },
+  measures: { revenue: q.sum(q.field('amount')) },
+});
+
+// orders: [{ id, customer, region, product, amount, date, status }, …]
+`;
+const SOURCE_CODE = {
+  rows: PLAN_CODE + `// Nothing to prepare: every run reads row.region and row.amount.
 const source = createImmutableArraySource(orders);
 const { rows, summary } = await byRegion.evaluate(source, {}, { count: 'exact' });
 // summary.cacheBytesPinned === 0`,
-  columns: `import { forRows } from 'defuss-dataview/compute';
-import { createImmutableArraySource } from 'defuss-dataview/stream';
-
-// 1. Give the source a key cache; it is off by default and bounded by maxBytes.
+  columns: PLAN_CODE + `// 1. Give the source a key cache; it is off by default and bounded by maxBytes.
 const source = createImmutableArraySource(orders, {
   keyCache: { maxBytes: 512 * 1024 * 1024 },
 });
 // 2. Build one column per field the plan reads, once.
-//    explain().requiredFields is ['region', 'amount', 'status'] here.
+//    explain().requiredFields is ['region', 'amount'] here.
 await source.prepareKeys(byRegion.explain().requiredFields);
 // 3. Run plans as before: they read the columns, not the rows.
 const { rows, summary } = await byRegion.evaluate(source, {}, { count: 'exact' });

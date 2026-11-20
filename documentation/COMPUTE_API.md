@@ -59,7 +59,7 @@ Every measure takes an optional `{ where }` predicate. Field keys and path segme
 | `q.aggregate(d)` | `groupBy`, `measures`, `having`, `orderBy: [{ field, direction }]` | One row per group, or one global row without `groupBy` |
 | `q.view(d)` | `select`, `totals`, `orderBy: [{ expr, direction }]` | A page of rows plus totals over every match |
 
-Every descriptor also accepts `filters` (the stream filter vocabulary), `where` (a Boolean expression), `semantics`, `numberMode` (`'compensated'` default, or `'sequential'`) and `invalidNumbers` (`'error'` default, or `'skip'`). Aliases are own string keys of a plain object, nonempty and without dots. Group and measure aliases must differ, and `having` and aggregate `orderBy` name output aliases. An unknown descriptor property throws a `TypeError`.
+Every descriptor also accepts `filters` (the stream filter vocabulary), `where` (a Boolean expression), `semantics`, `numberMode` (`'compensated'` default, `'sequential'` or `'exact'`) and `invalidNumbers` (`'error'` default, or `'skip'`). Aliases are own string keys of a plain object, nonempty and without dots. Group and measure aliases must differ, and `having` and aggregate `orderBy` name output aliases. An unknown descriptor property throws a `TypeError`.
 
 Preparing a plan validates the whole descriptor and freezes it. A prepared plan holds no source, snapshot or result state, so one plan can run on several sources at once.
 
@@ -68,8 +68,49 @@ Preparing a plan validates the whole descriptor and freezes it. A prepared plan 
 | `plan.evaluate(source, page?, options?)` | `Promise<{ rows, summary }>`; views also return `totals` |
 | `plan.stream(source, page?, options?)` | `AsyncGenerator` of `{ type: 'batch', rows }` events and one final `{ type: 'complete', summary }` (views add `totals`) |
 | `plan.explain()` | Frozen description: kind, required fields, operators, measures, state count, candidate strategies, notes |
+| `plan.partial(source, options?)` | Aggregate plans: `Promise<PartialAggregate>`, the mergeable state of one part of a snapshot |
+| `plan.merge(partials, page?, options?)` | Aggregate plans: `Promise<{ rows, summary }>` over the union of the parts |
 
 `page` is `{ offset?, limit? }`; both are safe nonnegative integers. `stream()` validates `page` and `options` synchronously and opens the source on the first pull.
+
+## Partial aggregation
+
+An aggregate plan can run as several partial scans plus one merge, for example one worker per key range. Each partial applies `filters`, `where` and the measures to its part; `having`, `orderBy` and the page apply once, in `merge()`.
+
+```js
+const plan = q.aggregate({
+  groupBy: { country: q.path('value.country') },
+  measures: { orders: q.count(), revenue: q.sum(q.number(q.path('value.amount'))) },
+  orderBy: [{ field: 'revenue', direction: 'desc' }],
+  numberMode: 'exact',
+});
+const session = await db.beginRead(); // one defuss-dbsonl snapshot for every part
+const ranges = await session.split(4); // key ranges in key order, with exact row counts
+const partials = await Promise.all(ranges.map(({ gte, lt }) => plan.partial(createDbsonlSource(db, { gte, lt, at: session.head }))));
+const { rows, summary } = await plan.merge(partials, { limit: 20 }); // summary.strategy === 'merge'
+await session.close();
+```
+
+In a worker, each part opens its own database handle and passes `session.head` as `at` (SOURCES.md); `examples/compute-partials.mjs` runs four worker threads this way.
+
+`explain().strategies` contains `'merge'` when the plan accepts both methods. That holds for every aggregate plan without `sum` or `avg`, and for every aggregate plan under `numberMode: 'exact'`. Compensated and sequential sums depend on the order of the additions, so `partial()` and `merge()` reject them with a `TypeError`.
+
+A `PartialAggregate` is plain data that survives `structuredClone()` and `postMessage()`; it is not JSON, since it holds BigInts, Dates, typed arrays and `undefined`. A worker can transfer the buffers of its typed arrays (`partial.states`). `merge()` validates every partial as untrusted input.
+
+| Field | Meaning |
+| --- | --- |
+| `format` | Partial format version, `1` |
+| `signature` | Fingerprint of the plan's descriptor |
+| `revision` | Snapshot revision of the part's source |
+| `scannedRows`, `matchedRows` | Rows read and rows that passed `filters` and `where` |
+| `groups` | Groups in the part, in first-encounter order; 1 without `groupBy` |
+| `keys` | One array of representative key values per `groupBy` alias |
+| `states` | Measure states by group; their layout belongs to the format version |
+| `peakWorkingBytes` | Largest reserved working memory of the partial scan |
+
+`partial()` takes the input options of `evaluate()` (`batchSize`, `maxBatchBytes`, `maxRowBytes`, `maxScannedRows`, `yieldEveryBatches`, `sizeOf`, `maxWorkingBytes`, `maxGroups`, `profile`, `signal`). `merge()` takes the output side: `batchSize`, `maxBatchBytes`, `sizeOfOutput`, `maxWorkingBytes`, `maxGroups`, `maxOutputRows`, `maxOutputBytes` and `signal`. A merge's `totalResultRows` is always exact.
+
+To build the same plan in a worker, send the descriptor itself with `postMessage`. Its clone keeps the property order, so the worker's plan has the same signature. A descriptor with its aliases in another order is another plan, because aliases fix the order of outputs and states.
 
 ## Options
 
@@ -98,7 +139,7 @@ Exceeding a cap throws `DataviewError` with code `LIMIT_EXCEEDED`. Compute never
 | `returnedRows` | Output rows produced |
 | `hasMore` | At least one result row lies after the page |
 | `sourceExhausted` | The scan reached the end of the source |
-| `strategy` | `scan`, `ordered`, `top-k`, `sort`, `scalar`, `hash`, `ordered-groups` or `first-seen` |
+| `strategy` | `scan`, `ordered`, `top-k`, `sort`, `scalar`, `hash`, `ordered-groups`, `first-seen`, or `merge` for `merge()` |
 | `executionComplete` | Always `true`; failed executions throw instead |
 | `peakWorkingBytes` | Largest reserved working memory |
 | `peakOutputBytes` | `stream()`: the largest output batch; `evaluate()`: all collected output |
@@ -113,9 +154,10 @@ Exceeding a cap throws `DataviewError` with code `LIMIT_EXCEEDED`. Compute never
 | --- | --- |
 | `TypeError` at preparation | Malformed, cyclic, too deep or too large expressions; unsafe keys or aliases; unknown operators or descriptor properties |
 | `TypeError` at execution | A non-Boolean predicate, an invalid number under `'error'`, a non-BigInt for `sumBigInt`, an opaque object for `min`/`max`, a function or symbol group key |
-| `RangeError` | Arithmetic or accumulator overflow, division by zero, a count beyond `Number.MAX_SAFE_INTEGER` |
+| `TypeError` in `partial()` or `merge()` | A `sum` or `avg` outside `numberMode: 'exact'`; a group key that groups by identity; an empty list; a partial of another format version or plan, or with malformed fields |
+| `RangeError` | Arithmetic or accumulator overflow, division by zero, a count beyond `Number.MAX_SAFE_INTEGER`, also when merging |
 | `DataviewError` `LIMIT_EXCEEDED` | A row, batch, scan, group, working-memory or output cap |
-| `DataviewError` `SOURCE_CONTRACT` | Malformed batches, or a source that disagrees with its exact count |
+| `DataviewError` `SOURCE_CONTRACT` | Malformed batches, a source that disagrees with its exact count, or partials of different snapshot revisions |
 | `DataviewError` `ABORTED` | The signal aborted |
 
 When cleanup also fails, the plan throws an `AggregateError` with the original error first, then the iterator-return and session-close errors.

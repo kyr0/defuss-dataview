@@ -5,7 +5,8 @@ import { createValueOperations } from '../values.js';
 import { ExpressionTable } from './expressions.js';
 import type { PlanNode } from './expressions.js';
 import type { MeasureSpec, StateKind, StateSpec } from './aggregate.js';
-import type { ComputeStrategy, Explain } from './types.js';
+import { fingerprint } from './partial.js';
+import type { ComputeStrategy, Explain, NumberMode } from './types.js';
 
 export type PlanKind = 'rows' | 'aggregate' | 'view';
 /** The immutable, source-independent result of preparing a descriptor; executions only read it. */
@@ -15,7 +16,11 @@ export interface Plan {
   readonly fields: readonly string[];
   readonly ops: ReturnType<typeof createValueOperations>;
   readonly byValue: boolean;
-  readonly compensated: boolean;
+  readonly numberMode: NumberMode;
+  /** Aggregate plans whose every state merges exactly: no float sum outside numberMode 'exact'. */
+  readonly mergeable: boolean;
+  /** Descriptor fingerprint that partials carry, so merge() rejects a partial of another plan. */
+  readonly signature: string;
   readonly policy: { invalidNumbers: 'error' | 'skip' };
   /** Legacy filters, compiled once with the plan's semantics. */
   readonly filters: CompiledQuery | undefined;
@@ -61,7 +66,8 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
   if (typeof descriptor !== 'object' || descriptor === null || Array.isArray(descriptor)) throw new TypeError(`A ${kind} descriptor must be an object.`);
   const d = descriptor as Record<string, unknown>;
   for (const key of Object.keys(d)) if (!KEYS[kind].includes(key)) throw new TypeError(`Unexpected ${kind} descriptor property ${JSON.stringify(key)}.`);
-  if (d.numberMode !== undefined && d.numberMode !== 'compensated' && d.numberMode !== 'sequential') throw new TypeError('numberMode must be compensated or sequential.');
+  if (d.numberMode !== undefined && d.numberMode !== 'compensated' && d.numberMode !== 'sequential' && d.numberMode !== 'exact') throw new TypeError('numberMode must be compensated, sequential or exact.');
+  const numberMode = (d.numberMode ?? 'compensated') as NumberMode;
   if (d.invalidNumbers !== undefined && d.invalidNumbers !== 'error' && d.invalidNumbers !== 'skip') throw new TypeError('invalidNumbers must be error or skip.');
   const semantics = (d.semantics ?? {}) as object;
   const ops = createValueOperations(semantics);
@@ -124,12 +130,16 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
     ? compileQuery({ sorters: rowOrder.map(o => ({ field: o.field!, direction: o.sign < 0 ? 'desc' : 'asc' as const })), semantics }).ordering : undefined;
   const groupFields = groupBy.length && groupBy.every(g => table.nodes[g.id].field !== undefined) ? groupBy.map(g => table.nodes[g.id].field!) : undefined;
   const fields = table.fields();
+  const mergeable = kind === 'aggregate' && (numberMode === 'exact' || states.every(s => s.kind !== 'sum'));
   const strategies: ComputeStrategy[] = kind === 'rows' || kind === 'view'
     ? (rowOrder.length ? ['top-k', 'sort', ...(plainOrder ? ['ordered' as const] : [])] : ['scan'])
     : groupBy.length ? ['hash', ...(groupFields ? ['ordered-groups' as const] : []), ...(!measures.length && !having && !outputOrder.length ? ['first-seen' as const] : [])] : ['scalar'];
+  if (mergeable) strategies.push('merge');
   const notes = [
     'Field reads come from rows, or from source columns that are already built; compute never builds a column.',
-    'Floating-point sums update in source order; partial sums are never merged.',
+    numberMode === 'exact' ? 'Floating-point sums are exact until one final rounding, so they do not depend on order or partitioning.'
+      : 'Floating-point sums update in source order; partial sums are never merged.',
+    ...(kind === 'aggregate' ? [mergeable ? 'partial() and merge() accept this plan.' : "partial() and merge() need numberMode: 'exact' for sum and avg."] : []),
     ...(kind === 'view' ? ['Totals cover every input match, not only the returned page.'] : []),
     ...(kind === 'aggregate' && groupBy.length ? ['Ordered groups need a source ordering on the group fields and prepared homogeneous columns; otherwise hash grouping runs.'] : []),
   ];
@@ -147,7 +157,7 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
   });
   return Object.freeze({
     kind, nodes: Object.freeze(table.nodes.map(n => Object.freeze(n))), fields, ops, byValue: ops.equality === 'value',
-    compensated: d.numberMode !== 'sequential', policy: { invalidNumbers: (d.invalidNumbers ?? 'error') as 'error' | 'skip' },
+    numberMode, mergeable, signature: kind === 'aggregate' ? fingerprint(descriptor) : '', policy: { invalidNumbers: (d.invalidNumbers ?? 'error') as 'error' | 'skip' },
     filters, where, select, rowOrder: rowOrder.map(({ id, sign }) => ({ id, sign })), rowOrdering: plainOrder,
     groupBy, groupFields, states, measures, having, outputOrder, explain,
   });

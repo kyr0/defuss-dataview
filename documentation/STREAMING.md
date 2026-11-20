@@ -45,7 +45,7 @@ On failure the generator throws; no success event follows. Batches already yield
 | `strategy` | scan, ordered, top-k or sort |
 | `peakBufferedRows/Bytes` | Sorting-candidate peak, or output-batch peak for scan/ordered; excludes source and collector |
 
-A source can decode up to one input batch beyond the last examined row. `batchRows()` additionally may hold one pending row while splitting a byte-full batch. defuss-dbsonl 0.6.0 supports native batches; row-only providers retain per-record asynchronous work. Both paths may retain one pending row when splitting a byte-full batch.
+A source can decode up to one input batch beyond the last examined row. `batchRows()` additionally may hold one pending row while splitting a byte-full batch. defuss-dbsonl 0.6.0 and later support native batches; row-only providers retain per-record asynchronous work. Both paths may retain one pending row when splitting a byte-full batch. On native files, defuss-dbsonl 0.7.0 scans the rows after the first 4,096 in its worker pool when they number at least its threshold (5,000 by default); the workers decode ahead of the consumer up to their own message window, outside DataView's budgets.
 
 ## Errors
 

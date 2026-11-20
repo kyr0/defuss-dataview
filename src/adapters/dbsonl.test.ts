@@ -6,7 +6,9 @@ import { openDbsonl, openDbsonl as openPublished, createMemoryBackend } from 'de
 import { createFileBackend } from 'defuss-dbsonl/server';
 import type { Backend } from 'defuss-dbsonl';
 import { createDbsonlSource } from './dbsonl.js';
-import { evaluateStream, streamQuery } from '../stream.js';
+import { createImmutableArraySource, evaluateStream, streamQuery } from '../stream.js';
+import { resolveOptions } from '../stream/common.js';
+import { measuredScan } from '../stream/measured.js';
 
 const directories: string[] = [];
 afterEach(async () => { for (const dir of directories.splice(0)) await rm(dir, { recursive: true, force: true }); });
@@ -151,24 +153,106 @@ it('independently validates native batches and closes after structural-provider 
   }
 });
 
-it('native batches call sizeOf once per row and reuse that size for the budget check', async () => {
+it('native batches call sizeOf once per row and yield spans within the byte budget', async () => {
   const db = await openDbsonl<number>(createMemoryBackend(), 'accounting', { create: true });
   try {
-    const snapshot = await db.beginRead(); expect(typeof snapshot.scanBatches).toBe('function'); await snapshot.close();
     await db.batch(Array.from({ length: 100 }, (_, n) => ({ operation: 'put' as const, key: String(n).padStart(3, '0'), value: n })));
     let calls = 0;
-    const result = await evaluateStream(createDbsonlSource(db), { limit: 100 }, { sizeOf: () => { calls++; return 10; }, batchSize: 7, maxBatchBytes: 30 });
-    expect(result.rows.length).toBe(100); expect(calls).toBe(100);
+    const session = await createDbsonlSource(db).open();
+    const spans: number[][] = [];
+    try {
+      for await (const batch of measuredScan(session)!(resolveOptions({ sizeOf: () => { calls++; return 10; }, batchSize: 7, maxBatchBytes: 30 }))) {
+        const offset = batch.offset ?? 0, length = batch.length ?? batch.rows.length;
+        expect(batch.bytes).toBeLessThanOrEqual(30);
+        spans.push(batch.rows.slice(offset, offset + length).map(row => row.value));
+      }
+    } finally { await session.close(); }
+    expect(spans.flat()).toEqual(Array.from({ length: 100 }, (_, n) => n));
+    expect(Math.max(...spans.map(span => span.length))).toBe(3);
+    expect(calls).toBe(100);
   } finally { await db.close(); }
 });
 
-it('measures native rows the provider did not size itself, so a swapped row cannot pass the budget', async () => {
-  const small = { key: 'a', revision: 1, value: 1 }, large = { key: 'a', revision: 1, value: new Uint8Array(2000) };
-  const source = createDbsonlSource({ async beginRead() { return {
-    revision: 1, count: 1,
-    scan(): AsyncIterable<never> { throw Error('native capability was ignored'); },
-    async *scanBatches(options?: { sizeOf?: (row: never) => number }) { options?.sizeOf?.(small as never); yield [large] as never; },
-    async close() {},
-  }; } });
-  await expect(evaluateStream(source, { limit: 1 }, { maxRowBytes: 1000 })).rejects.toThrow();
+it('lets defuss-dbsonl scan large native snapshots in its worker pool, with the rows and early stops of one thread', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dataview-dbsonl-')); directories.push(dir);
+  const backend = await createFileBackend(dir, { scanWorkers: 2, scanThreshold: 100 });
+  const db = await openDbsonl<{ n: number }>(backend, 'pool', { create: true });
+  const rowOnly = await openRowOnly<{ n: number }>(backend, 'pool');
+  try {
+    await db.batch(Array.from({ length: 600 }, (_, n) => ({ operation: 'put' as const, key: String(n).padStart(3, '0'), value: { n: (n * 7919) % 600 } })));
+    const top = { filters: [{ field: 'value.n', op: 'gte' as const, value: 100 }], sorters: [{ field: 'value.n', direction: 'desc' as const }], limit: 5 };
+    const scans = () => backend.parallel!.scans, before = scans();
+    const pooled = await evaluateStream(createDbsonlSource(db), top, { count: 'exact', batchSize: 16 });
+    expect(scans()).toBe(before + 1);
+    expect(pooled).toEqual(await evaluateStream(createDbsonlSource(rowOnly), top, { count: 'exact', batchSize: 16 }));
+    const page = { sorters: [{ field: 'key' }], limit: 1 }, first = await evaluateStream(createDbsonlSource(db), page, { batchSize: 16 });
+    expect(scans()).toBe(before + 2);
+    expect(first.summary).toMatchObject({ strategy: 'ordered', sourceExhausted: false });
+    expect(first).toEqual(await evaluateStream(createDbsonlSource(rowOnly), page, { batchSize: 16 }));
+    await db.put('new', { n: 0 }); await db.compact();
+    expect((await db.collect()).removed.length).toBeGreaterThan(0);
+  } finally { await rowOnly.close(); await db.close(); }
+});
+
+it('reads the first 4096 native rows in this thread and continues after them, so a short page never starts the pool', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dataview-dbsonl-')); directories.push(dir);
+  const backend = await createFileBackend(dir, { scanWorkers: 2 });
+  const db = await openDbsonl<number>(backend, 'prefix', { create: true });
+  // The prefix ends at a key of the maximum length, after which no key is short enough to be a bound.
+  const key = (n: number) => String(n).padStart(5, '0') + (n === 4095 ? 'x'.repeat(4091) : '');
+  const values = Array.from({ length: 10_000 }, (_, n) => n);
+  try {
+    for (let s = 0; s < values.length; s += 2500) await db.batch(values.slice(s, s + 2500).map(n => ({ operation: 'put' as const, key: key(n), value: n })));
+    const scans = () => backend.parallel!.scans, before = scans();
+    const page = await evaluateStream(createDbsonlSource(db), { limit: 50 }, { batchSize: 1000 });
+    expect(scans()).toBe(before);
+    expect(page.rows.map(row => row.value)).toEqual(values.slice(0, 50));
+    const all = await evaluateStream(createDbsonlSource(db), {}, { batchSize: 1000 });
+    expect(scans()).toBe(before + 1);
+    expect(all.rows.map(row => row.value)).toEqual(values);
+    const ignoring = { async beginRead() {
+      const session = await db.beginRead();
+      return { revision: session.revision, count: session.count, scan: session.scan.bind(session), close: () => session.close(), scanBatches: (options: object) => session.scanBatches({ ...options, limit: undefined }) };
+    } };
+    expect((await evaluateStream(createDbsonlSource(ignoring), {}, { batchSize: 1000 })).rows.map(row => row.value)).toEqual(values);
+  } finally { await db.close(); }
+});
+
+it('pins every execution to a given snapshot head, so ranges of one snapshot read it after later writes', async () => {
+  for (const backend of [createMemoryBackend(), await fileBackend()]) {
+    const db = await openDbsonl<{ n: number }>(backend, 'pinned', { create: true });
+    try {
+      await db.batch(Array.from({ length: 20 }, (_, n) => ({ operation: 'put' as const, key: String(n).padStart(2, '0'), value: { n } })));
+      const session = await db.beginRead();
+      const parts = await session.split(3);
+      await db.put('05', { n: 500 }); await db.put('new', { n: 1000 });
+      const pinned = await Promise.all(parts.map(({ gte, lt }) => evaluateStream(createDbsonlSource(db, { gte, lt, at: session.head }), {})));
+      expect(pinned.map(result => result.summary.revision)).toEqual(parts.map(() => session.revision));
+      expect(pinned.flatMap(result => result.rows.map(row => row.value.n))).toEqual(Array.from({ length: 20 }, (_, n) => n));
+      const whole = await evaluateStream(createDbsonlSource(db, { at: session.head }), {}, { count: 'exact' });
+      expect(whole.summary).toMatchObject({ revision: session.revision, sourceRows: 20 });
+      await session.close(); await db.compact(); await db.collect();
+      await expect(evaluateStream(createDbsonlSource(db, { at: session.head }), {})).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(() => createDbsonlSource(db, { at: 'head' as never })).toThrow(TypeError);
+    } finally { await db.close(); }
+  }
+});
+
+it('the first rows of each key range, merged in key order, equal one pass, with ties, an offset and the exact count', async () => {
+  const db = await openDbsonl<{ g: number }>(createMemoryBackend(), 'merged-pages', { create: true });
+  try {
+    await db.batch(Array.from({ length: 300 }, (_, n) => ({ operation: 'put' as const, key: String(n).padStart(3, '0'), value: { g: (n * 7) % 5 } })));
+    const session = await db.beginRead();
+    try {
+      // Sorting by g alone leaves ties, which one pass returns in key order.
+      const request = { filters: [{ field: 'value.g', op: 'gte' as const, value: 1 }], sorters: [{ field: 'value.g', direction: 'desc' as const }], offset: 7, limit: 30 };
+      const ranges = await session.split(4);
+      const parts = await Promise.all(ranges.map(({ gte, lt }) => evaluateStream(createDbsonlSource(db, { gte, lt, at: session.head }), { ...request, offset: 0, limit: request.offset + request.limit }, { count: 'exact' })));
+      const merged = await evaluateStream(createImmutableArraySource(parts.flatMap(part => part.rows)), { sorters: request.sorters, offset: request.offset, limit: request.limit });
+      const single = await evaluateStream(createDbsonlSource(db, { at: session.head }), request, { count: 'exact' });
+      expect(ranges.length).toBe(4);
+      expect(merged.rows).toEqual(single.rows);
+      expect(parts.reduce((sum, part) => sum + part.summary.totalMatches!, 0)).toBe(single.summary.totalMatches);
+    } finally { await session.close(); }
+  } finally { await db.close(); }
 });

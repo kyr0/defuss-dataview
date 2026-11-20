@@ -49,28 +49,27 @@ input/output, collection and sorted retention are separate scopes. These account
 limits do not bound physical JavaScript heap usage.
 
 DBSONL (`benchmark:dbsonl`, 100,000 documents, median of 7 runs alternating both packages,
-2026-11-17, M5 Max, Node.js 26):
+2026-11-20, M5 Max, Node.js 26, both packages through the current adapter):
 
-| Storage | Workload | defuss-dbsonl 0.5.0 | defuss-dbsonl 0.6.0 |
+| Storage | Workload | defuss-dbsonl 0.6.0 | defuss-dbsonl 0.7.0 |
 | --- | --- | ---: | ---: |
-| memory | `snapshot.scan()` | 373 ms | 247 ms |
-| memory | `snapshot.scanBatches()` | none | 179 ms |
-| file | `snapshot.scan()` | 329 ms | 306 ms |
-| file | `snapshot.scanBatches()` | none | 241 ms |
-| memory | filter + top-50, exact count | 478 ms | 246 ms |
-| file | filter + top-50, exact count | 413 ms | 310 ms |
-| memory | first page of 50 | 2.2 ms | 1.5 ms |
-| file | first page of 50 | 2.1 ms | 1.6 ms |
+| memory | `snapshot.scan()` | 286 ms | 291 ms |
+| memory | `snapshot.scanBatches()` | 221 ms | 213 ms |
+| file | `snapshot.scan()` | 376 ms | 303 ms |
+| file | `snapshot.scanBatches()` | 344 ms | 110 ms |
+| memory | filter + top-50, exact count | 291 ms | 295 ms |
+| file | filter + top-50, exact count | 378 ms | 148 ms |
+| memory | first page of 50 | 1.9 ms | 1.6 ms |
+| file | first page of 50 | 1.9 ms | 1.8 ms |
 
-The adapter uses `scanBatches` when a snapshot has it, as 0.6.0's do, and batches
-`scan()` rows itself otherwise, so the 0.5.0 column is the row path. 0.6.0 ported the
-batch API of a 0.4-based fork that this repository carried until then, and decodes
-with defuss-dson 1.5.1. The
-database's decoding takes most of a DBSONL query. On native batches the adapter reuses
-the size its own `sizeOf` recorded for each row instead of measuring it again; paired
-against measuring twice on 0.6.0, filter + top-50 took 0.85× of the time on memory and
-on file storage. The adapter keeps per-row validation either way, and no storage
-format, I/O pruning, prefetch or unbounded decoded-value cache is added.
+On file storage, 0.7.0 runs a `scanBatches()` call without `sizeOf` over at least 5,000 rows in
+a pool of worker threads, which decode their key ranges in parallel; the calling thread still receives every row. The
+adapter passes no `sizeOf` for that reason, measures each row itself, and reads the first 4,096
+rows in the calling thread, so a first page never starts the pool. VERIFIED: paired against the
+previous adapter, which passed its `sizeOf`, on 0.7.0 file storage, filter + top-50 took 0.53× of
+the time, and first pages and memory storage did not change (ratios 0.89 to 1.02). The
+adapter keeps per-row validation, and no storage format, I/O pruning or unbounded decoded-value
+cache is added.
 
 ## Reproduction and interpretation
 

@@ -16,7 +16,7 @@ Per row, a plan evaluates `filters`, then `where`, then the expressions the row'
 
 `add`, `sub`, `mul` and `div` take finite numbers. A nullish operand gives `null`. Any other operand is an invalid number: under `invalidNumbers: 'error'` it throws a `TypeError`, under `'skip'` it reads as `null`. A non-finite result or a division by zero throws a `RangeError`.
 
-`sum` and `avg` skip nullish operands and apply the invalid-number policy to the rest. They add in source order. `numberMode: 'compensated'` (the default) keeps a Neumaier correction term per sum, `'sequential'` adds plainly. Neither mode merges partial sums, so results are identical for every batch size. An overflowing sum or mean throws a `RangeError`. Without any value, `sum` and `avg` return `null`.
+`sum` and `avg` skip nullish operands and apply the invalid-number policy to the rest. `numberMode: 'compensated'` (the default) adds in source order and keeps a Neumaier correction term per sum; `'sequential'` adds plainly in source order. Neither mode merges partial sums, so results are identical for every batch size. `'exact'` returns the sum of all values rounded once to the nearest double, ties to even. Its result does not depend on the order of the rows, the batch size or how the input is split into partials. The sum of only `-0` values is `-0`; any other sum that cancels to zero is `+0`. `avg` divides that sum by the count. An overflowing sum or mean throws a `RangeError`. In `'exact'` mode a running sum that passes `Number.MAX_VALUE` throws too, so whether such an input throws can depend on the order. Without any value, `sum` and `avg` return `null`.
 
 `count()` counts rows; `count(x)` counts rows where `x` is not nullish, including `NaN` and other invalid numbers. Counts fail with a `RangeError` before they could pass `Number.MAX_SAFE_INTEGER`.
 
@@ -51,6 +51,18 @@ An aggregate without `groupBy` returns exactly one row, also for empty input, wh
 HAVING filters finished groups with the stream filter vocabulary over output aliases. Then `orderBy` sorts, then `offset` and `limit` page. `totalResultRows` counts groups after HAVING and before paging.
 
 A view's totals cover every row that passed `filters` and `where`, including rows outside the page. Page and totals come from the same snapshot, even when the source is replaced during the scan.
+
+## Partials and merge
+
+`merge()` over partials of disjoint parts of one snapshot, given in source order, returns what `evaluate()` returns over the union of the parts. The parts must cover the scope once each; `merge()` cannot detect overlapping or missing parts. It checks that every partial has the same snapshot revision and the same `signature`, the fingerprint of the plan's descriptor.
+
+- Groups appear in first-encounter order across the parts, and a group keeps the key values of the earliest part that has it.
+- Counts and `sumBigInt` add exactly. `min` and `max` keep the first of equal values, from the earliest part. Exact sums add the parts' exact terms, so their result is the single-pass result.
+- HAVING, `orderBy` and paging apply to the merged groups. A group that would fail HAVING within one part can pass after merging.
+- Binary `min` and `max` values in a partial are copies of their visible bytes, and every value in a partial that crossed a worker boundary is a structured clone: merged results equal the single-pass values without being the same objects.
+- Group keys that group by identity cannot be copied without changing which rows they group: plain objects and arrays, and every object under `equality: 'identity'`. `partial()` rejects them with a `TypeError`.
+
+Given out of source order, the merged rows hold the same groups and the same counts, sums and `sumBigInt` values. Group order without `orderBy`, representative keys and the choice between equal `min`/`max` values then follow the given order.
 
 ## Counts and early stops
 

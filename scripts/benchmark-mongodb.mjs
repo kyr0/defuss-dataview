@@ -5,6 +5,8 @@
 // all of them. Non-gating: writes artifacts/benchmark-mongodb.json and updates docs/assets/mongodb.json for the website.
 // The projected DBSONL engine answers from copies of one revision's queried fields and must stay at that revision,
 // so the timed rounds never write; the cross-check confirms it returns the full scan's rows.
+// The worker engine answers each query in 8 worker threads, one per split() range of one pinned DBSONL file snapshot,
+// and merges their first rows with evaluateStream; the threads open their handles before timing, as long-lived ones would.
 // VERIFIED: on 2026-11-16 (M5 Max, MongoDB 9.0.8) the database was gone after every run, including one that failed
 // mid-load; documentation/MONGODB.md has the results and why the index wins.
 import { performance } from 'node:perf_hooks';
@@ -12,6 +14,7 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import os from 'node:os';
+import { Worker } from 'node:worker_threads';
 import { MongoClient } from 'mongodb';
 import { createMemoryBackend, openDbsonl } from 'defuss-dbsonl';
 import { createFileBackend } from 'defuss-dbsonl/server';
@@ -41,6 +44,42 @@ const fixedIndex = (top, page) => ({
   top: async () => { const r = await top.readPage({ limit: 50 }); return `${top.count}:${r.rows.map((row) => row.key).join()}`; },
   page: async () => (await page.readPage({ limit: 50 })).rows.map((row) => row.key).join(),
 });
+// Each part returns its own first rows in query order with its exact match count. The union holds the global first
+// rows, and concatenating the parts in key order keeps ties in key order, as one pass does; the counts add up.
+const WORKERS = 8;
+// Every DBSONL handle gets a 64 MiB / 8,192-page cache instead of 8 MiB / 1,024 pages: with the defaults, 8 workers over
+// 1,000,000 file documents took 843 ms against 387 ms (probe, 2026-11-20). MongoDB's WiredTiger cache is recorded below.
+const CACHE = { maxCacheBytes: 64 * 1024 ** 2, maxCachePages: 8192 };
+const call = (worker, message) => new Promise((resolve, reject) => {
+  const fail = (error) => { worker.off('message', done); reject(error); };
+  const done = (value) => { worker.off('error', fail); resolve(value); };
+  worker.once('message', done); worker.once('error', fail); worker.postMessage(message);
+});
+const parallel = (db, pool) => {
+  const ask = async (request, options) => {
+    const session = await db.beginRead();
+    try {
+      const ranges = await session.split(pool.length);
+      const parts = await Promise.all(ranges.map(({ gte, lt }, i) => call(pool[i], { head: session.head, range: { gte, lt }, request, options })));
+      const merged = await evaluateStream(createImmutableArraySource(parts.flatMap((part) => part.rows)), { sorters: request.sorters, limit: request.limit });
+      return { rows: merged.rows, matches: parts.reduce((sum, part) => sum + (part.matches ?? 0), 0) };
+    } finally { await session.close(); }
+  };
+  return {
+    top: async () => { const r = await ask(topRequest('value.'), { count: 'exact' }); return `${r.matches}:${r.rows.map((row) => row.key).join()}`; },
+    page: async () => (await ask(pageRequest, {})).rows.map((row) => row.key).join(),
+  };
+};
+const workerCode = `const { parentPort, workerData: w } = require('node:worker_threads');
+(async () => {
+  const [{ createDbsonlSource }, { evaluateStream }, { openDbsonl }, { createFileBackend }] = await Promise.all([w.adapter, w.stream, w.dbsonl, w.server].map((url) => import(url)));
+  const db = await openDbsonl(await createFileBackend(w.dir, { io: 'sync' }), 'bench', w.cache);
+  parentPort.on('message', async ({ head, range, request, options }) => {
+    const r = await evaluateStream(createDbsonlSource(db, { ...range, at: head }), request, options);
+    parentPort.postMessage({ rows: r.rows, matches: r.summary.totalMatches });
+  });
+  parentPort.postMessage('ready');
+})();`;
 const mongo = (collection) => ({
   // An application would issue the count and the page together, so they run concurrently.
   top: async () => {
@@ -53,7 +92,7 @@ const mongo = (collection) => ({
 
 const client = new MongoClient(url, { serverSelectionTimeoutMS: 5000 });
 const database = `defuss_dataview_bench_${process.pid}`;
-const directories = [], dbsonl = [], loads = [];
+const directories = [], dbsonl = [], loads = [], pool = [];
 let mongoDb;
 // An interrupted run skips the finally below; drop the throwaway database and directories before exiting instead.
 const interrupt = async (signal) => {
@@ -70,7 +109,7 @@ try {
   const loadDbsonl = async (name, backend) => {
     let db;
     const ms = await time(async () => {
-      db = await openDbsonl(backend, 'bench', { create: true });
+      db = await openDbsonl(backend, 'bench', { create: true, ...CACHE });
       for (let start = 0; start < total; start += 5000) await db.batch(docs.slice(start, start + 5000).map((value) => ({ operation: 'put', key: value.key, value })));
     });
     loads.push({ engine: name, ms }); dbsonl.push(db); return db;
@@ -100,6 +139,12 @@ try {
   const projectedFile = createDbsonlSource(fileDb, { projection: { fields: ['value.score'], maxBytes: 512 * 1024 ** 2 } });
   const projectedMs = await time(async () => { if (!(await projectedFile.prepare())) throw new Error('the projection did not fit its byte cap'); });
   builds.push({ index: 'DBSONL file projection of value.score', ms: projectedMs });
+  const urls = { adapter: new URL('../dist/adapters/dbsonl.mjs', import.meta.url).href, stream: new URL('../dist/stream.mjs', import.meta.url).href, dbsonl: import.meta.resolve('defuss-dbsonl'), server: import.meta.resolve('defuss-dbsonl/server') };
+  const openMs = await time(() => Promise.all(Array.from({ length: WORKERS }, () => new Promise((resolve, reject) => {
+    const worker = new Worker(workerCode, { eval: true, workerData: { ...urls, dir, cache: CACHE } });
+    pool.push(worker); worker.once('message', resolve); worker.once('error', reject);
+  }))));
+  builds.push({ index: `${WORKERS} worker threads open the DBSONL file`, ms: openMs });
   const { limit: _limit, ...topDescriptor } = topRequest('');
   const topIndex = await build('fixed-query index for the top query', topDescriptor), pageIndex = await build('fixed-query index for the page query', { sorters: pageRequest.sorters });
   const engines = [
@@ -108,6 +153,7 @@ try {
     ['dataview + DBSONL memory', dataview(() => createDbsonlSource(memoryDb), 'value.')],
     ['dataview + DBSONL file', dataview(() => createDbsonlSource(fileDb), 'value.')],
     ['dataview + DBSONL file, same revision', dataview(() => projectedFile, 'value.')],
+    [`dataview + DBSONL file, ${WORKERS} workers`, parallel(fileDb, pool)],
     ['MongoDB', mongo(plain)],
     ['MongoDB + index', mongo(indexed)],
   ];
@@ -127,7 +173,8 @@ try {
   for (const { engine, ms } of loads) console.log(`load ${total} docs`.padEnd(64) + engine.padEnd(40) + `${ms.toFixed(0).padStart(8)} ms`);
   for (const { index, ms } of builds) console.log(`build: ${index}`.padEnd(64) + 'dataview'.padEnd(40) + `${ms.toFixed(0).padStart(8)} ms`);
   for (const r of results) console.log(label[r.query].padEnd(64) + r.engine.padEnd(40) + `${r.medianMs.toFixed(r.medianMs < 1 ? 3 : 1).padStart(8)} ms`);
-  const environment = { node: process.version, platform: `${os.platform()} ${os.release()} ${os.arch()}`, cpu: os.cpus()[0]?.model, mongodb: server.version, storageEngine: (await mongoDb.admin().serverStatus()).storageEngine?.name };
+  const status = await mongoDb.admin().serverStatus();
+  const environment = { node: process.version, platform: `${os.platform()} ${os.release()} ${os.arch()}`, cpu: os.cpus()[0]?.model, mongodb: server.version, storageEngine: status.storageEngine?.name, wiredTigerCacheBytes: status.wiredTiger?.cache?.['maximum bytes configured'], dbsonlCache: CACHE };
   const method = '1 warmup that also cross-checks results, then median of 7 alternating runs, gc between runs when --expose-gc; MongoDB over loopback, count and page issued concurrently';
   const measuredAt = new Date().toISOString();
   await mkdir('artifacts', { recursive: true });
@@ -140,6 +187,7 @@ try {
     await writeFile('docs/assets/mongodb.json', JSON.stringify({ queries: label, method, sizes: site.sizes }, null, 2) + '\n');
   }
 } finally {
+  await Promise.all(pool.map((worker) => worker.terminate()));
   for (const db of dbsonl) await db.close();
   for (const directory of directories) await rm(directory, { recursive: true, force: true });
   if (mongoDb) await mongoDb.dropDatabase();

@@ -57,9 +57,13 @@ export interface ComputeBuilders<T> {
   sumBigInt(expr: Expr<bigint | null | undefined>, options?: MeasureOptions): AggregateExpr<bigint | null>;
 }
 
+/**
+ * How sum and avg add floating-point numbers: source-order Neumaier compensation (default), plain sequential IEEE
+ * additions, or 'exact': the correctly rounded sum, independent of order and partitioning, so partials can merge.
+ */
+export type NumberMode = 'compensated' | 'sequential' | 'exact';
 export interface PlanOptions {
-  /** Source-order Neumaier compensation (default) or plain sequential IEEE additions. */
-  numberMode?: 'compensated' | 'sequential';
+  numberMode?: NumberMode;
   /** NaN, infinities and non-numbers in numeric positions: throw TypeError (default) or treat as null. */
   invalidNumbers?: 'error' | 'skip';
   semantics?: QuerySemantics;
@@ -115,7 +119,7 @@ export interface ComputeOptions<T extends object> {
   signal?: CancellationSignal;
 }
 export interface Page { offset?: number; limit?: number }
-export type ComputeStrategy = 'scan' | 'ordered' | 'top-k' | 'sort' | 'scalar' | 'hash' | 'ordered-groups' | 'first-seen';
+export type ComputeStrategy = 'scan' | 'ordered' | 'top-k' | 'sort' | 'scalar' | 'hash' | 'ordered-groups' | 'first-seen' | 'merge';
 export interface ComputeSummary {
   revision: string | number | bigint;
   sourceRows: number | null;
@@ -152,13 +156,57 @@ export interface Explain {
   readonly strategies: readonly ComputeStrategy[];
   readonly notes: readonly string[];
 }
+/** Input options of one partial scan; output options belong to merge(). */
+export type PartialOptions<T extends object> = Omit<ComputeOptions<T>, 'count' | 'sizeOfOutput' | 'maxOutputRows' | 'maxOutputBytes'>;
+/** Options of the final stage: its working memory, groups, output batches and collected output. */
+export type MergeOptions = Pick<ComputeOptions<object>, 'batchSize' | 'maxBatchBytes' | 'sizeOfOutput' | 'maxWorkingBytes' | 'maxGroups' | 'maxOutputRows' | 'maxOutputBytes' | 'signal'>;
+/**
+ * One measure state of a partial, by group: `counts` for count measures; `counts`, `offsets` and `terms` for exact
+ * sums (group g's terms are terms[offsets[g]] up to terms[offsets[g + 1]]); `values` for min, max and sumBigInt,
+ * `undefined` where a group has none. Treat it as opaque: its layout belongs to the partial format version.
+ */
+export type PartialState = { readonly counts: Float64Array } | { readonly counts: Float64Array; readonly offsets: Float64Array; readonly terms: Float64Array } | { readonly values: readonly unknown[] };
+/**
+ * The mergeable state of one aggregate plan over one part of a snapshot. Plain data that survives structuredClone and
+ * postMessage (BigInts, Dates, typed arrays, undefined), not JSON. merge() validates it as untrusted input.
+ */
+export interface PartialAggregate {
+  /** Partial format version; merge() rejects other versions. */
+  readonly format: 1;
+  /** Fingerprint of the plan's descriptor; merge() rejects a partial of a different plan. */
+  readonly signature: string;
+  readonly revision: string | number | bigint;
+  readonly scannedRows: number;
+  readonly matchedRows: number;
+  /** Groups in this part, in first-encounter order; 1 for a plan without groupBy. */
+  readonly groups: number;
+  /** Representative key values, one array per groupBy alias, indexed by group. */
+  readonly keys: readonly (readonly unknown[])[];
+  /** One entry per deduplicated measure state, in plan order. */
+  readonly states: readonly PartialState[];
+  readonly peakWorkingBytes: number;
+}
 export interface PreparedCompute<T extends object, R, X = never> {
   evaluate(source: import('../stream/types.js').RecordSource<T>, page?: Page, options?: ComputeOptions<T>): Promise<[X] extends [never] ? ComputeResult<R> : ViewResult<R, X>>;
   stream(source: import('../stream/types.js').RecordSource<T>, page?: Page, options?: ComputeOptions<T>): AsyncGenerator<ComputeEvent<R, X>>;
   explain(): Explain;
 }
+/** An aggregate plan, which can also run as partial scans and one final merge. */
+export interface PreparedAggregate<T extends object, R> extends PreparedCompute<T, R> {
+  /**
+   * Scans one part of a snapshot, such as a key range, into mergeable state. Filters, where and measures apply here;
+   * having, orderBy and paging wait for merge(). Rejects with a TypeError when the plan has a sum or avg outside
+   * numberMode 'exact', or when a group key would group by identity.
+   */
+  partial(source: import('../stream/types.js').RecordSource<T>, options?: PartialOptions<T>): Promise<PartialAggregate>;
+  /**
+   * Merges partials of disjoint parts of one snapshot revision. Given in source order, the result equals evaluate()
+   * over the union of the parts, including group order and the first of equal min/max values.
+   */
+  merge(partials: readonly PartialAggregate[], page?: Page, options?: MergeOptions): Promise<ComputeResult<R>>;
+}
 export interface ComputeFor<T extends object> extends ComputeBuilders<T> {
   rows<const D extends RowsDescriptor>(descriptor: D): PreparedCompute<T, RowsOutput<D>>;
-  aggregate<const D extends AggregateDescriptor>(descriptor: D): PreparedCompute<T, AggregateOutput<D>>;
+  aggregate<const D extends AggregateDescriptor>(descriptor: D): PreparedAggregate<T, AggregateOutput<D>>;
   view<const D extends ViewDescriptor>(descriptor: D): PreparedCompute<T, RowsOutput<D>, TotalsOutput<D>>;
 }

@@ -15,12 +15,13 @@ export interface DbsonlSnapshot<T> {
   readonly count: number;
   scan(options?: { gte?: string; lt?: string; signal?: CancellationSignal }): AsyncIterable<DbsonlRecord<T>>;
   /** Optional native capability; row-only providers retain the streaming fallback. */
-  scanBatches?(options?: { gte?: string; lt?: string; signal?: CancellationSignal; batchSize?: number; maxBatchBytes?: number; sizeOf?: (row: DbsonlRecord<T>) => number }): AsyncIterable<readonly DbsonlRecord<T>[]>;
+  scanBatches?(options?: { gte?: string; lt?: string; limit?: number; signal?: CancellationSignal; batchSize?: number; maxBatchBytes?: number }): AsyncIterable<readonly DbsonlRecord<T>[]>;
   /** Optional point read at the snapshot's revision; a projection needs it to return stored rows. */
   get?(key: string): Promise<{ found: boolean; value?: T; revision?: number }>;
   close(): Promise<void>;
 }
-export interface DbsonlDatabase<T> { beginRead(): Promise<DbsonlSnapshot<T>> }
+/** `at` is the head of a snapshot that is still open, such as defuss-dbsonl's `ReadSession.head`, possibly from another thread. */
+export interface DbsonlDatabase<T> { beginRead(options?: { at?: object }): Promise<DbsonlSnapshot<T>> }
 export interface DbsonlProjectionOptions {
   /** Field paths to keep, such as `value.score`; key and revision are always kept. Queries reading other fields scan. */
   fields: readonly string[];
@@ -30,6 +31,11 @@ export interface DbsonlProjectionOptions {
 export interface DbsonlSourceOptions {
   gte?: string;
   lt?: string;
+  /**
+   * Pin every execution to this snapshot head instead of the latest one, so sources in several workers read one
+   * snapshot and their partial aggregates merge. The provider rejects a head it no longer holds.
+   */
+  at?: object;
   /** Opt-in: keep the queried fields of one revision to answer later small pages without decoding every document. */
   projection?: DbsonlProjectionOptions;
 }
@@ -50,7 +56,8 @@ const ordering = compileQuery({ sorters: [{ field: 'key', direction: 'asc' }] })
  * key and revision remain separate even for primitive/undefined stored values.
  */
 export function createDbsonlSource<T>(database: DbsonlDatabase<T>, options: DbsonlSourceOptions = {}): DbsonlSource<T> {
-  const { gte, lt } = options;
+  const { gte, lt, at } = options;
+  if (at !== undefined && (typeof at !== 'object' || at === null)) throw new TypeError('at must be the head object of an open snapshot.');
   for (const bound of [gte, lt]) if (bound !== undefined && (typeof bound !== 'string' || bound.length > 4096)) throw new TypeError('Range bounds must be strings of at most 4096 code units.');
   if (gte !== undefined && lt !== undefined && gte > lt) throw new RangeError('gte must not exceed lt.');
   const projection = options.projection === undefined ? undefined : projector(options.projection);
@@ -69,7 +76,7 @@ export function createDbsonlSource<T>(database: DbsonlDatabase<T>, options: Dbso
     },
     async open({ signal } = {}) {
       abort(signal);
-      const snapshot = await database.beginRead();
+      const snapshot = await (at === undefined ? database.beginRead() : database.beginRead({ at }));
       try { abort(signal); } catch (error) { await cleanup([() => snapshot.close()], { error }); throw error; }
       let closing: Promise<void> | undefined;
       const session: RecordSession<DbsonlRecord<T>> = {
@@ -104,10 +111,10 @@ export function createDbsonlSource<T>(database: DbsonlDatabase<T>, options: Dbso
         if (closing) throw new DataviewError('CLOSED', 'DBSONL source is closed.');
         let batches: AsyncIterable<MeasuredBatch<DbsonlRecord<T>>>;
         if (snapshot.scanBatches) {
-          const measured = measurements(request);
-          batches = nativeBatches(snapshot.scanBatches({ gte, lt, signal: request.signal,
-            batchSize: request.batchSize, maxBatchBytes: request.maxBatchBytes, sizeOf: measured.sizeOf,
-          }), request, measured);
+          // The byte budget is the adapter's: a provider's own measure, such as encoded bytes, could reject a row the
+          // request's sizeOf admits. batchSize still bounds the rows of one pull.
+          const options = { lt, signal: request.signal, batchSize: request.batchSize, maxBatchBytes: Number.MAX_SAFE_INTEGER };
+          batches = nativeBatches((from, limit) => snapshot.scanBatches!({ ...options, gte: from, limit }), gte, request);
         } else batches = measuredRows(snapshot.scan({ gte, lt, signal: request.signal }), request);
         if (!projecting || kept?.revision === snapshot.revision) return batches;
         return projecting.record(batches, snapshot.revision, next => { if (!kept || next.revision >= kept.revision) kept = next; });
@@ -190,48 +197,51 @@ async function* projectedBatches<T>(kept: Projected<T>, request: ScanRequest<Dbs
 }
 
 /**
- * Sizes the adapter computed itself, keyed by row identity. The provider calls sizeOf once per row before emitting it;
- * reusing that size instead of measuring every emitted row again saves one user sizeOf call per row.
- * VERIFIED: paired against measuring twice over 100,000 defuss-dbsonl 0.6.0 rows, filter + top-50 took 0.85× of the time.
- * The provider still cannot forge a size: it is only ever used for the same object the adapter measured, and every
- * emitted row without such a record is measured here. Rows the provider measured but skipped are discarded.
+ * Rows a native scan reads in this thread before it continues where the provider may start its worker pool.
+ * VERIFIED: starting defuss-dbsonl 0.7.0's pool raised a first page of 50 over 100,000 file rows from 1.5 to 15 ms, the
+ * decoding time of about 4,800 rows in this thread (2026-11-20). Reading this many rows first keeps short scans as fast
+ * as before and adds at most that time to a long scan.
  */
-function measurements<T>(request: ScanRequest<DbsonlRecord<T>>) {
-  const rows: object[] = [], sizes: number[] = [];
-  let head = 0;
-  // A conforming provider holds at most one batch plus the row that overflowed it; past that, stop recording.
-  const capacity = 2 * request.batchSize + 1;
-  return {
-    sizeOf(row: DbsonlRecord<T>): number {
-      const size = rowBytes(row, request);
-      if (rows.length - head < capacity) { rows.push(row); sizes.push(size); }
-      return size;
-    },
-    sizeOfEmitted(row: DbsonlRecord<T>): number {
-      while (head < rows.length && rows[head] !== row) head++;
-      return head < rows.length ? sizes[head++] : rowBytes(row, request);
-    },
-    /** Drop consumed records at a batch boundary; the overflow row stays for the next batch. */
-    compact(): void { rows.splice(0, head); sizes.splice(0, head); head = 0; },
-  };
-}
+const PREFIX_ROWS = 4096;
 
-/** Independent validation: a structural database provider cannot forge measurements or batch bounds. */
-async function* nativeBatches<T>(input: AsyncIterable<readonly DbsonlRecord<T>[]>, request: ScanRequest<DbsonlRecord<T>>, measured: ReturnType<typeof measurements<T>>): AsyncGenerator<MeasuredBatch<DbsonlRecord<T>>> {
-  const iterator = input[Symbol.asyncIterator]();
+/**
+ * Native batches arrive cut by the provider's own sizes: defuss-dbsonl counts encoded bytes unless it is given a sizeOf,
+ * and it runs only scans without one in its worker pool, because a function cannot be sent to a worker. The adapter
+ * therefore measures every row itself, once, and yields a batch over maxBatchBytes as spans that fit, so the budget
+ * holds for every batch the executor reads. A structural provider cannot forge measurements or batch bounds.
+ * The first PREFIX_ROWS rows come from a scan with that limit; the rest from a scan at the last key, skipping that row,
+ * because the key after it can exceed the provider's key length. A provider that ignores the limit still yields each row once.
+ * VERIFIED: over 100,000 rows of file storage, filter + top-50 with an exact count took 147 ms, against 278 ms with the
+ * previous adapter, which passed its sizeOf and so never reached the pool (defuss-dbsonl 0.7.0, 2026-11-20).
+ */
+async function* nativeBatches<T>(scan: (gte: string | undefined, limit?: number) => AsyncIterable<readonly DbsonlRecord<T>[]>, gte: string | undefined, request: ScanRequest<DbsonlRecord<T>>): AsyncGenerator<MeasuredBatch<DbsonlRecord<T>>> {
+  let iterator = scan(gte, PREFIX_ROWS)[Symbol.asyncIterator](), prefix = true, read = 0, last: string | undefined, skip: string | undefined;
   let failure: { error: unknown } | undefined;
   try {
     for (;;) {
       abort(request.signal);
       const next = await iterator.next();
-      abort(request.signal); if (next.done) return;
+      abort(request.signal);
+      if (next.done) {
+        if (!prefix || read < PREFIX_ROWS) return;
+        prefix = false; skip = last;
+        iterator = scan(last, undefined)[Symbol.asyncIterator]();
+        continue;
+      }
       const rows = next.value;
       if (!Array.isArray(rows) || !rows.length || rows.length > request.batchSize) throw new DataviewError('SOURCE_CONTRACT', 'Invalid native database batch.');
-      const sizes = new Float64Array(rows.length); let bytes = 0;
-      for (let i = 0; i < rows.length; i++) { sizes[i] = measured.sizeOfEmitted(rows[i]); bytes += sizes[i]; }
-      measured.compact();
-      if (bytes > request.maxBatchBytes) throw new DataviewError('SOURCE_CONTRACT', 'Native database batch exceeds byte budget.');
-      yield { rows, sizes, bytes };
+      const sizes = new Float64Array(rows.length);
+      let start = 0, bytes = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const size = sizes[i] = rowBytes(rows[i], request);
+        if (i === 0 && skip !== undefined && rows[0].key === skip) { start = 1; continue; }
+        if (bytes + size > request.maxBatchBytes) { yield { rows, offset: start, length: i - start, sizes, sizesOffset: start, bytes }; start = i; bytes = 0; }
+        bytes += size;
+      }
+      skip = undefined; read += rows.length;
+      last = rows[rows.length - 1].key;
+      if (typeof last !== 'string') throw new DataviewError('SOURCE_CONTRACT', 'A native database row has no string key.');
+      if (start < rows.length) yield { rows, offset: start, length: rows.length - start, sizes, sizesOffset: start, bytes };
     }
   } catch (error) { failure = { error }; throw error; }
   finally { await cleanup([async () => iterator.return?.()], failure); }

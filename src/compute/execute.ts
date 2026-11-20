@@ -11,9 +11,10 @@ import type { Plan } from './compile.js';
 import { instantiate, requireBoolean } from './expressions.js';
 import type { RowContext } from './expressions.js';
 import { GroupTable, MAX_GROUP_ID } from './group-table.js';
-import type { ComputeOptions, ComputeStrategy, ComputeSummary, Page } from './types.js';
+import { absorb, exportPartial, MergeInput, requireMergeable } from './partial.js';
+import type { ComputeOptions, ComputeStrategy, ComputeSummary, Page, PartialAggregate, PartialOptions } from './types.js';
 
-type Event = { type: 'batch'; rows: readonly object[] } | { type: 'complete'; summary: ComputeSummary; totals?: object };
+type Event = { type: 'batch'; rows: readonly object[] } | { type: 'complete'; summary: ComputeSummary; totals?: object; partial?: PartialAggregate };
 const MiB = 1024 * 1024;
 
 export function resolveCompute<T extends object>(options: ComputeOptions<T>) {
@@ -37,33 +38,37 @@ export function resolveCompute<T extends object>(options: ComputeOptions<T>) {
 /**
  * Run a prepared plan once: one snapshot, one validated scan, one cleanup. The generator is created synchronously,
  * so option and page errors surface before a source opens; nothing is shared with other executions of the plan.
- * VERIFIED: src/compute/compute.test.ts and src/compute/oracle.test.ts cover the three plan kinds against an independent oracle.
+ * Two stage modes reuse the same state and output code: `partial` scans into groups and states and completes with
+ * their export instead of output, and a MergeInput replaces the scan by folding partials into fresh groups and states.
+ * VERIFIED: src/compute/compute.test.ts and src/compute/oracle.test.ts cover the three plan kinds against an independent
+ * oracle; src/compute/partial.test.ts and oracle.test.ts cover partial and merge.
  */
-export function execute<T extends object>(plan: Plan, source: RecordSource<T>, page: Page = {}, options: ComputeOptions<T> = {}, onBatch?: (bytes: number) => void): AsyncGenerator<Event> {
+export function execute<T extends object>(plan: Plan, input: RecordSource<T> | MergeInput, page: Page = {}, options: ComputeOptions<T> = {}, onBatch?: (bytes: number) => void, partial = false): AsyncGenerator<Event> {
   if (typeof page !== 'object' || page === null) throw new TypeError('page must be an object.');
   const o = resolveCompute(options);
   const offset = natural(page.offset ?? 0, 'offset');
   const limit = page.limit === undefined ? undefined : natural(page.limit, 'limit');
   const end = limit === undefined ? Infinity : natural(offset + limit, 'offset + limit');
+  const merging = input instanceof MergeInput ? input as MergeInput : undefined;
   return run();
 
   async function* run(): AsyncGenerator<Event> {
     abort(o.signal);
-    const session = await source.open({ signal: o.signal }) as RecordSession<T>;
+    const session = merging ? undefined : await (input as RecordSource<T>).open({ signal: o.signal }) as RecordSession<T>;
     let reader: BatchReader<T> | undefined, lease: FieldLease | undefined;
-    let failure: { error: unknown } | undefined, summary: ComputeSummary | undefined, totals: object | undefined;
+    let failure: { error: unknown } | undefined, summary: ComputeSummary | undefined, totals: object | undefined, exported: PartialAggregate | undefined;
     const ledger = new Ledger(o.maxWorkingBytes);
     try {
       abort(o.signal);
-      validateSession(session);
-      lease = plan.fields.length ? fieldColumns(session)?.(plan.fields, o.signal) : undefined;
+      if (session) validateSession(session);
+      lease = session && plan.fields.length ? fieldColumns(session)?.(plan.fields, o.signal) : undefined;
       const reads = o.profile ? { count: 0 } : undefined;
       const ctx: RowContext = { row: {}, ordinal: 0, epoch: 0 };
       const leased = lease;
       const evals = instantiate(plan.nodes, ctx, plan.ops, plan.policy, leased?.columns.size ? { begin: leased.begin, get: f => leased.columns.get(f)?.values } : undefined, reads);
       const where = plan.where === undefined ? undefined : evals[plan.where];
       const filters = plan.filters;
-      const states = plan.states.map(spec => new StateColumns(spec, ledger, plan.compensated));
+      const states = plan.states.map(spec => new StateColumns(spec, ledger, plan.numberMode));
       const updates = states.map(column => {
         const { kind, arg: argId, where: predId } = column.spec;
         const arg = argId === undefined ? undefined : evals[argId], pred = predId === undefined ? undefined : evals[predId];
@@ -104,14 +109,15 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
 
       // Strategy, chosen per execution from the session's capabilities.
       const rowsLike = plan.kind !== 'aggregate';
-      const sortRows = rowsLike && plan.rowOrder.length > 0 && !(plan.rowOrdering && orderingSatisfies(session.ordering, plan.rowOrdering));
+      const sortRows = rowsLike && plan.rowOrder.length > 0 && !(plan.rowOrdering && orderingSatisfies(session!.ordering, plan.rowOrdering));
       const columnsFor = plan.groupFields?.map(field => lease?.columns.get(field));
-      const orderedGroups = plan.kind === 'aggregate' && !!plan.groupFields && !!columnsFor?.every(c => c && c.domain !== 'mixed')
-        && session.ordering?.comparisonId === 'dataview-order-v1:code-unit'
+      // A partial keeps every group for the merge, so it never runs the one-live-group strategy.
+      const orderedGroups = !partial && plan.kind === 'aggregate' && !!plan.groupFields && !!columnsFor?.every(c => c && c.domain !== 'mixed')
+        && session?.ordering?.comparisonId === 'dataview-order-v1:code-unit'
         && sameFields(session.ordering.sorters.slice(0, plan.groupFields.length).map(s => s.field), plan.groupFields);
-      const firstSeen = plan.kind === 'aggregate' && plan.groupBy.length > 0 && !plan.measures.length && !plan.having && !plan.outputOrder.length && o.count !== 'exact' && limit !== undefined;
+      const firstSeen = !merging && plan.kind === 'aggregate' && plan.groupBy.length > 0 && !plan.measures.length && !plan.having && !plan.outputOrder.length && o.count !== 'exact' && limit !== undefined;
       const strategy: ComputeStrategy = rowsLike ? (sortRows ? (limit === undefined ? 'sort' : 'top-k') : plan.rowOrder.length ? 'ordered' : 'scan')
-        : !plan.groupBy.length ? 'scalar' : orderedGroups ? 'ordered-groups' : firstSeen ? 'first-seen' : 'hash';
+        : merging ? 'merge' : !plan.groupBy.length ? 'scalar' : orderedGroups ? 'ordered-groups' : firstSeen ? 'first-seen' : 'hash';
 
       // Row candidates for sorted row/view plans: source reference, ordinal, sort keys, accounted size.
       type Candidate = { row: object; ordinal: number; keys: unknown[]; size: number };
@@ -174,10 +180,9 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
       };
       if (plan.kind !== 'rows' && (!plan.groupBy.length || orderedGroups)) ensure(0);
 
-      reader = readBatches(session, o);
       const mustExhaust = plan.kind !== 'rows' || o.count === 'exact';
       let scanned = 0, matched = 0, exhausted = false, more = false;
-      const count = session.count;
+      const count = session?.count;
       // One comparison per row enforces the scan budget, the exact source count and the safe-integer counter.
       const bound = Math.min(o.maxScannedRows ?? Infinity, count ?? Infinity, Number.MAX_SAFE_INTEGER);
       const overrun = () => {
@@ -235,7 +240,9 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
         }
         return true;
       };
-      for (;;) {
+      if (merging) { ({ scanned, matched } = await absorb(merging, plan, table, states, ensure, o.signal)); exhausted = true; }
+      else reader = readBatches(session!, o);
+      while (reader) {
         const span = await reader.next();
         if (!span) { exhausted = true; break; }
         const proceed = consume(span.rows, span.start, span.length, span.size);
@@ -258,6 +265,8 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
         }
         if (exhausted) totalResultRows = matched;
         if (plan.kind === 'view') totals = Object.fromEntries(plan.measures.map(m => [m.alias, states[m.state].final(0, m.op)]));
+      } else if (partial) {
+        exported = exportPartial(plan, session!.revision, scanned, matched, table, states, ledger);
       } else {
         if (orderedGroups) { closeGroup(); peakGroups = sequence ? 1 : 0; }
         else {
@@ -282,7 +291,7 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
       }
       yield* flush();
       summary = {
-        revision: session.revision, sourceRows: count ?? (exhausted ? scanned : null), scannedRows: scanned,
+        revision: session ? session.revision : merging!.revision, sourceRows: count ?? (exhausted ? scanned : null), scannedRows: scanned,
         observedInputMatches: matched, totalInputMatches: exhausted ? matched : null, totalResultRows, returnedRows: returned,
         hasMore: more, sourceExhausted: exhausted, strategy, executionComplete: true,
         peakWorkingBytes: ledger.peak, peakOutputBytes, peakGroups, cacheBytesPinned: lease?.pinnedBytes ?? 0, cacheBuilds: 0, prunedRows: 0,
@@ -290,10 +299,10 @@ export function execute<T extends object>(plan: Plan, source: RecordSource<T>, p
       };
     } catch (error) { failure = { error }; throw error; }
     finally {
-      await cleanup([async () => { lease?.release(); }, async () => reader?.close(), () => session.close()], failure);
+      await cleanup([async () => { lease?.release(); }, async () => reader?.close(), async () => session?.close()], failure);
     }
     abort(o.signal);
-    yield plan.kind === 'view' ? { type: 'complete', summary: summary!, totals: totals! } : { type: 'complete', summary: summary! };
+    yield plan.kind === 'view' ? { type: 'complete', summary: summary!, totals: totals! } : exported ? { type: 'complete', summary: summary!, partial: exported } : { type: 'complete', summary: summary! };
   }
 }
 
@@ -301,8 +310,16 @@ function sameFields(prefix: readonly string[], fields: readonly string[]): boole
   return prefix.length === fields.length && fields.every(f => prefix.includes(f)) && new Set(fields).size === fields.length;
 }
 
+/** One partial scan: the whole source part, no page, completed with the exported groups and states. */
+export async function partialOf<T extends object>(plan: Plan, source: RecordSource<T>, options: PartialOptions<T> = {}): Promise<PartialAggregate> {
+  requireMergeable(plan);
+  let exported: PartialAggregate | undefined;
+  for await (const event of execute(plan, source, {}, options, undefined, true)) if (event.type === 'complete') exported = event.partial;
+  return exported!;
+}
+
 /** Collect under maxOutputRows/maxOutputBytes; streaming consumers bound output themselves. */
-export async function collect<T extends object>(plan: Plan, source: RecordSource<T>, page: Page = {}, options: ComputeOptions<T> = {}): Promise<{ rows: object[]; totals?: object; summary: ComputeSummary }> {
+export async function collect<T extends object>(plan: Plan, source: RecordSource<T> | MergeInput, page: Page = {}, options: ComputeOptions<T> = {}): Promise<{ rows: object[]; totals?: object; summary: ComputeSummary }> {
   const o = resolveCompute(options);
   let batchBytes = 0, bytes = 0;
   const rows: object[] = [];

@@ -264,7 +264,11 @@ test.describe('landing page', () => {
     const gauge = (pairing: string) => page.locator(`#vs-${pairing} .tacho-meter`);
     const expectGauges = async (rows: string, query: string) => {
       for (const pairing of Object.keys(pairs) as Array<keyof typeof pairs>) {
-        await expect.poll(async () => Number(await gauge(pairing).getAttribute('value'))).toBeCloseTo(Math.log2(ratio(rows, query, pairing)), 2);
+        const [min, max] = [Number(await gauge(pairing).getAttribute('min')), Number(await gauge(pairing).getAttribute('max'))];
+        const exact = Math.log2(ratio(rows, query, pairing));
+        // The meter clamps a ratio beyond its scale to the end stop, and the readout says the ratio lies beyond it.
+        await expect.poll(async () => Number(await gauge(pairing).getAttribute('value'))).toBeCloseTo(Math.min(max, Math.max(min, exact)), 2);
+        if (exact >= max || exact <= min) await expect(page.locator(`#vs-${pairing} .tacho-value`)).toHaveText(/^over /);
       }
     };
     const largest = Object.keys(data.sizes).sort((a, b) => Number(b) - Number(a))[0];
@@ -278,8 +282,16 @@ test.describe('landing page', () => {
     const rowsOf = (id: string) => page.evaluate((id) => (df$.shadcn.chart.instance(document.getElementById(id))!.getOption().yAxis as Array<{ data: unknown[] }>)[0].data.length, id);
     expect(await rowsOf('vs-chart-top')).toBe(Object.keys(pairs).length * Object.keys(data.sizes).length);
     expect(await rowsOf('vs-chart-page')).toBe(Object.keys(pairs).length * Object.keys(data.sizes).length);
+    // After a write: the 8-worker engine against MongoDB without an index, per size, in the page's duration format.
+    const duration = (value: number) => (value >= 1000 ? `${(value / 1000).toFixed(1)} s` : value < 1 ? `${value.toFixed(2)} ms` : value < 10 ? `${value.toFixed(1)} ms` : `${Math.round(value)} ms`);
+    const afterWrite = 'dataview + DBSONL file, 8 workers';
+    for (const rows of Object.keys(data.sizes)) {
+      await expect(page.locator('#vs-after-write')).toContainText(`${duration(median(rows, 'top', afterWrite))} against ${duration(median(rows, 'top', 'MongoDB'))} over ${Number(rows).toLocaleString('en-US')} documents`);
+    }
     await page.locator('#mongodb summary').click();
-    await expect(page.locator('#vs-table tr')).toHaveCount(new Set(Object.values(pairs).flat()).size);
+    const listed = new Set([...Object.values(pairs).flat(), 'dataview + DBSONL file', afterWrite]);
+    const engines = new Set(Object.values(data.sizes).flatMap((run) => (run as { results: Array<{ engine: string }> }).results.map((r) => r.engine)));
+    await expect(page.locator('#vs-table tr')).toHaveCount([...listed].filter((engine) => engines.has(engine)).length);
   });
 
   test('the compute panel runs every preset on the built bundle, matches plain loops and leases prepared columns', async ({ page }) => {
@@ -296,13 +308,20 @@ test.describe('landing page', () => {
     const cell = (row: number, column: number) => page.locator(`#cp-body tr:nth-child(${row}) td:nth-child(${column})`);
     const summary = (name: string) => page.locator(`#cp-summary [data-summary="${name}"] .statistic-value`);
     const settled = () => expect(page.locator('#cp-status')).toContainText('10,000 orders');
+    // Every plan's code runs as written: it imports what it uses and defines source and q.
+    const runnable = async () => {
+      for (const line of ["import { forRows } from 'defuss-dataview/compute';", "import { createImmutableArraySource } from 'defuss-dataview/stream';", 'const source = createImmutableArraySource(orders);', 'const q = forRows();']) {
+        await expect(page.locator('#cp-code')).toContainText(line);
+      }
+    };
 
     await page.goto('/docs/');
     await page.locator('.mk-header-nav a[href="#compute"]').click();
     await page.locator('#cp-size .toggle[data-value="10000"]').click();
     await settled();
-    await expect(page.locator('#cp-code .mk-code-block-k').first()).toHaveText('const');
-    await expect(page.locator('#cp-code .mk-code-block-s').first()).toHaveText("'amount'");
+    await expect(page.locator('#cp-code .mk-code-block-k').first()).toHaveText('import');
+    await expect(page.locator('#cp-code .mk-code-block-s').first()).toHaveText("'defuss-dataview/compute'");
+    await runnable();
     await expect(summary('strategy')).toHaveText('hash');
     await expect(summary('totalResultRows')).toHaveText('4');
     await expect(page.locator('#cp-head th')).toHaveText(['region', 'orders', 'paidRevenue', 'averageOrder', 'largest']);
@@ -318,11 +337,13 @@ test.describe('landing page', () => {
 
     await page.locator('[data-plan="pairs"]').click();
     await settled();
+    await runnable();
     await expect(page.locator('#cp-body tr')).toHaveCount(10);
     await expect(page.locator('#cp-head th')).toHaveText(['region', 'product', 'orders', 'revenue', 'averageOrder']);
 
     await page.locator('[data-plan="top"]').click();
     await settled();
+    await runnable();
     const top = [...paid].sort((a, b) => b.amount * 1.19 - a.amount * 1.19 || a.id - b.id).slice(0, 10);
     await expect(summary('strategy')).toHaveText('top-k');
     await expect(summary('totalResultRows')).toHaveText(count(paid.length));
@@ -330,6 +351,7 @@ test.describe('landing page', () => {
 
     await page.locator('[data-plan="view"]').click();
     await settled();
+    await runnable();
     const eu = rows.filter((row) => row.region === 'EU');
     await expect(page.locator('#cp-totals [data-summary="totals.orders"] .statistic-value')).toHaveText(count(eu.length));
     await expect(page.locator('#cp-totals [data-summary="totals.refunded"] .statistic-value')).toHaveText(count(eu.filter((row) => row.status === 'Refunded').length));
@@ -337,6 +359,7 @@ test.describe('landing page', () => {
 
     await page.locator('[data-plan="distinct"]').click();
     await settled();
+    await runnable();
     await expect(summary('strategy')).toHaveText('first-seen');
     await expect(summary('totalResultRows')).toHaveText('unknown');
     await expect(page.locator('#cp-body tr td:nth-child(1)')).toHaveText([...new Set(rows.map((row) => row.product))].slice(0, 5));
@@ -366,10 +389,12 @@ test.describe('landing page', () => {
     }
     // Row reads against prepared columns, as code in two tabs; the preparation time comes from the JSON.
     await expect(page.locator('#cp-prep-rows')).toContainText('createImmutableArraySource(orders);');
+    await expect(page.locator('#cp-prep-rows')).toContainText('const q = forRows();');
     await expect(page.locator('#cp-prep-columns')).toBeHidden();
     await page.locator('#cp-prep-columns-tab').click();
     await expect(page.locator('#cp-prep-columns')).toContainText('await source.prepareKeys(byRegion.explain().requiredFields);');
-    await expect(page.locator('#cp-prep-columns .mk-code-block-c').first()).toContainText('key cache');
+    await expect(page.locator('#cp-prep-columns')).toContainText('const q = forRows();');
+    await expect(page.locator('#cp-prep-columns .mk-code-block-c', { hasText: 'key cache' })).toHaveCount(1);
     await expect(page.locator('#cp-vs-prepare')).toContainText(`${Math.round(data.sizes['100000'].prepare.ms)} ms once for 100,000 orders`);
     // The comparison's switch must not start a panel run.
     await expect(page.locator('#cp-status')).not.toContainText('Running');

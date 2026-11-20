@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Partial aggregation
+
+- Aggregate plans gain `partial(source, options?)` and `merge(partials, page?, options?)`. A partial is the mergeable state of one part of a snapshot, such as a DBSONL key range. It is plain data that survives `structuredClone` and `postMessage`. Merged in source order, the parts give the single-pass result, including group order and ties.
+- `numberMode: 'exact'` sums with Shewchuk's expansion and rounds once, so results do not depend on order, batch size or partitioning. `sum` and `avg` merge only in this mode; count, `min`, `max` and `sumBigInt` merge in every mode.
+- `merge()` validates partials as untrusted input: format version, plan signature, one snapshot revision, column shapes and every value. Group keys that group by identity are rejected.
+- `explain().strategies` lists `'merge'` for plans that accept both methods; merged summaries report `strategy: 'merge'`.
+- `bun run benchmark:compute` adds exact sums and partial merges in one thread and in worker threads (B30 to B33). B33 runs partials in 4 and 8 worker threads over `split()` ranges of one DBSONL file snapshot.
+
+### DBSONL adapter
+
+- Development and tests use defuss-dbsonl 0.7.0.
+- `createDbsonlSource(db, { at })` pins every execution to one snapshot head, such as `session.head`, so sources in several workers read the same snapshot and their partials merge.
+- Native batch scans pass no `sizeOf` and no byte budget to the provider, so defuss-dbsonl 0.7.0 can run them in its worker pool. The adapter measures each row once and splits a batch over `maxBatchBytes` into spans. The first 4,096 rows are read in the calling thread, so short pages never start the pool. On file storage, filter + top-50 with an exact count over 100,000 rows took 0.53× of the previous time; first pages and memory storage did not change.
+- `examples/compute-partials.mjs` runs its partials in four worker threads over `split()` ranges of one file database.
+- SOURCES.md documents stream queries over `split()` ranges in worker threads, merged with `evaluateStream` over the parts' rows, and a larger page cache for worker handles: 387 instead of 843 ms for 8 workers over 1,000,000 file documents.
+
+### MongoDB comparison and website
+
+- `bun run benchmark:mongodb` adds an engine that answers each query in 8 worker threads over `split()` ranges of one pinned DBSONL file snapshot, and opens every DBSONL handle with a 64 MiB, 8,192-page cache. MONGODB.md and the website carry the 2026-11-20 run with defuss-dbsonl 0.7.0. The website states the 8-worker time after a write beside MongoDB's and lists that engine in its table.
+- A website gauge whose ratio lies beyond its scale says so ("over 256× faster") instead of naming the end stop as the ratio.
+
+### Fixes
+
+- A value-mode Node `Buffer` group key is now copied. `Buffer.prototype.slice` returns a view, so the representative kept the pooled backing store and followed later writes to it.
+
 ## 0.6.0
 
 Tagged `v0.6.0` on 2026-11-17 and not yet on npm. It follows 0.5.0, tagged `v0.5.0` and also not yet on npm; publish 0.5.0 first.

@@ -1,6 +1,6 @@
 import { DataviewError } from '../stream/common.js';
 import { bytesOf } from '../values.js';
-import { retainedBytes } from './aggregate.js';
+import { ownBytes, retainedBytes } from './aggregate.js';
 import type { Ledger } from './aggregate.js';
 
 /**
@@ -59,15 +59,7 @@ export class GroupTable {
     return gid;
   }
   /** Value-mode binary keys keep a private copy of their visible bytes, not the caller's possibly huge backing store. */
-  private own(value: unknown): unknown {
-    if (!this.byValue) return value;
-    if (value instanceof ArrayBuffer) return value.slice(0);
-    if (ArrayBuffer.isView(value)) {
-      if (value instanceof DataView) return new DataView(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
-      return (value as unknown as { slice(): unknown }).slice();
-    }
-    return value;
-  }
+  private own(value: unknown): unknown { return this.byValue ? ownBytes(value) : value; }
   /** The map key resolved by the last slot() call; a field instead of a returned pair, so lookups allocate nothing. */
   private key: unknown;
   private slot(level: Level, value: unknown): Map<unknown, Level | number> {

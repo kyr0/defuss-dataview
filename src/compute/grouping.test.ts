@@ -29,6 +29,14 @@ describe('group equality (T18-T21)', () => {
     const identity = (await byKey({ equality: 'identity' }).evaluate(source(keyRows(keys)))).rows;
     expect(identity.map(g => g.n)).toEqual([1, 1, 1, 1, 1, 1, 1]);
   });
+  it('copies a Node Buffer key instead of sharing its pooled memory', async () => {
+    // Buffer.prototype.slice returns a view; a key copied with it would retain the pool and follow later writes.
+    const pooled = Buffer.from([7, 1, 2, 7]);
+    const [group] = (await byKey().evaluate(source(keyRows([pooled.subarray(1, 3)])))).rows;
+    pooled[1] = 9;
+    expect(group.key).toEqual(Buffer.from([1, 2]));
+    expect((group.key as Buffer).buffer.byteLength).toBe(2);
+  });
   it('never merges tuples that a delimiter or JSON encoding would confuse', async () => {
     const pairs = [['a|b', 'c'], ['a', 'b|c'], ['1', 1], [1, '1'], [null, 'null'], ['null', null], ['["x",1]', undefined], [['x', 1], undefined]];
     const plan = q.aggregate({ groupBy: { key: q.field('key'), other: q.field('other') }, measures: { n: q.count() } });

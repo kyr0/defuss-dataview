@@ -6,11 +6,20 @@
 // documentation/COMPUTE_PERFORMANCE.md records why Map stays the grouping store.
 // Rotating the variant order inside each round, rather than timing each variant in its own block, keeps thermal and
 // GC drift from favouring whichever variant runs first.
-// VERIFIED: a full run on 2026-11-17 (Apple M5 Max, Node.js 26.13.1) produced the figures in COMPUTE_PERFORMANCE.md.
+// VERIFIED: a full run on 2026-11-17 (Apple M5 Max, Node.js 26.13.1) produced the figures in COMPUTE_PERFORMANCE.md;
+// a run on 2026-11-20 on the same machine produced its B10 and B30-B33 section. B31/B32 time worker threads that
+// already hold their slice, so the figures isolate scan, transfer and merge from worker startup and data loading.
+// B33 runs partials in worker threads over split() ranges of one pinned DBSONL file snapshot; each worker opened its
+// backend (io: 'sync') and database handle before timing, as a long-lived worker would.
 import assert from 'node:assert/strict';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
+import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { Worker } from 'node:worker_threads';
+import { openDbsonl } from 'defuss-dbsonl';
+import { createFileBackend } from 'defuss-dbsonl/server';
+import { createDbsonlSource } from '../dist/adapters/dbsonl.mjs';
 import { forRows } from '../dist/compute.mjs';
 import { compileQuery } from '../dist/query.mjs';
 import { createArraySource, createImmutableArraySource, evaluateStream } from '../dist/stream.mjs';
@@ -48,8 +57,9 @@ const q = forRows();
 const cut = rows => rows.map(r => ({ ...r }));
 
 // ---- data -------------------------------------------------------------------------------------------------------
-function wide(n) {
-  return Array.from({ length: n }, (_, id) => {
+function wide(n, from = 0) {
+  return Array.from({ length: n - from }, (_, i) => {
+    const id = from + i;
     const row = { id, g16: id % 16, g1000: (id * 7919) % 1000, gN: (id * 2654435761) % 100_000, amount: ((id * 37) % 1009) / 8, qty: id % 9, flag: id % 3 === 0, name: `n${(id * 31) % 1000}`.padEnd(8, 'x') };
     for (let f = 0; f < 56; f++) row[`f${f}`] = (id + f) % 101;
     return row;
@@ -104,7 +114,7 @@ for (const measures of [1, 4, 16]) {
   const adversarial = Array.from({ length: N }, (_, id) => ({ id, x: id % 2 ? 1e16 : (id % 4 === 0 ? 1 : -1e16) }));
   const src = createImmutableArraySource(adversarial);
   const run = numberMode => async () => { const r = await q.aggregate({ measures: { s: q.sum(q.field('x')) }, numberMode }).evaluate(src, {}, { sizeOf: () => 48 }); return wrap(r.rows.map(x => typeof x.s), r.summary); };
-  await scenario('B10', 'sum of cancelling magnitudes', N, { sequential: run('sequential'), compensated: run('compensated') }, ['number']);
+  await scenario('B10', 'sum of cancelling magnitudes', N, { sequential: run('sequential'), compensated: run('compensated'), exact: run('exact') }, ['number']);
 }
 
 // ---- B11-B15 grouping, plus the compact-table probe ---------------------------------------------------------------
@@ -237,6 +247,111 @@ for (const [key, label] of [['g16', 'G=16'], ['g1000', 'G=1000'], ['gN', 'G=1000
     'immutable, estimated sizes': async () => { const r = await plan.evaluate(immutable); return wrap(r.rows, r.summary); },
     'immutable, warm columns': async () => { const r = await plan.evaluate(cached, {}, { sizeOf }); return wrap(r.rows, r.summary); },
   }, expected);
+}
+// ---- B30-B32 exact sums and two-stage aggregation ------------------------------------------------------------------
+// Sums of multiples of 1/8 below 2^53 are exact in every mode, so every variant must equal the handwritten Map.
+{
+  const expected = mapGroupSum(rows, 'g1000', 'amount');
+  const mode = numberMode => q.aggregate({ groupBy: { k: q.field('g1000') }, measures: { n: q.count(), s: q.sum(q.field('amount')) }, numberMode });
+  const [compensated, exact] = [mode('compensated'), mode('exact')];
+  await scenario('B30', 'group sum/count, G=1000, by number mode', N, {
+    compensated: async () => { const r = await compensated.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows, r.summary); },
+    exact: async () => { const r = await exact.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows, r.summary); },
+    'compensated warm columns': async () => { const r = await compensated.evaluate(cached, {}, { sizeOf }); return wrap(r.rows, r.summary); },
+    'exact warm columns': async () => { const r = await exact.evaluate(cached, {}, { sizeOf }); return wrap(r.rows, r.summary); },
+  }, expected);
+}
+/** Worker threads that each hold one slice of the rows and answer every message with the plan's partial over it. */
+async function partialWorkers(descriptor, parts) {
+  const size = Math.ceil(N / parts), dist = new URL('../dist/', import.meta.url).href;
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      const [{ forRows }, { createImmutableArraySource }] = await Promise.all([import(workerData.dist + 'compute.mjs'), import(workerData.dist + 'stream.mjs')]);
+      const wide = ${wide.toString()};
+      const source = createImmutableArraySource(wide(workerData.end, workerData.start)), plan = forRows().aggregate(workerData.descriptor);
+      parentPort.on('message', async () => {
+        const partial = await plan.partial(source, { sizeOf: () => 640 });
+        parentPort.postMessage(partial, partial.states.flatMap(state => Object.values(state).filter(ArrayBuffer.isView).map(view => view.buffer)));
+      });
+      parentPort.postMessage('ready');
+    })();`;
+  const started = performance.now();
+  const pool = await Promise.all(Array.from({ length: parts }, (_, i) => new Promise((resolve, reject) => {
+    const worker = new Worker(code, { eval: true, workerData: { dist, descriptor, start: i * size, end: Math.min(N, (i + 1) * size) } });
+    worker.once('message', () => resolve(worker)); worker.once('error', reject);
+  })));
+  const ask = () => Promise.all(pool.map(worker => new Promise(resolve => { worker.once('message', resolve); worker.postMessage(0); })));
+  return { ask, startMs: performance.now() - started, close: () => Promise.all(pool.map(worker => worker.terminate())) };
+}
+for (const [id, key, label] of [['B31', 'g1000', 'G=1000'], ['B32', 'gN', 'G=100000']]) {
+  const PARTS = 4, size = Math.ceil(N / PARTS);
+  const descriptor = { groupBy: { k: q.field(key) }, measures: { n: q.count(), s: q.sum(q.field('amount')) }, numberMode: 'exact' };
+  const plan = q.aggregate(descriptor), options = { maxOutputRows: 200_000, maxGroups: 200_000 };
+  const parts = Array.from({ length: PARTS }, (_, i) => createImmutableArraySource(rows.slice(i * size, (i + 1) * size)));
+  const workers = await partialWorkers(descriptor, PARTS);
+  console.log(`${id} ${PARTS} worker threads started in ${workers.startMs.toFixed(1)} ms (outside the timed section)`);
+  const inThread = clone => async () => {
+    const partials = [];
+    for (const part of parts) { const partial = await plan.partial(part, { sizeOf, maxGroups: 200_000 }); partials.push(clone ? structuredClone(partial) : partial); }
+    const r = await plan.merge(partials, {}, options); return wrap(r.rows, r.summary);
+  };
+  try {
+    await scenario(id, `group sum/count, ${label}, one pass against ${PARTS} parts plus merge`, N, {
+      'one pass': async () => { const r = await plan.evaluate(immutable, {}, { sizeOf, ...options }); return wrap(r.rows, r.summary); },
+      'parts in thread': inThread(false),
+      'parts in thread, cloned': inThread(true),
+      [`${PARTS} worker threads`]: async () => { const r = await plan.merge(await workers.ask(), {}, options); return wrap(r.rows, r.summary); },
+    }, mapGroupSum(rows, key, 'amount'));
+  } finally { await workers.close(); }
+}
+// ---- B33 partials over DBSONL key ranges in worker threads -------------------------------------------------------
+{
+  const DOCS = 100_000, dir = await mkdtemp(join(os.tmpdir(), 'dataview-bench-partials-'));
+  const docs = wide(DOCS).map(({ id, g1000, amount, qty, flag, name }) => ({ id, g1000, amount, qty, flag, name }));
+  const descriptor = { groupBy: { k: q.path('value.g1000') }, measures: { n: q.count(), s: q.sum(q.number(q.path('value.amount'))) }, numberMode: 'exact' };
+  const plan = q.aggregate(descriptor);
+  const backend = await createFileBackend(dir), db = await openDbsonl(backend, 'bench', { create: true });
+  const unpooled = await createFileBackend(dir, { scanWorkers: 0 }), single = await openDbsonl(unpooled, 'bench');
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      const [{ forRows }, { createDbsonlSource }, { openDbsonl }, { createFileBackend }] = await Promise.all([workerData.compute, workerData.adapter, workerData.dbsonl, workerData.server].map(url => import(url)));
+      const db = await openDbsonl(await createFileBackend(workerData.dir, { io: 'sync' }), 'bench'), plan = forRows().aggregate(workerData.descriptor);
+      parentPort.on('message', async ({ head, range }) => {
+        const partial = await plan.partial(createDbsonlSource(db, { ...range, at: head }));
+        parentPort.postMessage(partial, partial.states.flatMap(state => Object.values(state).filter(ArrayBuffer.isView).map(view => view.buffer)));
+      });
+      parentPort.postMessage('ready');
+    })();`;
+  const pools = [];
+  try {
+    for (let s = 0; s < DOCS; s += 5000) await db.batch(docs.slice(s, s + 5000).map(value => ({ operation: 'put', key: `doc:${String(value.id).padStart(8, '0')}`, value })));
+    const urls = { compute: new URL('../dist/compute.mjs', import.meta.url).href, adapter: new URL('../dist/adapters/dbsonl.mjs', import.meta.url).href, dbsonl: import.meta.resolve('defuss-dbsonl'), server: import.meta.resolve('defuss-dbsonl/server') };
+    const variants = {
+      'one pass, no pool': async () => { const r = await plan.evaluate(createDbsonlSource(single)); return wrap(r.rows, r.summary); },
+      'one pass, dbsonl scan pool': async () => { const r = await plan.evaluate(createDbsonlSource(db)); return wrap(r.rows, r.summary); },
+    };
+    for (const workers of [4, 8]) {
+      const started = performance.now();
+      const pool = await Promise.all(Array.from({ length: workers }, () => new Promise((resolve, reject) => {
+        const worker = new Worker(code, { eval: true, workerData: { ...urls, dir, descriptor } });
+        worker.once('message', () => resolve(worker)); worker.once('error', reject);
+      })));
+      pools.push(pool);
+      console.log(`B33 ${workers} worker threads opened the database in ${(performance.now() - started).toFixed(1)} ms (outside the timed section)`);
+      variants[`${workers} worker threads`] = async () => {
+        const session = await db.beginRead();
+        try {
+          const ranges = await session.split(workers);
+          const partials = await Promise.all(ranges.map(({ gte, lt }, i) => new Promise(resolve => { pool[i].once('message', resolve); pool[i].postMessage({ head: session.head, range: { gte, lt } }); })));
+          const r = await plan.merge(partials); return wrap(r.rows, r.summary);
+        } finally { await session.close(); }
+      };
+    }
+    await scenario('B33', 'DBSONL file, group sum/count, G=1000, one pass against partials over split() ranges', DOCS, variants, mapGroupSum(docs, 'g1000', 'amount'));
+  } finally {
+    await Promise.all(pools.flat().map(worker => worker.terminate()));
+    await single.close(); await db.close(); await rm(dir, { recursive: true, force: true });
+  }
 }
 void cut;
 

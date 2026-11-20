@@ -147,7 +147,7 @@ describe('scalar aggregation (T09-T15)', () => {
     await expect(q.rows({ select: { x: q.div(total, q.field('zero')) } }).evaluate(source([{ id: 1, amount: 1, zero: 0 }]))).rejects.toThrow(RangeError);
   });
   it('fails a count before it could lose integer precision', () => {
-    const column = new StateColumns({ kind: 'rows', arg: undefined, where: undefined }, new Ledger(1024), true);
+    const column = new StateColumns({ kind: 'rows', arg: undefined, where: undefined }, new Ledger(1024), 'compensated');
     column.ensure(0); column.setCount(0, Number.MAX_SAFE_INTEGER - 1);
     column.countRow(0);
     expect(() => column.countRow(0)).toThrow(RangeError);

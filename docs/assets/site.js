@@ -500,6 +500,8 @@ const PAIRINGS = {
   stored: { label: 'Stored on disk', dataview: 'dataview + DBSONL file, same revision', mongodb: 'MongoDB' },
 };
 const FULL_SCAN = 'dataview + DBSONL file';
+// After a write the projection is gone: eight worker threads, each scanning one key range of the file, answer instead.
+const AFTER_WRITE = 'dataview + DBSONL file, 8 workers';
 const QUERIES = { top: 'Filter, sort, count', page: 'First page by key' };
 const comparison = fetch('assets/mongodb.json').then((response) => {
   if (!response.ok) throw new Error(`assets/mongodb.json answered ${response.status}`);
@@ -539,9 +541,12 @@ function showComparison(data) {
   const env = data.sizes[largest].environment;
   $('vs-source').textContent = `Medians of 7 alternating runs with bun run benchmark:mongodb on an ${env.cpu}, Node.js ${env.node}, MongoDB ${env.mongodb} (${env.storageEngine}), ${data.sizes[largest].measuredAt.slice(0, 10)}.`;
 
-  const paired = new Set(Object.values(PAIRINGS).flatMap((p) => [p.dataview, p.mongodb]));
-  const engines = [...new Set(Object.values(data.sizes).flatMap((run) => run.results.map((r) => r.engine)))].filter((engine) => paired.has(engine));
+  const listed = new Set([...Object.values(PAIRINGS).flatMap((p) => [p.dataview, p.mongodb]), FULL_SCAN, AFTER_WRITE]);
+  const engines = [...new Set(Object.values(data.sizes).flatMap((run) => run.results.map((r) => r.engine)))].filter((engine) => listed.has(engine));
   const sizes = Object.keys(data.sizes).sort((a, b) => a - b);
+  const afterWrite = sizes.filter((rows) => median(rows, 'top', AFTER_WRITE) !== undefined)
+    .map((rows) => `${duration(median(rows, 'top', AFTER_WRITE))} against ${duration(median(rows, 'top', 'MongoDB'))} over ${docs(rows)} documents`);
+  if (afterWrite.length) $('vs-after-write').textContent = afterWrite.join(', and ');
   const cell = (text, header) => { const el = document.createElement(header ? 'th' : 'td'); el.className = 'table-cell'; if (header) el.scope = 'row'; el.textContent = text; return el; };
   $('vs-table').replaceChildren(...engines.map((engine) => {
     const tr = document.createElement('tr');
@@ -561,7 +566,9 @@ function showComparison(data) {
   if (!ui?.tacho) return all;
   const tick = (power) => (power < 0 ? `1/${2 ** -power}×` : `${2 ** power}×`);
   // The gauges show log2(MongoDB time / dataview time): 0 is a tie, and every labelled step is four times the last.
-  ui.tacho.format('vs-mongodb', (value, context) => (context.tick ? tick(Math.round(value)) : verdict(2 ** value)));
+  // The meter clamps a ratio beyond its scale to the end stop; the readout then says so instead of naming the stop.
+  ui.tacho.format('vs-mongodb', (value, context) => (context.tick ? tick(Math.round(value))
+    : value >= context.max ? `over ${times(2 ** context.max)} faster` : value <= context.min ? `over ${times(2 ** -context.min)} slower` : verdict(2 ** value)));
   const choice = { size: String(largest), query: 'top' };
   const show = () => {
     for (const pairing of Object.keys(PAIRINGS)) {

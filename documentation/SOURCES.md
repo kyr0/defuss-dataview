@@ -34,9 +34,34 @@ The executor independently validates external batch/row sizes and validates coun
 
 ## DBSONL adapter
 
-`createDbsonlSource(db, {gte?, lt?})` accepts a structural `beginRead()` interface. Each result row is `{key, value, revision}`; paths into stored documents start with `value.`. It neither spreads user values nor reserves application field names. It preserves undefined, scalar, cyclic and binary application values without conversion.
+`createDbsonlSource(db, {gte?, lt?, at?})` accepts a structural `beginRead()` interface. Each result row is `{key, value, revision}`; paths into stored documents start with `value.`. It neither spreads user values nor reserves application field names. It preserves undefined, scalar, cyclic and binary application values without conversion.
 
 `beginRead()` gives snapshot `revision`, whole-store `count`, `scan()` and `close()`. The adapter uses whole-store count only without range bounds. `key asc` uses the same deterministic code-unit comparator as the default DataView ordering. Descending or locale key sorting falls back to global sorting. No predicate/limit pushdown is inferred: pushing a limit before filtering would change results. When scanBatches is present, the adapter passes bounded native batch options and independently validates emitted records. Otherwise it groups the row iterator into batches.
+
+### One snapshot across workers
+
+`at` pins every execution of the source to one snapshot head, such as defuss-dbsonl's `session.head`, instead of the latest one. Sources in several worker threads, each with its own database handle, then read one snapshot, and their partial aggregates merge (COMPUTE_API.md). defuss-dbsonl's `session.split(parts, {gte?, lt?})` cuts a snapshot into key ranges with exact row counts:
+
+```js
+const session = await db.beginRead();
+const ranges = await session.split(4);
+// In each worker: plan.partial(createDbsonlSource(workerDb, { gte, lt, at: head }))
+// Close the session once every worker's partial has resolved.
+```
+
+Keep the session open until then; defuss-dbsonl rejects a head it already collected with `CONFLICT`, which the source passes on. `examples/compute-partials.mjs` runs four worker threads over one file database.
+
+A stream query splits the same way. Each worker answers the query over its range with `offset: 0` and `limit: offset + limit`, and with `count: 'exact'` when the caller needs the total. The caller then merges the parts:
+
+```js
+// parts: each worker's evaluateStream(createDbsonlSource(workerDb, { gte, lt, at: head }), { filters, sorters, limit: offset + limit }, { count: 'exact' })
+const page = await evaluateStream(createImmutableArraySource(parts.flatMap(part => part.rows)), { sorters, offset, limit });
+const totalMatches = parts.reduce((sum, part) => sum + part.summary.totalMatches, 0);
+```
+
+The parts' rows contain the global first `offset + limit` rows, and concatenating the parts in key order keeps tied rows in key order, as one pass does. VERIFIED: `src/adapters/dbsonl.test.ts` compares the merge with one pass, with ties, an offset and the exact count; MONGODB.md times it with eight workers.
+
+Give each worker's database handle a larger page cache for large scans. VERIFIED: over 1,000,000 file documents, eight workers took 843 ms with defuss-dbsonl's default 8 MiB and 1,024 pages, and 387 ms with `{ maxCacheBytes: 64 * 2 ** 20, maxCachePages: 8192 }`; raising one limit alone gave 673 to 715 ms (one-off probe, 2026-11-20). UNKNOWN: why the default cache slows a scan of contiguous key ranges.
 
 ### Projection of one revision
 
@@ -66,13 +91,18 @@ A DB planner can supply an equality/range-index candidate source. A graph planne
 Built-in array and DBSONL sessions register an internal measured scanner. The executor invokes it directly only while the public scan method retains its original identity. No flag/property on public batches can bypass validation, and only explicit immutable revision sources may cache default accounting across requests. A source wrapper replacing `scan`, or an adapter loaded from a separate standalone bundle, receives ordinary independent input validation. A wrapper merely forwarding an unchanged built-in session retains the fast path. `batchRows` is public batching, not authorization to trust a custom source's byte claims.
 
 
-The optional structural `scanBatches({gte?, lt?, signal?, batchSize?, maxBatchBytes?,
-sizeOf?})` returns async arrays of records. The native provider must honor row/byte
-construction bounds and ownership. DataView passes a sizeOf callback that also
-checks maxRowBytes and records each size against the row object it measured. For an
-emitted row it reuses that size; a row it did not measure (another object, or one the
-provider sized without the callback) is measured on arrival. A provider cannot report a
-size, but one that mutates a row after measuring it can understate it, as it could by
-mutating after emission. No native metadata bypasses checks.
-defuss-dbsonl's default batch accounting uses encoded frame bytes;
-DataView explicitly supplies decoded row accounting. These are different budgets.
+The optional structural `scanBatches({gte?, lt?, limit?, signal?, batchSize?, maxBatchBytes?})`
+returns async arrays of records. The native provider must honor `batchSize` and ownership.
+DataView passes no `sizeOf`, because defuss-dbsonl 0.7.0 runs only scans without one in its
+worker pool, and no byte budget it could apply: the provider would count encoded frame bytes,
+DataView counts its own row estimate, and those are different budgets. DataView measures every
+emitted row once with the request's `sizeOf`, checks `maxRowBytes`, and yields a native batch
+over `maxBatchBytes` as spans that fit. A provider cannot report a size, and no native metadata
+bypasses checks.
+
+The first 4,096 rows come from a scan with that `limit`, which defuss-dbsonl runs in the calling
+thread while the limit is below its pool threshold (5,000 rows by default); the rest come from a second scan of the same snapshot starting at the last key read, with
+that row skipped, so a short page never starts the pool. VERIFIED: without the prefix, a first
+page of 50 over 100,000 file rows took 15 ms instead of 1.5 ms, about the decoding time of 4,800
+rows in one thread (defuss-dbsonl 0.7.0, 2026-11-20). A provider that ignores `limit` returns every row from the first scan, and the
+second scan then yields nothing new.

@@ -22,29 +22,31 @@ function rows(seed: number, n: number): Row[] {
 }
 const q = forRows<Row>();
 const amount = q.field('amount'), qty = q.field('qty');
+const grouped = {
+  filters: [{ field: 'qty', op: 'gt' as const, value: 0 }],
+  groupBy: { cat: q.field('cat') },
+  measures: {
+    n: q.count(), amounts: q.count(amount), total: q.sum(amount), mean: q.avg(amount), low: q.min(amount), high: q.max(q.field('label')),
+    big: q.sumBigInt(q.field('big')), flagged: q.count(undefined, { where: q.field('flag') }), flaggedTotal: q.sum(amount, { where: q.field('flag') }),
+    first: q.min(q.field('when')),
+  },
+  having: [{ field: 'n', op: 'gte' as const, value: 2 }],
+  orderBy: [{ field: 'total', direction: 'desc' as const }],
+};
 const plans = {
   rows: {
     select: { id: q.field('id'), cat: q.field('cat'), total: q.mul(amount, qty), missing: q.path('nested.deep') },
     where: q.gte(amount, q.literal(0)),
     orderBy: [{ expr: q.mul(amount, qty), direction: 'desc' as const }, { expr: q.field('label') }],
   },
-  grouped: {
-    filters: [{ field: 'qty', op: 'gt' as const, value: 0 }],
-    groupBy: { cat: q.field('cat') },
-    measures: {
-      n: q.count(), amounts: q.count(amount), total: q.sum(amount), mean: q.avg(amount), low: q.min(amount), high: q.max(q.field('label')),
-      big: q.sumBigInt(q.field('big')), flagged: q.count(undefined, { where: q.field('flag') }), flaggedTotal: q.sum(amount, { where: q.field('flag') }),
-      first: q.min(q.field('when')),
-    },
-    having: [{ field: 'n', op: 'gte' as const, value: 2 }],
-    orderBy: [{ field: 'total', direction: 'desc' as const }],
-  },
+  grouped,
+  exact: { ...grouped, numberMode: 'exact' as const },
   composite: { groupBy: { cat: q.field('cat'), flag: q.field('flag'), day: q.field('when') }, measures: { n: q.count(), total: q.sum(q.mul(amount, qty)) } },
   scalar: { measures: { n: q.count(), total: q.sum(amount), mean: q.avg(amount), big: q.sumBigInt(q.field('big')), sequential: q.sum(amount) }, numberMode: 'sequential' as const },
   distinct: { groupBy: { label: q.field('label'), flag: q.field('flag') }, measures: {} },
   view: { select: { id: q.field('id'), amount }, totals: { n: q.count(), total: q.sum(amount), high: q.max(amount) }, orderBy: [{ expr: amount, direction: 'asc' as const }] },
 } as const;
-const kinds = { rows: 'rows', grouped: 'aggregate', composite: 'aggregate', scalar: 'aggregate', distinct: 'aggregate', view: 'view' } as const;
+const kinds = { rows: 'rows', grouped: 'aggregate', exact: 'aggregate', composite: 'aggregate', scalar: 'aggregate', distinct: 'aggregate', view: 'view' } as const;
 const prepare = (name: keyof typeof plans) => kinds[name] === 'rows' ? q.rows(plans.rows) : kinds[name] === 'view' ? q.view(plans.view) : q.aggregate(plans[name] as never);
 async function sources(data: Row[]): Promise<Array<[string, RecordSource<Row>]>> {
   const cached = createImmutableArraySource(data, { keyCache: { maxBytes: 64 * 1024 * 1024 } });
@@ -65,6 +67,31 @@ describe('compute matches the independent oracle', () => {
         if (expected.totals) expect(result.totals, where).toEqual(expected.totals);
         expect(result.summary.totalResultRows, where).toBe(expected.total);
         expect(result.summary.totalInputMatches, where).toBe(expected.matches);
+      }
+    });
+  }
+});
+
+describe('partials merged in source order match the oracle', () => {
+  const mergeable = {
+    exact: plans.exact,
+    composite: { ...plans.composite, numberMode: 'exact' as const },
+    scalar: { ...plans.scalar, numberMode: 'exact' as const },
+    distinct: plans.distinct,
+  };
+  for (const seed of [1, 7]) for (const [name, descriptor] of Object.entries(mergeable)) {
+    it(`${name} plan, seed ${seed}, split into 1, 2 and 5 parts`, async () => {
+      const data = rows(seed, 300 + seed * 11);
+      const expected = oracle('aggregate', descriptor as never, data, { offset: 2, limit: 15 });
+      const plan = q.aggregate(descriptor as never);
+      for (const parts of [1, 2, 5]) {
+        const size = Math.ceil(data.length / parts);
+        const partials = await Promise.all(Array.from({ length: parts }, (_, i) =>
+          plan.partial(createArraySource(data.slice(i * size, (i + 1) * size), { isolation: 'immutable' }), { batchSize: 7 })));
+        const result = await plan.merge(partials.map(p => structuredClone(p)), { offset: 2, limit: 15 });
+        expect(result.rows, `${parts} parts`).toEqual(expected.rows);
+        expect(result.summary.totalResultRows).toBe(expected.total);
+        expect(result.summary.totalInputMatches).toBe(expected.matches);
       }
     });
   }

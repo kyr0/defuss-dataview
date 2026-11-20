@@ -161,3 +161,48 @@ test('built compute module runs under a CSP without unsafe-eval and cleans up on
   expect(result).toEqual({ evalBlocked: true, rows: [['fr', 667, 333500, '667000'], ['de', 667, 333166.5, '666333']], groups: 3, leased: true, ids: [1999, 1998, 1997], total: 999500, firstBatch: 5 });
   expect(errors.filter(e => !/Function|unsafe-eval/.test(e))).toEqual([]);
 });
+
+test('module workers scan parts with the built compute module and the page merges their transferred partials', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/parallel-compute.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>parallel compute</title>' }));
+  await page.goto('/parallel-compute.html');
+  const result = await page.evaluate(async () => {
+    const bundle = new URL('/dist/browser-compute.mjs', location.href).href;
+    const { forRows, createArraySource } = await import(bundle);
+    const q = forRows();
+    const descriptor = {
+      groupBy: { country: q.field('country') },
+      measures: { orders: q.count(), revenue: q.sum(q.field('amount')), mean: q.avg(q.field('amount')), first: q.min(q.field('day')), big: q.sumBigInt(q.field('big')) },
+      orderBy: [{ field: 'revenue', direction: 'desc' }], numberMode: 'exact',
+    };
+    const rows = Array.from({ length: 40_000 }, (_, i) => ({
+      country: ['de', 'fr', 'it', 'es', 'pl', 'nl'][i * 7 % 6], amount: ((i * 7919) % 100_003) / 100 * (i % 3 ? 1 : -1e-3),
+      day: new Date(Date.UTC(2026, 0, 1 + i % 28)), big: BigInt(i) * 10n ** 20n,
+    }));
+    // A worker receives the descriptor as a structured clone: plain nodes with the same property order and fingerprint.
+    const worker = `import { forRows, createArraySource } from '${bundle}';
+      self.onmessage = async ({ data }) => {
+        const partial = await forRows().aggregate(data.descriptor).partial(createArraySource(data.rows, { isolation: 'immutable' }));
+        const buffers = partial.states.flatMap(state => Object.values(state).filter(ArrayBuffer.isView).map(view => view.buffer));
+        self.postMessage(partial, buffers);
+      };`;
+    const url = URL.createObjectURL(new Blob([worker], { type: 'text/javascript' }));
+    const parts = 4, size = rows.length / parts;
+    const partials = await Promise.all(Array.from({ length: parts }, (_, i) => new Promise<unknown>((resolve, reject) => {
+      const w = new Worker(url, { type: 'module' });
+      w.onmessage = event => { w.terminate(); resolve(event.data); };
+      w.onerror = event => { w.terminate(); reject(new Error(event.message)); };
+      w.postMessage({ descriptor, rows: rows.slice(i * size, (i + 1) * size) });
+    })));
+    const plan = q.aggregate(descriptor);
+    const merged = await plan.merge(partials, { limit: 4 });
+    const single = await plan.evaluate(createArraySource(rows, { isolation: 'immutable' }), { limit: 4 }, { count: 'exact' });
+    const text = (out: { rows: unknown[] }) => JSON.stringify(out.rows, (_, value) => typeof value === 'bigint' ? `${value}n` : value);
+    return { equal: text(merged) === text(single), rows: merged.rows.length, groups: merged.summary.totalResultRows, scanned: merged.summary.scannedRows,
+      strategy: merged.summary.strategy, mergeable: plan.explain().strategies.includes('merge') };
+  });
+  expect(result).toEqual({ equal: true, rows: 4, groups: 6, scanned: 40_000, strategy: 'merge', mergeable: true });
+  expect(errors).toEqual([]);
+});
