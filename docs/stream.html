@@ -6,7 +6,7 @@
 <p>The unordered sorted page examines every candidate and retains only offset + limit rows. Source-order paging can stop early. Unknown totals are null. Byte accounting is separate from actual VM heap size.</p>
 <h2>Repeated queries and cursor pages</h2><p><code>createImmutableArraySource</code> caches default row accounting within a bounded immutable revision. <code>prepareStreamQuery</code> reuses compilation while each execution owns a fresh snapshot. <code>createIndexedArraySource</code> materializes one filter/order scope, then <code>readPage</code> uses revision-bound cursors to avoid rescanning earlier rows. Index builds and source caches have separate costs and budgets.</p>
 <script type="module">
-import { createArraySource, evaluateStream } from './assets/defuss-dataview@0.6.0/browser-stream.mjs';
+import { createArraySource, evaluateStream } from './assets/defuss-dataview@0.7.0/browser-stream.mjs';
 import { jsonLines } from './assets/json.js';
 const rows = Array.from({length:100000},(_,id)=>Object.freeze({id,score:(id*7919)%101}));
 const source = createArraySource(rows,{isolation:'immutable',revision:'demo-1'});

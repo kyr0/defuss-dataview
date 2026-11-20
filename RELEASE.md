@@ -1,6 +1,6 @@
-# Release 0.6.0
+# Release 0.7.0
 
-0.6.0 follows 0.5.0, which is tagged `v0.5.0` and not yet on npm; publish 0.5.0 from its tag first. Releases are published from a tagged commit of this repository; no credentials are stored here.
+0.7.0 follows 0.6.0, published on npm on 2026-11-17. Releases are published from a tagged commit of this repository; no credentials are stored here.
 
 bun 1.4.3 is the package manager (`packageManager` in package.json, `bun.lock`); Node 22 or newer runs the tests and scripts:
 
@@ -11,7 +11,7 @@ bun run check
 bun publish --access public
 ```
 
-`bun publish` takes the registry and its credentials from `.npmrc`, `bunfig.toml` or the environment (`bun publish --help`); a one-time password goes through the browser by default or `--otp`. `prepublishOnly` repeats the full check. VERIFIED: `bun publish --dry-run --ignore-scripts` listed the same 84 files as the tarball check (85 since `examples/dbsonl-projection.mjs`; not rerun), for defuss-dataview@0.5.0 on the public npm registry. UNKNOWN: a real `bun publish` from this machine has not run yet; 0.4.0 was published with `npm publish`.
+`bun publish` takes the registry and its credentials from `.npmrc`, `bunfig.toml` or the environment (`bun publish --help`); a one-time password goes through the browser by default or `--otp`. `prepublishOnly` repeats the full check. VERIFIED: `bun publish --dry-run --ignore-scripts` listed the same 84 files as the tarball check (85 since `examples/dbsonl-projection.mjs`; not rerun), for defuss-dataview@0.5.0 on the public npm registry. UNKNOWN: which command published 0.5.0 and 0.6.0; 0.4.0 was published with `npm publish`.
 
 ## What `bun run check` does
 

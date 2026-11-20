@@ -139,7 +139,7 @@ for (const grid of [ordersGrid, $('files')]) {
 // under review); the components above query through the defuss-dataview that defuss-shadcn bundles.
 // A report's columns differ per plan, so each run builds a fresh grid element with that plan's headers; defuss-shadcn
 // initializes grids added after load (its MutationObserver). The bundle loads when the tab opens.
-const COMPUTE = '../assets/defuss-dataview@0.6.0/browser-compute.mjs';
+const COMPUTE = '../assets/defuss-dataview@0.7.0/browser-compute.mjs';
 const reportsHost = $('reports-host');
 const reportsPlan = $('reports-plan');
 let reportCount = 100_000;

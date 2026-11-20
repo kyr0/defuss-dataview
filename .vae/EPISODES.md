@@ -41,12 +41,7 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-16T20:56:15Z s=9ef67782 FINDING scripts/benchmark-mongodb.mjs fixedIndex + documentation/MONGODB.md learn=none: measurement-dependent documentation
 2026-11-16T21:55:47Z s=9ef67782 FINDING DBSJONL_HANDOFF.md learn=none: documentation for another repository's agent
 2026-11-16T21:58:18Z s=9ef67782 FINDING docs/index.html hero + nav learn=none: copy and navigation change
-2026-11-17T01:24:31Z s=9ef67782 FINDING docs/assets/site.js:PAIRINGS|showComparison; docs/index.html #mongodb; tests/e2e/docs.spec.ts learn=test: tests/e2e/docs.spec.ts checks the headline count, loss/cross card, every gauge per switch, both chart row counts and the paired table against mongodb.json
-2026-11-17T01:27:57Z s=9ef67782 DONE fp=1419cdea29fa cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+63)
-2026-11-17T01:28:25Z s=9ef67782 DONE fp=2b32b168e60a cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+62)
-2026-11-17T01:32:09Z s=9ef67782 DONE fp=4eea20d35a3b cov=99.0% paths=.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md,ARCH.md(+118)
 2026-11-17T01:32:09Z s=9ef67782 FINDING branch release/0.5.0 diff against origin/main; SHA256SUMS learn=none: review of already tested code plus a file deletion; no new defect found
-2026-11-17T01:33:37Z s=9ef67782 FAIL hygiene.probes,ci.bun-only
 2026-11-17T01:34:12Z s=9ef67782 DONE fp=6352023ebad6 cov=99.0% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+119)
 2026-11-17T01:34:12Z s=9ef67782 FINDING .github/workflows/ci.yml learn=verifier: .vae/VERIFY.py rule ci.bun-only (not_regex over .github/workflows/*.yml) matches all four npm uses in the old ci.yml; a temporary 'npm ci' line made the gate fa
 2026-11-17T03:00:56Z s=9ef67782 DONE fp=ce532d60b2e6 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
@@ -104,3 +99,8 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-20T16:45:18Z s=8029794f FINDING scripts/benchmark-mongodb.mjs|first 1,000,000 run learn=none: Host load is environmental; the alternating method already exposes it through the reference engines, so no rule pins it.
 2026-11-20T16:45:18Z s=8029794f FINDING src/adapters/dbsonl.test.ts|merged in key order learn=test: The recipe documented in SOURCES.md is covered by this test.
 2026-11-20T16:45:18Z s=8029794f FINDING README.md:492 S06; documentation/MONGODB.md:76 L01 learn=none: Prose fixed on the pages.
+2026-11-20T19:06:50Z s=8029794f DONE fp=5e3168637279 cov=99.0% paths=CHANGELOG.md,README.md,RELEASE.md,bun.lock(+55)
+2026-11-20T19:06:50Z s=8029794f FINDING tests/unit/docs.test.ts|ships measurements for the package version learn=test: The existing docs test already ties metrics.json to package.json's version.
+2026-11-20T19:06:50Z s=8029794f FINDING CHANGELOG.md:32 B09; RELEASE.md:3 B09; .vae/MEMORY.md:10 learn=memory: MEMORY.md versions line updated from the registry.
+2026-11-20T19:06:50Z s=8029794f FINDING RELEASE.md:3 T03 learn=none: Prose fixed on the page.
+2026-11-20T19:06:50Z s=8029794f FINDING README.md:77,565|CDN URL learn=none: Release timing, not a defect: the README documents the version it ships with, as it did for 0.6.0.

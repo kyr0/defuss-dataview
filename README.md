@@ -74,7 +74,7 @@ npm install defuss-dataview
 Without a bundler, import the standalone browser module by URL, for example from jsDelivr:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.6.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.7.0/dist/browser.min.mjs';
 ```
 
 `dist/browser-stream.mjs`, `dist/browser-query.mjs` and `dist/browser-dbsonl.mjs` are the matching standalone modules for the other entry points.
@@ -562,7 +562,7 @@ console.log(result.matchedRows, result.pageCount);          // 3 2
 `worker.js` keeps the rows and answers requests:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.6.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.7.0/dist/browser.min.mjs';
 
 let rows = [];
 self.onmessage = ({ data }) => {
@@ -670,7 +670,7 @@ If you use defuss-dataview in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-dataview: Isomorphic Filtering, Sorting, Paging and Tree Traversal for Table and Tree Grids and Bounded Snapshot Queries},
   year         = {2026},
-  version      = {0.6.0},
+  version      = {0.7.0},
   howpublished = {\url{https://www.npmjs.com/package/defuss-dataview}},
   note         = {npm package, MIT License}
 }

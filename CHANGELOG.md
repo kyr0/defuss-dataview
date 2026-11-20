@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
+
+Prepared on 2026-11-20; not yet tagged or on npm. It follows 0.6.0, published on npm on 2026-11-17.
 
 ### Partial aggregation
 
@@ -29,7 +31,7 @@
 
 ## 0.6.0
 
-Tagged `v0.6.0` on 2026-11-17 and not yet on npm. It follows 0.5.0, tagged `v0.5.0` and also not yet on npm; publish 0.5.0 first.
+Tagged `v0.6.0` and published on npm on 2026-11-17, after 0.5.0 on the same day.
 
 ### Projection and aggregation
 
@@ -60,7 +62,7 @@ Tagged `v0.6.0` on 2026-11-17 and not yet on npm. It follows 0.5.0, tagged `v0.5
 
 ## 0.5.0
 
-Unreleased successor of 0.4.0. Internal development stages before this release were never published.
+Successor of 0.4.0, published on npm on 2026-11-17. Internal development stages before this release were never published.
 
 ### Breaking
 
