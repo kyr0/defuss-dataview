@@ -1,9 +1,9 @@
 {
-  "version": "0.8.0",
-  "commit": "9da0243",
+  "version": "0.9.0",
+  "commit": "d9f3ad1",
   "sourceStatus": "commit plus uncommitted changes",
-  "measuredAt": "2026-11-21T15:27:10.854Z",
-  "reportsUpdatedAt": "2026-11-21T15:27:12.862Z",
+  "measuredAt": "2026-11-21T18:56:01.087Z",
+  "reportsUpdatedAt": "2026-11-21T18:56:03.113Z",
   "environment": {
     "node": "v26.13.1",
     "platform": "darwin 25.6.0 arm64",
@@ -16,57 +16,57 @@
       {
         "scenario": "filter + page",
         "rows": 1000,
-        "medianMs": 0.059,
-        "minMs": 0.037,
+        "medianMs": 0.064,
+        "minMs": 0.038,
         "runs": 15
       },
       {
         "scenario": "filter + sort + page",
         "rows": 1000,
-        "medianMs": 0.228,
-        "minMs": 0.172,
+        "medianMs": 0.215,
+        "minMs": 0.157,
         "runs": 15
       },
       {
         "scenario": "filter + page",
         "rows": 10000,
-        "medianMs": 0.26,
-        "minMs": 0.231,
+        "medianMs": 0.307,
+        "minMs": 0.23,
         "runs": 15
       },
       {
         "scenario": "filter + sort + page",
         "rows": 10000,
-        "medianMs": 0.475,
-        "minMs": 0.406,
+        "medianMs": 0.457,
+        "minMs": 0.376,
         "runs": 15
       },
       {
         "scenario": "filter + page",
         "rows": 100000,
-        "medianMs": 1.887,
-        "minMs": 1.713,
+        "medianMs": 1.856,
+        "minMs": 1.576,
         "runs": 9
       },
       {
         "scenario": "filter + sort + page",
         "rows": 100000,
-        "medianMs": 3.422,
-        "minMs": 3.291,
+        "medianMs": 3.265,
+        "minMs": 3.03,
         "runs": 9
       },
       {
         "scenario": "filter + page",
         "rows": 1000000,
-        "medianMs": 20.505,
-        "minMs": 20.132,
+        "medianMs": 18.783,
+        "minMs": 18.7,
         "runs": 5
       },
       {
         "scenario": "filter + sort + page",
         "rows": 1000000,
-        "medianMs": 40.769,
-        "minMs": 38.597,
+        "medianMs": 35.135,
+        "minMs": 34.897,
         "runs": 5
       }
     ],
@@ -76,79 +76,79 @@
         "depth": 10,
         "rows": 11,
         "medianMs": 0.008,
-        "minMs": 0.008,
+        "minMs": 0.006,
         "runs": 15
       },
       {
         "scenario": "match the deepest row + its ancestors",
         "depth": 10,
         "rows": 11,
-        "medianMs": 0.006,
-        "minMs": 0.006,
+        "medianMs": 0.005,
+        "minMs": 0.005,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "depth": 100,
         "rows": 101,
-        "medianMs": 0.035,
-        "minMs": 0.033,
+        "medianMs": 0.032,
+        "minMs": 0.032,
         "runs": 15
       },
       {
         "scenario": "match the deepest row + its ancestors",
         "depth": 100,
         "rows": 101,
-        "medianMs": 0.037,
-        "minMs": 0.035,
+        "medianMs": 0.033,
+        "minMs": 0.031,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "depth": 1000,
         "rows": 1001,
-        "medianMs": 0.114,
-        "minMs": 0.105,
+        "medianMs": 0.127,
+        "minMs": 0.103,
         "runs": 15
       },
       {
         "scenario": "match the deepest row + its ancestors",
         "depth": 1000,
         "rows": 1001,
-        "medianMs": 0.117,
-        "minMs": 0.109,
+        "medianMs": 0.14,
+        "minMs": 0.106,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "depth": 10000,
         "rows": 10001,
-        "medianMs": 1.37,
-        "minMs": 1.156,
+        "medianMs": 1.736,
+        "minMs": 1.215,
         "runs": 15
       },
       {
         "scenario": "match the deepest row + its ancestors",
         "depth": 10000,
         "rows": 10001,
-        "medianMs": 2.425,
-        "minMs": 1.659,
+        "medianMs": 2.494,
+        "minMs": 1.906,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "depth": 100000,
         "rows": 100001,
-        "medianMs": 14.06,
-        "minMs": 12.604,
+        "medianMs": 14.326,
+        "minMs": 11.505,
         "runs": 9
       },
       {
         "scenario": "match the deepest row + its ancestors",
         "depth": 100000,
         "rows": 100001,
-        "medianMs": 15.27,
-        "minMs": 13.277,
+        "medianMs": 15.065,
+        "minMs": 12.693,
         "runs": 9
       }
     ],
@@ -156,57 +156,57 @@
       {
         "scenario": "all open + page",
         "rows": 1000,
-        "medianMs": 0.079,
-        "minMs": 0.077,
+        "medianMs": 0.156,
+        "minMs": 0.075,
         "runs": 15
       },
       {
         "scenario": "filter + sort siblings + page",
         "rows": 1000,
-        "medianMs": 0.247,
-        "minMs": 0.187,
+        "medianMs": 0.283,
+        "minMs": 0.193,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "rows": 10000,
-        "medianMs": 1.037,
-        "minMs": 0.819,
+        "medianMs": 1.165,
+        "minMs": 0.893,
         "runs": 15
       },
       {
         "scenario": "filter + sort siblings + page",
         "rows": 10000,
-        "medianMs": 1.76,
-        "minMs": 1.475,
+        "medianMs": 2.113,
+        "minMs": 1.577,
         "runs": 15
       },
       {
         "scenario": "all open + page",
         "rows": 100000,
-        "medianMs": 11.566,
-        "minMs": 10.469,
+        "medianMs": 12.252,
+        "minMs": 11.55,
         "runs": 9
       },
       {
         "scenario": "filter + sort siblings + page",
         "rows": 100000,
-        "medianMs": 20.681,
-        "minMs": 19.544,
+        "medianMs": 21.423,
+        "minMs": 18.322,
         "runs": 9
       },
       {
         "scenario": "all open + page",
         "rows": 1000000,
-        "medianMs": 154.675,
-        "minMs": 146.077,
+        "medianMs": 137.548,
+        "minMs": 129.273,
         "runs": 5
       },
       {
         "scenario": "filter + sort siblings + page",
         "rows": 1000000,
-        "medianMs": 230.03,
-        "minMs": 221.041,
+        "medianMs": 216.169,
+        "minMs": 201.248,
         "runs": 5
       }
     ]
@@ -214,21 +214,21 @@
   "coverage": {
     "lines": 99.14,
     "statements": 97.38,
-    "functions": 98,
-    "branches": 95.67,
-    "at": "2026-11-21T15:27:12.721Z"
+    "functions": 98.01,
+    "branches": 95.71,
+    "at": "2026-11-21T18:56:02.936Z"
   },
   "tests": {
     "unit": {
-      "total": 342,
-      "passed": 342,
+      "total": 343,
+      "passed": 343,
       "files": 81,
-      "at": "2026-11-21T15:27:12.714Z"
+      "at": "2026-11-21T18:56:02.925Z"
     },
     "browser": {
       "total": 34,
       "passed": 34,
-      "at": "2026-11-21T15:27:05.665Z"
+      "at": "2026-11-21T18:55:56.289Z"
     }
   }
 }

@@ -61,6 +61,11 @@ export interface ComputeBuilders<T> {
   /** To the nearest integer, halves away from zero. */
   round(expr: Expr<Numeric>): Expr<number | null>;
   abs(expr: Expr<Numeric>): Expr<number | null>;
+  /**
+   * Epoch milliseconds of a Date, so dates take arithmetic: `sub(epochMs(b), epochMs(a))` is the duration between
+   * them. A number in the Date range passes through; nullish operands and invalid Dates give null.
+   */
+  epochMs(expr: Expr<unknown>): Expr<number | null>;
   /** The start of the instant's year, quarter, month, ISO week (Monday), day, hour or minute, as a Date. */
   dateTrunc(expr: Expr<unknown>, unit: DateUnit, options?: ZoneOptions): Expr<Date | null>;
   /** year, quarter (1-4), month (1-12), day (1-31), weekday (ISO, 1 = Monday), hour (0-23) or minute. */

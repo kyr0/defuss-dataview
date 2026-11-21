@@ -21,8 +21,8 @@
   <!-- defuss-dataview: this local build (scripts/site-build.mjs pins it), checked against its hash before it runs. -->
   <script type="importmap">
     {
-      "imports": { "defuss-dataview": "./assets/defuss-dataview@0.8.0/browser.min.mjs", "defuss-dataview/compute": "./assets/defuss-dataview@0.8.0/browser-compute.mjs" },
-      "integrity": { "./assets/defuss-dataview@0.8.0/browser.min.mjs": "sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M", "./assets/defuss-dataview@0.8.0/browser-compute.mjs": "sha384-PZFgzg/es3ry9LSgnORVuSHe/WwajG8+GX6QNnOk1Nemvz3lK4wv3RCBHv/Wu43x" }
+      "imports": { "defuss-dataview": "./assets/defuss-dataview@0.9.0/browser.min.mjs", "defuss-dataview/compute": "./assets/defuss-dataview@0.9.0/browser-compute.mjs" },
+      "integrity": { "./assets/defuss-dataview@0.9.0/browser.min.mjs": "sha384-tN205HqnGf3DLshwuMYSErNz4c5WNCAIbRyZg6qSrxcwlCl0H8l0Qo6fllsuKk5M", "./assets/defuss-dataview@0.9.0/browser-compute.mjs": "sha384-2rHwb/wIX3Sp8oy5TPbqdIhXCTfK5Znt6VqjNdvkfj+J+6+CsNNC/UVOezy6lT2F" }
     }
   </script>
   <!-- defuss-shadcn from jsDelivr at an exact release, pinned by Subresource Integrity. -->
@@ -132,7 +132,7 @@
     <div class="parallax-content">
       <section class="mk-hero" style="width:100%">
         <div class="mk-hero-copy">
-          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.8.0</span>Zero dependencies · 6.3&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="mk-hero-pill" href="#numbers"><span class="badge" data-variant="default" data-size="sm">v0.9.0</span>Zero dependencies · 6.3&nbsp;kB gzip · table or tree <svg class="dv-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
           <h1 class="mk-hero-title">Filter, sort and page big data grids &amp; trees using <strong>one JSON descriptor</strong> that</h1>
           <p class="dv-flip"><span class="text-rotate"><span>
               <span class="dv-accent">runs in a page, worker or server</span>
@@ -872,7 +872,7 @@
               <tr class="table-row"><td class="table-cell"><code>field(key)</code>, <code>path('a.b')</code>, <code>literal(value)</code>, <code>number(expr)</code></td><td class="table-cell">An own property, an own-property path, a constant, a value narrowed to <code>number | null</code></td></tr>
               <tr class="table-row"><td class="table-cell"><code>add</code>, <code>sub</code>, <code>mul</code>, <code>div</code>, <code>coalesce</code></td><td class="table-cell">Finite arithmetic; a nullish operand gives <code>null</code>, overflow and division by zero throw</td></tr>
               <tr class="table-row"><td class="table-cell"><code>eq</code>, <code>neq</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>isNullish</code>, <code>and</code>, <code>or</code>, <code>not</code></td><td class="table-cell">Predicates for <code>where</code> and measure filters, with the semantics of the stream filters</td></tr>
-              <tr class="table-row"><td class="table-cell"><code>dateTrunc</code>, <code>datePart</code>, <code>lower</code>, <code>upper</code>, <code>trim</code>, <code>substring</code>, <code>concat</code>, <code>length</code>, <code>cond</code>, <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>each</code></td><td class="table-cell">Calendar buckets in UTC or an IANA time zone, text and rounding for group keys and outputs; <code>each</code> groups by array elements</td></tr>
+              <tr class="table-row"><td class="table-cell"><code>dateTrunc</code>, <code>datePart</code>, <code>epochMs</code>, <code>lower</code>, <code>upper</code>, <code>trim</code>, <code>substring</code>, <code>concat</code>, <code>length</code>, <code>cond</code>, <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>each</code></td><td class="table-cell">Calendar buckets in UTC or an IANA time zone, durations between Dates, text and rounding for group keys and outputs; <code>each</code> groups by array elements</td></tr>
               <tr class="table-row"><td class="table-cell"><code>count</code>, <code>sum</code>, <code>avg</code>, <code>min</code>, <code>max</code>, <code>sumBigInt</code>, <code>countDistinct</code>, <code>distinct</code>, <code>percentile</code>, <code>median</code></td><td class="table-cell">Measures; each takes an optional <code>{ where }</code> predicate</td></tr>
             </tbody>
           </table>
@@ -891,20 +891,20 @@
             <p class="mk-stats-desc">Sizes are <code>dist/stats.json</code> from this local package build. Coverage, test counts and the timings below come from <code>make site-metrics</code>, which runs the test suites and then times the built package: <span id="metrics-source">loading the measurements…</span></p>
           </div>
           <div class="mk-stats-grid">
-            <div class="mk-stat" id="stat-gzip"><span class="mk-stat-value">6,280 B <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">17,711 B minified: the standalone browser module this page loads</span></div>
+            <div class="mk-stat" id="stat-gzip"><span class="mk-stat-value">6,252 B <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">17,711 B minified: the standalone browser module this page loads</span></div>
             <div class="mk-stat" id="stat-coverage"><span class="mk-stat-value">–</span><span class="mk-stat-label">of source lines covered by the unit tests</span></div>
             <div class="mk-stat" id="stat-tests"><span class="mk-stat-value">–</span><span class="mk-stat-label">unit and browser tests</span><a href="https://github.com/kyr0/defuss-dataview/tree/main/tests/e2e" class="btn mk-stat-link" data-variant="link" data-size="default">The browser suites</a></div>
             <div class="mk-stat"><span class="mk-stat-value">0</span><span class="mk-stat-label">runtime dependencies; ESM, CommonJS and TypeScript declarations in one package</span></div>
           </div>
         </div>
         <figure class="mk-stats-media dv-metrics">
-          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.8.0">
+          <div class="mockup-code" data-chrome="mac" data-title="defuss-dataview@0.9.0">
             <pre data-prefix="$"><code><span class="mk-code-block-k">cat</span> dist/stats.json</code></pre>
             <pre data-prefix=""><code>{</code></pre>
             <pre data-prefix="" id="stats-esm"><code>  <span class="mk-code-block-k">"esmBytes"</span>: <span class="dv-json-literal">14395</span>,</code></pre>
             <pre data-prefix="" id="stats-cjs"><code>  <span class="mk-code-block-k">"commonjsBytes"</span>: <span class="dv-json-literal">14788</span>,</code></pre>
             <pre data-prefix="" id="stats-min"><code>  <span class="mk-code-block-k">"browserMinifiedBytes"</span>: <span class="dv-json-literal">17711</span>,</code></pre>
-            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  <span class="mk-code-block-k">"browserGzipBytes"</span>: <span class="dv-json-literal">6280</span></code></pre>
+            <pre data-prefix="" data-tone="success" id="stats-gzip"><code>  <span class="mk-code-block-k">"browserGzipBytes"</span>: <span class="dv-json-literal">6252</span></code></pre>
             <pre data-prefix=""><code>}</code></pre>
           </div>
           <figcaption class="dv-figcaption">Gzip is Node's <code>zlib</code> at its default level.</figcaption>
@@ -1053,7 +1053,7 @@
           <a class="btn" data-size="lg" href="https://github.com/kyr0/defuss-dataview" target="_blank" rel="noopener">View on GitHub<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
           <a class="btn" data-variant="outline" data-size="lg" href="https://www.npmjs.com/package/defuss-dataview" target="_blank" rel="noopener">npm package<svg class="dv-icon dv-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
         </div>
-        <p class="mk-cta-note">MIT licensed · 0.8.0 · zero runtime dependencies</p>
+        <p class="mk-cta-note">MIT licensed · 0.9.0 · zero runtime dependencies</p>
       </div>
     </section>
   </div>

@@ -55,6 +55,7 @@ const plans = {
       upper: q.upper(q.field('label')), tail: q.substring(q.concat(q.field('label'), q.literal('-ü😀')), 1, 3), size: q.length(q.concat(q.field('label'), q.literal('😀'))),
       band: q.cond(q.gte(amount, q.literal(100)), q.literal('high'), q.cond(q.isNullish(amount), q.literal(null), q.literal('low'))),
       floor: q.floor(amount), ceil: q.ceil(amount), round: q.round(q.div(amount, q.literal(10))), abs: q.abs(amount),
+      days: q.div(q.sub(q.epochMs(q.field('when')), q.literal(1_700_000_000_000)), q.literal(86_400_000)),
     },
     where: q.neq(q.lower(q.field('label')), q.literal('x3')),
     orderBy: [{ expr: q.round(amount), direction: 'desc' as const }, { expr: q.field('id') }],
@@ -64,6 +65,7 @@ const plans = {
     measures: {
       n: q.count(), labels: q.countDistinct(q.field('label')), cats: q.distinct(q.field('cat')), catCount: q.countDistinct(q.field('cat')),
       median: q.median(amount), p90: q.percentile(amount, 0.9), p0: q.percentile(amount, 0), flaggedMedian: q.median(qty, { where: q.field('flag') }),
+      medianTime: q.median(q.epochMs(q.field('when'))),
     },
     orderBy: [{ field: 'catCount', direction: 'desc' as const }, { field: 'median' }],
   },

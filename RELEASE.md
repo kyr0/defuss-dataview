@@ -1,6 +1,6 @@
-# Release 0.8.0
+# Release 0.9.0
 
-0.8.0 follows 0.7.0, published on npm on 2026-11-20. Releases are published from a tagged commit of this repository; no credentials are stored here.
+0.9.0 follows 0.8.0, published on npm on 2026-11-21. Releases are published from a tagged commit of this repository; no credentials are stored here.
 
 bun 1.4.3 is the package manager (`packageManager` in package.json, `bun.lock`); Node 22 or newer runs the tests and scripts:
 

@@ -26,9 +26,11 @@ Per row, a plan evaluates `filters`, then `where`, then the expressions the row'
 
 ## Dates and time zones
 
-`dateTrunc` and `datePart` read a valid Date or a number of epoch milliseconds within the Date range. Nullish operands and invalid Dates give `null`, as does a truncation whose period starts before the first valid Date. Any other value is invalid: under `invalidNumbers: 'error'` it throws a `TypeError`, under `'skip'` it reads as `null`.
+`dateTrunc`, `datePart` and `epochMs` read a valid Date or a number of epoch milliseconds within the Date range. Nullish operands and invalid Dates give `null`, as does a truncation whose period starts before the first valid Date. Any other value is invalid: under `invalidNumbers: 'error'` it throws a `TypeError`, under `'skip'` it reads as `null`.
 
-They work in UTC unless the expression names an IANA time zone, such as `{ timeZone: 'Europe/Berlin' }`; an unknown zone throws a `TypeError` when the plan is prepared. UTC is the default so that one plan gives the same groups in every process; pass the viewer's zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) to bucket by local calendar days. A truncated value is the first instant of the period, as Temporal defines it:
+`epochMs` gives the epoch milliseconds of a Date and passes a number through, so dates take arithmetic: `sub(epochMs(end), epochMs(start))` is a duration in milliseconds, and `avg`, `max` or `percentile` over it measure durations. `sub` itself stays numeric and treats a Date as an invalid number, so a forgotten `epochMs` throws under `invalidNumbers: 'error'` and gives `null` under `'skip'`, never `NaN`. A duration is elapsed time, not calendar distance: across a DST change a local day is 23 or 25 hours.
+
+`dateTrunc` and `datePart` work in UTC unless the expression names an IANA time zone, such as `{ timeZone: 'Europe/Berlin' }`; an unknown zone throws a `TypeError` when the plan is prepared. UTC is the default so that one plan gives the same groups in every process; pass the viewer's zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) to bucket by local calendar days. A truncated value is the first instant of the period, as Temporal defines it:
 
 - A day, ISO week, month, quarter or year starts at the first instant of its first local day. When a transition skips midnight, that is the transition; when midnight occurs twice, it is the earlier one. Every instant of one local date therefore truncates to the same Date, and grouping by it groups by local date.
 - An hour or minute keeps the instant's own UTC offset where the truncated wall time has it. In a repeated hour, the instants of each pass truncate to their own hour.

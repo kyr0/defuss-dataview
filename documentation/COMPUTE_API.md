@@ -46,6 +46,7 @@ Builders return frozen plain nodes (`{ v: 1, op, ... }`). Plans also accept the 
 | `and`, `or`, `not` | Short-circuit Boolean logic; operands must be Booleans |
 | `cond(test, then, otherwise)` | `then` when `test` is `true`, else `otherwise`; only the chosen branch is evaluated |
 | `floor`, `ceil`, `round`, `abs` | Integer rounding and absolute value; `round` takes halves away from zero |
+| `epochMs(expr)` | Epoch milliseconds of a Date, for durations: `sub(epochMs(end), epochMs(start))` |
 | `dateTrunc(expr, unit, { timeZone }?)` | The first instant of the `year`, `quarter`, `month`, ISO `week` (from Monday), `day`, `hour` or `minute`, as a Date |
 | `datePart(expr, part, { timeZone }?)` | `year`, `quarter` (1 to 4), `month` (1 to 12), `day`, `weekday` (1 = Monday to 7), `hour` or `minute` |
 | `lower`, `upper`, `trim` | The string in lower or upper case, or without surrounding whitespace |

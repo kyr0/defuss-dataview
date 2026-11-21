@@ -1,6 +1,6 @@
 {
   "name": "defuss-dataview",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "packageManager": "bun@1.4.3",
   "publishConfig": {

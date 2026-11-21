@@ -91,6 +91,31 @@ describe('dateTrunc and datePart', () => {
     expect(first).toMatchObject({ day: null, minute: null, 'part:hour': 9, 'part:minute': 18 });
   });
 
+  it('take Date arithmetic through epochMs: durations, their measures, and the same operand rules', async () => {
+    type Span = { id: number; from?: unknown; to?: unknown };
+    const s = forRows<Span>(), from = s.field('from'), to = s.field('to');
+    const day = 86_400_000, start = Date.UTC(2024, 4, 1);
+    const spans: Span[] = [
+      { id: 0, from: new Date(start), to: new Date(start + 2 * day) }, { id: 1, from: start, to: new Date(start + day / 2) },
+      { id: 2, from: new Date(start), to: null }, { id: 3, from: new Date(NaN), to: new Date(start) }, { id: 4 },
+    ];
+    const plan = s.rows({ select: { ms: s.epochMs(from), days: s.div(s.sub(s.epochMs(to), s.epochMs(from)), s.literal(day)) } });
+    const { rows } = await plan.evaluate(createArraySource(spans, { isolation: 'immutable' }));
+    expect(rows).toEqual([{ ms: start, days: 2 }, { ms: start, days: 0.5 }, { ms: start, days: null }, { ms: null, days: null }, { ms: null, days: null }]);
+    const stats = s.aggregate({ measures: { mean: s.avg(s.sub(s.epochMs(to), s.epochMs(from))), longest: s.max(s.sub(s.epochMs(to), s.epochMs(from))) } });
+    expect((await stats.evaluate(createArraySource(spans, { isolation: 'immutable' }))).rows).toEqual([{ mean: 1.25 * day, longest: 2 * day }]);
+    // sub itself stays numeric: under the default policy a Date operand throws, so a missing epochMs() never becomes NaN.
+    const bare = s.rows({ select: { d: s.sub(to as never, from as never) } });
+    await expect(bare.evaluate(createArraySource(spans.slice(0, 1), { isolation: 'immutable' }))).rejects.toThrow(/finite number/);
+    const skipped = s.rows({ select: { d: s.sub(to as never, from as never) }, invalidNumbers: 'skip' });
+    expect((await skipped.evaluate(createArraySource(spans.slice(0, 1), { isolation: 'immutable' }))).rows).toEqual([{ d: null }]);
+    const read = (values: unknown[], invalidNumbers?: 'skip') => s.rows({ select: { ms: s.epochMs(from) }, ...(invalidNumbers ? { invalidNumbers } : {}) })
+      .evaluate(createArraySource(values.map((value, id) => ({ id, from: value })), { isolation: 'immutable' }));
+    await expect(read(['2024-05-01'])).rejects.toThrow(/epochMs\(\) needs a Date or epoch milliseconds/);
+    await expect(read([8.64e15 + 1])).rejects.toThrow(TypeError);
+    expect((await read(['2024-05-01', 8.64e15], 'skip')).rows).toEqual([{ ms: null }, { ms: 8.64e15 }]);
+  });
+
   it('reject unknown units, parts and time zones when the plan is prepared', () => {
     const at = q.field('at');
     expect(() => q.rows({ select: { x: q.dateTrunc(at, 'decade' as never) } })).toThrow(TypeError);

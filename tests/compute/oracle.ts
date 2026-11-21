@@ -109,6 +109,7 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
         if (node.op === 'round') { const a = Math.abs(x), f = Math.floor(a), r = a - f >= 0.5 ? f + 1 : f; return x < 0 || Object.is(x, -0) ? -r : r; }
         return node.op === 'floor' ? Math.floor(x) : node.op === 'ceil' ? Math.ceil(x) : Math.abs(x);
       }
+      case 'epochMs': return when(arg(0))?.getTime() ?? null;
       case 'dateTrunc': case 'datePart': {
         if (node.timeZone !== undefined && node.timeZone !== 'UTC') throw new TypeError('oracle: UTC only');
         const d = when(arg(0)); if (d === null) return null;

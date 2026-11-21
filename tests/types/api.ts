@@ -96,6 +96,10 @@ const calendar = sq.aggregate({
 const calendarRow: { week: Date | null; weekday: number | null; name: string | null; buyers: number; names: string[]; median: number | null; p95: number | null } = {} as Awaited<ReturnType<typeof calendar.evaluate>>['rows'][number];
 const banded = sq.rows({ select: { band: sq.cond(sq.gt(sq.field('amount'), sq.literal(10)), sq.literal('big' as const), sq.literal(0)), cents: sq.round(sq.mul(sq.field('amount'), sq.literal(100))), tags: sq.length(sq.field('tags')) } });
 const bandedRow: { band: 'big' | number; cents: number | null; tags: number | null } = {} as Awaited<ReturnType<typeof banded.evaluate>>['rows'][number];
+const durations = sq.aggregate({ measures: { mean: sq.avg(sq.sub(sq.epochMs(sq.field('at')), sq.literal(0))), first: sq.min(sq.epochMs(sq.field('at'))) } });
+const durationRow: { mean: number | null; first: number | null } = {} as Awaited<ReturnType<typeof durations.evaluate>>['rows'][number];
+// @ts-expect-error sub takes numbers; epochMs() turns a Date into one.
+sq.sub(sq.field('at'), sq.field('at'));
 // @ts-expect-error dateTrunc takes a calendar unit.
 sq.dateTrunc(sq.field('at'), 'decade');
 // @ts-expect-error Percentiles are numeric.
@@ -105,7 +109,7 @@ sq.cond(sq.field('amount'), sq.literal(1), sq.literal(2));
 const tagged = sq.aggregate({ groupBy: { tag: sq.each(sq.field('tags')) }, measures: { n: sq.count() } });
 const taggedRow: { tag: string | undefined; n: number } = {} as Awaited<ReturnType<typeof tagged.evaluate>>['rows'][number];
 const taggedBack: string | undefined = taggedRow.tag;
-void [calendarRow, bandedRow, taggedBack];
+void [calendarRow, bandedRow, durationRow, taggedBack];
 import type { PartialAggregate } from 'defuss-dataview/compute';
 const exactPlan = cq.aggregate({ groupBy: { country: cq.field('country') }, measures: { revenue: cq.sum(revenue) }, numberMode: 'exact' });
 const orderSource = createImmutableArraySource<Order>([]);

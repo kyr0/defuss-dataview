@@ -1,8 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+Prepared on 2026-11-21; not yet on npm. It follows 0.8.0, published on npm on 2026-11-21.
+
+- `epochMs(expr)` gives the epoch milliseconds of a Date, so plans compute durations: `sub(epochMs(end), epochMs(start))`, and `avg`, `max` or `percentile` over it. It reads the operands `dateTrunc` reads: a number in the Date range passes through, nullish operands and invalid Dates give `null`, and other values follow `invalidNumbers`. `sub` and the other arithmetic operators still treat Dates as invalid numbers, so a forgotten `epochMs` throws, or gives `null` under `invalidNumbers: 'skip'`, never `NaN`.
+
 ## 0.8.0
 
-Prepared on 2026-11-21; not yet on npm. It follows 0.7.0, published on npm on 2026-11-20.
+Published on npm on 2026-11-21. It follows 0.7.0, published on npm on 2026-11-20.
 
 ### Calendar, text and conditional expressions
 

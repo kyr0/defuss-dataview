@@ -11,7 +11,7 @@ import type { AggregateExpr, ComputeBuilders, Expr } from './types.js';
  */
 export const MAX_EXPRESSION_DEPTH = 64;
 export const MAX_PLAN_NODES = 10_000;
-const UNARY = new Set(['number', 'not', 'isNullish', 'floor', 'ceil', 'round', 'abs', 'lower', 'upper', 'trim', 'length']);
+const UNARY = new Set(['number', 'not', 'isNullish', 'floor', 'ceil', 'round', 'abs', 'epochMs', 'lower', 'upper', 'trim', 'length']);
 const BINARY = new Set(['add', 'sub', 'mul', 'div', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte']);
 const VARIADIC = new Set(['coalesce', 'and', 'or', 'concat']);
 const MEASURES = new Set(['count', 'sum', 'avg', 'min', 'max', 'sumBigInt', 'countDistinct', 'distinct', 'percentile', 'median']);
@@ -49,6 +49,7 @@ export function createBuilders<T>(): ComputeBuilders<T> {
     ceil: a => expr('ceil', { args: args([a]) }),
     round: a => expr('round', { args: args([a]) }),
     abs: a => expr('abs', { args: args([a]) }),
+    epochMs: a => expr('epochMs', { args: args([a]) }),
     dateTrunc: (a, unit, options) => expr('dateTrunc', { args: args([a]), unit, ...zone(options) }),
     datePart: (a, which, options) => expr('datePart', { args: args([a]), part: which, ...zone(options) }),
     lower: a => expr('lower', { args: args([a]) }),
@@ -322,6 +323,7 @@ export function instantiate(nodes: readonly PlanNode[], ctx: RowContext, ops: Va
         f = () => { const n = numeric(x(), policy, `${op} operand`); return n === null ? null : math(n); };
         break;
       }
+      case 'epochMs': f = () => instant(x(), policy, 'epochMs()'); break;
       case 'dateTrunc': case 'datePart': {
         const op = spec.op, unit = spec.unit!, zone = spec.zone!;
         f = op === 'dateTrunc'

@@ -51,8 +51,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-17T03:19:14Z s=9ef67782 FINDING documentation/MONGODB.md 'Projection and aggregation' B (evidence) learn=none: prose accuracy is a review check
 2026-11-17T03:19:14Z s=9ef67782 FINDING docs/assets/site.css header container query; docs/index.html nav learn=none: a layout measurement on one browser; the header test now clicks every section link including Compute
 2026-11-17T03:19:14Z s=9ef67782 FINDING docs/assets/compute.js showVersus / docs/index.html comparison table learn=none: visual layout, checked by screenshot
-2026-11-17T11:24:00Z s=9ef67782 FINDING docs/demo/app.js:runReport learn=test: tests/e2e/docs.spec.ts 'Reports: compute plans aggregate and project the orders into a Data Grid'
-2026-11-17T11:24:00Z s=9ef67782 FINDING docs/assets/site.js:applyPlan learn=test: tests/e2e/docs.spec.ts 'the explorer runs JSON compute plans' opens plan.explain() and reads it
 2026-11-17T12:10:44Z s=9ef67782 DONE fp=decccda24c43 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
 2026-11-17T12:12:00Z s=9ef67782 DONE fp=6dcf9644f72c cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
 2026-11-17T16:25:07Z s=9ef67782 DONE fp=c8c9aabdcabb cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
@@ -104,3 +102,5 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-21T14:33:43Z s=19560c1d FINDING src/compute/aggregate.ts:final (percentile) learn=none: Comment corrected to the measurement.
 2026-11-21T15:29:20Z s=19560c1d DONE fp=172cf33b1299 cov=99.1% paths=CHANGELOG.md,README.md,RELEASE.md,docs/assets/defuss-dataview@0.7.0/browser-compute.mjs(+35)
 2026-11-21T15:29:20Z s=19560c1d FINDING src/compute/compile.ts:compilePlan (groupBy each) learn=test: src/compute/operators.test.ts 'are whole group keys only' (node without v), 'each() group keys' and the oracle's unwind plan merged from 1, 2 and 5 parts
+2026-11-21T18:58:53Z s=19560c1d DONE fp=5e35c925818a cov=99.1% paths=CHANGELOG.md,README.md,RELEASE.md,docs/assets/defuss-dataview@0.7.0/browser-compute.mjs(+37)
+2026-11-21T18:58:53Z s=19560c1d FINDING documentation/COMPUTE_SEMANTICS.md:31 P (precision); CHANGELOG.md:7 learn=test: dates.test.ts 'take Date arithmetic through epochMs' pins both policies of sub() on Dates.
