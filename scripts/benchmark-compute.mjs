@@ -7,7 +7,8 @@
 // Rotating the variant order inside each round, rather than timing each variant in its own block, keeps thermal and
 // GC drift from favouring whichever variant runs first.
 // VERIFIED: a full run on 2026-11-17 (Apple M5 Max, Node.js 26.13.1) produced the figures in COMPUTE_PERFORMANCE.md;
-// a run on 2026-11-20 on the same machine produced its B10 and B30-B33 section. B31/B32 time worker threads that
+// a run on 2026-11-20 on the same machine produced its B10 and B30-B33 section, and a run on 2026-11-21 the B34-B36
+// figures in CHANGELOG.md 0.8.0. B31/B32 time worker threads that
 // already hold their slice, so the figures isolate scan, transfer and merge from worker startup and data loading.
 // B33 runs partials in worker threads over split() ranges of one pinned DBSONL file snapshot; each worker opened its
 // backend (io: 'sync') and database handle before timing, as a long-lived worker would.
@@ -303,6 +304,36 @@ for (const [id, key, label] of [['B31', 'g1000', 'G=1000'], ['B32', 'gN', 'G=100
       [`${PARTS} worker threads`]: async () => { const r = await plan.merge(await workers.ask(), {}, options); return wrap(r.rows, r.summary); },
     }, mapGroupSum(rows, key, 'amount'));
   } finally { await workers.close(); }
+}
+// ---- B34-B36 calendar buckets, distinct counts and percentiles ------------------------------------------------------
+// Instants are epoch milliseconds computed from id, one minute apart from 2024-03-01, so the rows stay unchanged.
+{
+  const T0 = Date.UTC(2024, 2, 1), DAY = 86_400_000, at = q.add(q.literal(T0), q.mul(q.field('id'), q.literal(60_000)));
+  const byDay = new Map();
+  for (const { id } of rows) { const day = Math.floor((T0 + id * 60_000) / DAY); byDay.set(day, (byDay.get(day) ?? 0) + 1); }
+  const utc = q.aggregate({ groupBy: { day: q.dateTrunc(at, 'day') }, measures: { n: q.count() } });
+  const floor = q.aggregate({ groupBy: { day: q.floor(q.div(at, q.literal(DAY))) }, measures: { n: q.count() } });
+  await scenario('B34', 'count by UTC day of a timestamp, against a numeric day key', N, {
+    dateTrunc: async () => { const r = await utc.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows.map(({ day, n }) => [day.getTime() / DAY, n]), r.summary); },
+    'floor(ms / day)': async () => { const r = await floor.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows.map(({ day, n }) => [day, n]), r.summary); },
+  }, [...byDay]);
+  // The reference reads each instant's Berlin date from Intl; its first instant comes from the plan's own output.
+  const berlin = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }), local = new Map();
+  for (const { id } of rows) { const key = berlin.format(T0 + id * 60_000); local.set(key, (local.get(key) ?? 0) + 1); }
+  const zoned = q.aggregate({ groupBy: { day: q.dateTrunc(at, 'day', { timeZone: 'Europe/Berlin' }) }, measures: { n: q.count() } });
+  await scenario('B35', 'count by Europe/Berlin day of a timestamp, across the DST change of 2024-03-31', N, {
+    'dateTrunc Europe/Berlin': async () => { const r = await zoned.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows.map(({ day, n }) => [berlin.format(day), n]), r.summary); },
+  }, [...local]);
+  const names = new Map(), amounts = new Map();
+  for (const row of rows) {
+    (names.get(row.g1000) ?? names.set(row.g1000, new Set()).get(row.g1000)).add(row.name);
+    (amounts.get(row.g1000) ?? amounts.set(row.g1000, []).get(row.g1000)).push(row.amount);
+  }
+  const median = xs => { const s = [...xs].sort((a, b) => a - b), h = (s.length - 1) / 2, lo = Math.floor(h); return s[lo] + (h - lo) * ((s[lo + 1] ?? s[lo]) - s[lo]); };
+  const distinct = q.aggregate({ groupBy: { k: q.field('g1000') }, measures: { names: q.countDistinct(q.field('name')), median: q.median(q.field('amount')) } });
+  await scenario('B36', 'countDistinct and median per group, G=1000', N, {
+    'countDistinct + median': async () => { const r = await distinct.evaluate(immutable, {}, { sizeOf }); return wrap(r.rows, r.summary); },
+  }, [...names.keys()].map(k => ({ k, names: names.get(k).size, median: median(amounts.get(k)) })));
 }
 // ---- B33 partials over DBSONL key ranges in worker threads -------------------------------------------------------
 {

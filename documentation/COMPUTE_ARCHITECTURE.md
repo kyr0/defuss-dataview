@@ -47,7 +47,7 @@ Each row's evaluators are closures built once per execution. A field reads from 
 
 Grouping uses a trie of native Maps, one level per key component. Each level splits keys into separate maps by family: primitives, value-mode Dates by timestamp, value-mode binary values by their bytes, and other objects by identity. SameValueZero on primitives gives exactly the grouping equality, so no key is serialized or joined with a delimiter that could merge distinct tuples.
 
-Measure state lives in columns indexed by group id: typed arrays for counts and sums, arrays for `min`, `max` and `sumBigInt` values. An object per group holding all accumulators would cost an allocation per group and scatter the state.
+Measure state lives in columns indexed by group id: typed arrays for counts and sums, arrays for `min`, `max` and `sumBigInt` values, and per group a set of distinct values or a list of percentile numbers. An object per group holding all accumulators would cost an allocation per group and scatter the state.
 
 Ordered groups need a certificate, because a wrong one would silently split a group:
 
@@ -73,7 +73,7 @@ flowchart LR
 
 Why the final stage reuses the executor instead of a separate merge function: finalization, HAVING, ordering, paging, output batching and the memory ledger stay one implementation, so merged and single-pass results come from the same finalization code. Why partials carry states and not finished groups: HAVING, `avg` and ordering are only correct over whole groups, and a group can span parts.
 
-A partial never uses ordered groups, which keep one live group and discard it once closed. Each state kind exports its own column: counts as a `Float64Array`, exact sums as their term lists packed into one `Float64Array` with offsets, `min`, `max` and `sumBigInt` as value arrays. Each kind also merges its own slot: counts and BigInt sums add, `min` and `max` apply the normal update, and exact sums add every term of the other part. The export reserves its copies in the ledger.
+A partial never uses ordered groups, which keep one live group and discard it once closed. Each state kind exports its own column: counts as a `Float64Array`, exact sums as their term lists packed into one `Float64Array` with offsets, `min`, `max` and `sumBigInt` as value arrays, distinct values and percentile numbers packed with offsets as the sum terms are. Each kind also merges its own slot: counts and BigInt sums add, `min` and `max` apply the normal update, exact sums add every term of the other part, and distinct values and percentile numbers add every value of the other part. The export reserves its copies in the ledger.
 
 Why `numberMode: 'exact'` instead of merging compensated sums: a Neumaier pair from one part, added to another, gives a result that depends on where the parts were split. Shewchuk's expansion keeps nonoverlapping terms whose sum is exactly the sum of the inputs, so adding a part's terms is exact, and one final rounding gives the same double for every order and split. It costs a short array per group and a loop over its terms per addition (COMPUTE_PERFORMANCE.md).
 

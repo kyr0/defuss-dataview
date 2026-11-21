@@ -74,7 +74,7 @@ npm install defuss-dataview
 Without a bundler, import the standalone browser module by URL, for example from jsDelivr:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.7.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.8.0/dist/browser.min.mjs';
 ```
 
 `dist/browser-stream.mjs`, `dist/browser-query.mjs` and `dist/browser-dbsonl.mjs` are the matching standalone modules for the other entry points.
@@ -451,6 +451,7 @@ const page = await table.evaluate(source, { limit: 50 }); // page.rows plus page
 
 - **Typed outputs:** aliases and measure types are inferred from the descriptor; a dynamic descriptor gives `Record<string, unknown>`, never `any`.
 - **Exact grouping:** `NaN` with `NaN`, `+0` with `-0`, `null` apart from a missing key, `1` apart from `1n` and `'1'`, Dates and bytes by value. No delimiter or JSON key can merge two tuples.
+- **Calendar, text and distinct measures:** `dateTrunc` and `datePart` in UTC or an IANA time zone, string functions, `cond` and rounding for group keys, `each` to group by array elements; `countDistinct`, `distinct`, `median` and exact `percentile` measures, which also merge from partials.
 - **Defined numbers:** compensated or sequential sums in source order, the same for every batch size, or `numberMode: 'exact'`, rounded once and independent of order; overflow and division by zero throw; `sumBigInt` is exact.
 - **Mergeable partials:** `plan.partial(source)` scans one part of a snapshot, such as a key range in a worker, into plain state that survives `postMessage`; given partials of disjoint parts in source order, `plan.merge(partials, page)` returns what one pass over all parts returns. VERIFIED: eight worker threads over `split()` ranges of one 100,000-document DBSONL file snapshot computed a grouped exact sum in 27 ms, against 262 ms in one thread and 119 ms with defuss-dbsonl's scan pool (COMPUTE_PERFORMANCE.md).
 - **Bounded:** `maxWorkingBytes`, `maxGroups` and output caps fail instead of dropping groups or truncating; cancellation and early `break` close the snapshot.
@@ -562,7 +563,7 @@ console.log(result.matchedRows, result.pageCount);          // 3 2
 `worker.js` keeps the rows and answers requests:
 
 ```js
-import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.7.0/dist/browser.min.mjs';
+import { createDataview, evaluateDataview } from 'https://cdn.jsdelivr.net/npm/defuss-dataview@0.8.0/dist/browser.min.mjs';
 
 let rows = [];
 self.onmessage = ({ data }) => {
@@ -670,7 +671,7 @@ If you use defuss-dataview in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-dataview: Isomorphic Filtering, Sorting, Paging and Tree Traversal for Table and Tree Grids and Bounded Snapshot Queries},
   year         = {2026},
-  version      = {0.7.0},
+  version      = {0.8.0},
   howpublished = {\url{https://www.npmjs.com/package/defuss-dataview}},
   note         = {npm package, MIT License}
 }

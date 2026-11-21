@@ -1,0 +1,113 @@
+import { describe, expect, it } from 'vitest';
+import { forRows } from '../compute.js';
+import { createArraySource } from '../stream.js';
+import type { DatePart, DateUnit } from './dates.js';
+
+type Row = { id: number; at?: unknown };
+const q = forRows<Row>();
+const UNITS: DateUnit[] = ['year', 'quarter', 'month', 'week', 'day', 'hour', 'minute'];
+const PARTS: DatePart[] = ['year', 'quarter', 'month', 'day', 'weekday', 'hour', 'minute'];
+const source = (values: unknown[]) => createArraySource(values.map((at, id) => ({ id, at })), { isolation: 'immutable' });
+async function evaluate(values: unknown[], timeZone?: string, invalidNumbers?: 'skip') {
+  const at = q.field('at');
+  const select = Object.fromEntries([
+    ...UNITS.map(unit => [unit, q.dateTrunc(at, unit, { timeZone })]),
+    ...PARTS.map(p => [`part:${p}`, q.datePart(at, p, { timeZone })]),
+  ]);
+  return (await q.rows({ select, ...(invalidNumbers ? { invalidNumbers } : {}) }).evaluate(source(values))).rows as Record<string, unknown>[];
+}
+
+// Temporal is the reference: Node.js 26 and Bun have it, Node.js 22 and 24 (the CI matrix) do not.
+type Zoned = {
+  epochMilliseconds: number; year: number; month: number; day: number; hour: number; minute: number; dayOfWeek: number;
+  round(options: object): Zoned; startOfDay(): Zoned; toPlainDate(): { with(fields: object): Plain; subtract(d: object): Plain };
+  getTimeZoneTransition(direction: 'next'): Zoned | null;
+};
+type Plain = { toZonedDateTime(zone: string): Zoned };
+const Temporal = (globalThis as { Temporal?: { Instant: { fromEpochMilliseconds(ms: number): { toZonedDateTimeISO(zone: string): Zoned } } } }).Temporal;
+function expected(t: number, zone: string): Record<string, unknown> {
+  const z = Temporal!.Instant.fromEpochMilliseconds(t).toZonedDateTimeISO(zone), date = z.toPlainDate();
+  const at = (plain: Plain) => new Date(plain.toZonedDateTime(zone).epochMilliseconds);
+  return {
+    year: at(date.with({ month: 1, day: 1 })), quarter: at(date.with({ month: z.month - (z.month - 1) % 3, day: 1 })),
+    month: at(date.with({ day: 1 })), week: at(date.subtract({ days: z.dayOfWeek - 1 })), day: new Date(z.startOfDay().epochMilliseconds),
+    hour: new Date(z.round({ smallestUnit: 'hour', roundingMode: 'floor' }).epochMilliseconds),
+    minute: new Date(z.round({ smallestUnit: 'minute', roundingMode: 'floor' }).epochMilliseconds),
+    'part:year': z.year, 'part:quarter': Math.floor((z.month - 1) / 3) + 1, 'part:month': z.month, 'part:day': z.day,
+    'part:weekday': z.dayOfWeek, 'part:hour': z.hour, 'part:minute': z.minute,
+  };
+}
+
+// Zones whose transitions skip or repeat midnight, shift by 30 minutes, or sit at 45 minutes past the hour.
+const ZONES = ['UTC', 'Europe/Berlin', 'America/New_York', 'America/Sao_Paulo', 'America/Havana', 'Australia/Lord_Howe', 'Asia/Kathmandu', 'Pacific/Apia'];
+describe('dateTrunc and datePart', () => {
+  it.skipIf(!Temporal)('match Temporal around every transition from 2010 to 2026 and at random instants', async () => {
+    let seed = 9;
+    const random = () => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed / 2 ** 31; };
+    for (const zone of ZONES) {
+      const instants: number[] = [];
+      let z: Zoned | null = Temporal!.Instant.fromEpochMilliseconds(Date.UTC(2010, 0, 1)).toZonedDateTimeISO(zone);
+      while ((z = z.getTimeZoneTransition('next')) && z.epochMilliseconds < Date.UTC(2027, 0, 1)) {
+        for (const delta of [-86_400_000, -3_600_001, -1_800_000, -60_000, -1, 0, 1, 59_999, 1_800_000, 3_600_000, 86_400_000]) instants.push(z.epochMilliseconds + delta);
+      }
+      for (let i = 0; i < 400; i++) instants.push(Math.floor(Date.UTC(1900, 0, 1) + random() * 250 * 365.25 * 86_400_000));
+      const rows = await evaluate(instants.map(t => new Date(t)), zone);
+      rows.forEach((row, i) => expect(row, `${zone} ${new Date(instants[i]).toISOString()}`).toEqual(expected(instants[i], zone)));
+    }
+  });
+
+  it('start a local day, week or month at its first instant, also when a transition skips or repeats midnight', async () => {
+    // VERIFIED: the expected instants are Temporal's (Node.js 26.13.1), so this test also runs where Temporal is missing.
+    const day = async (iso: string, zone: string, unit: DateUnit = 'day') => ((await evaluate([new Date(iso)], zone))[0][unit] as Date).toISOString();
+    expect(await day('2018-11-04T12:00:00Z', 'America/Sao_Paulo')).toBe('2018-11-04T03:00:00.000Z');
+    expect(await day('2018-11-04T12:00:00Z', 'America/Sao_Paulo', 'week')).toBe('2018-10-29T03:00:00.000Z');
+    expect(await day('2018-11-04T12:00:00Z', 'America/Sao_Paulo', 'month')).toBe('2018-11-01T03:00:00.000Z');
+    expect(await day('2024-11-03T12:00:00Z', 'America/Havana')).toBe('2024-11-03T04:00:00.000Z');
+    expect(await day('2024-03-31T12:00:00Z', 'Europe/Berlin')).toBe('2024-03-30T23:00:00.000Z');
+    expect(await day('2024-10-27T12:00:00Z', 'Europe/Berlin', 'hour')).toBe('2024-10-27T12:00:00.000Z');
+    expect(await day('2024-10-27T00:30:00Z', 'Europe/Berlin', 'hour')).toBe('2024-10-27T00:00:00.000Z');
+    expect(await day('2024-10-27T01:30:00Z', 'Europe/Berlin', 'hour')).toBe('2024-10-27T01:00:00.000Z');
+    expect(await day('2024-06-01T10:20:00Z', 'Asia/Kathmandu', 'hour')).toBe('2024-06-01T10:15:00.000Z');
+    expect(await day('2024-06-01T00:00:00Z', 'Australia/Lord_Howe', 'year')).toBe('2023-12-31T13:00:00.000Z');
+  });
+
+  it('read Dates and epoch milliseconds, give null for nullish and invalid Dates, and reject other values', async () => {
+    const [fromDate, fromNumber, nil, missing, invalid] = await evaluate([new Date(Date.UTC(2024, 4, 15, 13, 45, 10)), Date.UTC(2024, 4, 15, 13, 45, 10), null, undefined, new Date(NaN)]);
+    expect(fromNumber).toEqual(fromDate);
+    expect(fromDate).toMatchObject({
+      year: new Date(Date.UTC(2024, 0, 1)), quarter: new Date(Date.UTC(2024, 3, 1)), week: new Date(Date.UTC(2024, 4, 13)), minute: new Date(Date.UTC(2024, 4, 15, 13, 45)),
+      'part:quarter': 2, 'part:month': 5, 'part:day': 15, 'part:weekday': 3, 'part:hour': 13, 'part:minute': 45,
+    });
+    for (const row of [nil, missing, invalid]) for (const value of Object.values(row)) expect(value).toBeNull();
+    await expect(evaluate(['2024-05-15'])).rejects.toThrow(/Date or epoch milliseconds/);
+    await expect(evaluate([8.64e15 + 1])).rejects.toThrow(TypeError);
+    expect(Object.values((await evaluate(['2024-05-15', NaN], undefined, 'skip'))[1]).every(v => v === null)).toBe(true);
+    const [early] = await evaluate([new Date('0050-07-04T10:00:00Z')], 'Europe/Berlin');
+    expect(early['part:year']).toBe(50);
+    // At the ends of the Date range, Intl throws for instants a day beyond; a period starting before the range is null.
+    const [last, first] = await evaluate([new Date(8.64e15), new Date(-8.64e15)], 'Asia/Tokyo');
+    expect(last).toMatchObject({ day: new Date(8.64e15 - 9 * 3_600_000), 'part:hour': 9 });
+    // Tokyo's offset before 1888 was its local mean time, +09:18:59, so even the first minute starts before the range.
+    expect(first).toMatchObject({ day: null, minute: null, 'part:hour': 9, 'part:minute': 18 });
+  });
+
+  it('reject unknown units, parts and time zones when the plan is prepared', () => {
+    const at = q.field('at');
+    expect(() => q.rows({ select: { x: q.dateTrunc(at, 'decade' as never) } })).toThrow(TypeError);
+    expect(() => q.rows({ select: { x: q.datePart(at, 'week' as never) } })).toThrow(TypeError);
+    expect(() => q.rows({ select: { x: q.dateTrunc(at, 'day', { timeZone: 'Mars/Olympus' }) } })).toThrow(/unknown time zone/);
+    expect(() => q.rows({ select: { x: q.dateTrunc(at, 'day', { timeZone: '' }) } })).toThrow(TypeError);
+    expect(() => q.rows({ select: { x: { v: 1, op: 'dateTrunc', args: [at], unit: 'day', zone: 'UTC' } as never } })).toThrow(/unexpected property/);
+  });
+
+  it('group by local day across a DST change and merge those groups from partials', async () => {
+    const hours = Array.from({ length: 72 }, (_, i) => new Date(Date.UTC(2024, 2, 29, 12) + i * 3_600_000));
+    const plan = q.aggregate({ groupBy: { day: q.dateTrunc(q.field('at'), 'day', { timeZone: 'Europe/Berlin' }) }, measures: { n: q.count() } });
+    const whole = await plan.evaluate(source(hours));
+    expect(whole.rows.map(r => [(r.day as Date).toISOString(), r.n])).toEqual([
+      ['2024-03-28T23:00:00.000Z', 11], ['2024-03-29T23:00:00.000Z', 24], ['2024-03-30T23:00:00.000Z', 23], ['2024-03-31T22:00:00.000Z', 14],
+    ]);
+    const parts = await Promise.all([source(hours.slice(0, 30)), source(hours.slice(30))].map(s => plan.partial(s)));
+    expect((await plan.merge(parts.map(p => structuredClone(p)))).rows).toEqual(whole.rows);
+  });
+});

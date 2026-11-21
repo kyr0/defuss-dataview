@@ -135,3 +135,132 @@ describe('measures and strategies at their edges', () => {
     expect(result.summary.cacheBytesPinned).toBeGreaterThan(0);
   });
 });
+
+describe('date, text, conditional and rounding operators', () => {
+  type Any = { id: number; a?: unknown; b?: unknown };
+  const t = forRows<Any>();
+  const run = async (select: Record<string, ReturnType<typeof t.field>>, rows: Any[], invalidNumbers?: 'skip') =>
+    (await t.rows({ select, ...(invalidNumbers ? { invalidNumbers } : {}) }).evaluate(createArraySource(rows, { isolation: 'immutable' }))).rows;
+  const a = t.field('a');
+  it('work on strings by code point, give null for nullish operands and reject other types', async () => {
+    const select = { lower: t.lower(a), upper: t.upper(a), trim: t.trim(a), sub: t.substring(a, 1, 2), rest: t.substring(a, 2), joined: t.concat(a, t.literal('|'), a), size: t.length(a) };
+    expect(await run(select as never, [{ id: 0, a: ' Ä😀b ' }, { id: 1, a: null }])).toEqual([
+      { lower: ' ä😀b ', upper: ' Ä😀B ', trim: 'Ä😀b', sub: 'Ä😀', rest: '😀b ', joined: ' Ä😀b | Ä😀b ', size: 5 },
+      { lower: null, upper: null, trim: null, sub: null, rest: null, joined: null, size: null },
+    ]);
+    expect(await run({ n: t.length(a) } as never, [{ id: 0, a: [1, 2, 3] }, { id: 1, a: '\ud800x' }])).toEqual([{ n: 3 }, { n: 2 }]);
+    expect(await run({ j: t.concat(a, t.field('b')) } as never, [{ id: 0, a: 'x' }])).toEqual([{ j: null }]);
+    for (const expr of [t.lower(a), t.substring(a, 0), t.concat(a), t.length(a)]) await expect(run({ x: expr } as never, [{ id: 0, a: 5 }])).rejects.toThrow(TypeError);
+    for (const bad of [-1, 1.5, '1']) expect(() => t.rows({ select: { x: t.substring(a, bad as never) } })).toThrow(TypeError);
+    expect(() => t.rows({ select: { x: t.substring(a, 0, -1) } })).toThrow(TypeError);
+  });
+  it('evaluate only the chosen cond branch and require a Boolean test', async () => {
+    const safe = t.cond(t.isNullish(a), t.literal(0), t.div(t.literal(1), a as never));
+    expect(await run({ x: safe } as never, [{ id: 0 }, { id: 1, a: 4 }])).toEqual([{ x: 0 }, { x: 0.25 }]);
+    await expect(run({ x: t.cond(a as never, t.literal(1), t.literal(2)) } as never, [{ id: 0, a: 1 }])).rejects.toThrow(/cond\(\) test/);
+  });
+  it('round halves away from zero and follow the invalid-number policy', async () => {
+    const select = { floor: t.floor(a as never), ceil: t.ceil(a as never), round: t.round(a as never), abs: t.abs(a as never) };
+    expect(await run(select as never, [2.5, -2.5, 0.49999999999999994, -7.2, null].map((a, id) => ({ id, a })))).toEqual([
+      { floor: 2, ceil: 3, round: 3, abs: 2.5 }, { floor: -3, ceil: -2, round: -3, abs: 2.5 }, { floor: 0, ceil: 1, round: 0, abs: 0.49999999999999994 },
+      { floor: -8, ceil: -7, round: -7, abs: 7.2 }, { floor: null, ceil: null, round: null, abs: null },
+    ]);
+    await expect(run(select as never, [{ id: 0, a: 'x' }])).rejects.toThrow(TypeError);
+    expect(await run({ r: t.round(a as never) } as never, [{ id: 0, a: Infinity }], 'skip')).toEqual([{ r: null }]);
+  });
+});
+
+describe('distinct and percentile measures', () => {
+  type Any = { id: number; k?: unknown; v?: unknown };
+  const m = forRows<Any>();
+  const v = m.field('v');
+  const aggregate = async (measures: object, rows: Any[], semantics?: object, options?: object) =>
+    (await m.aggregate({ measures, ...(semantics ? { semantics } : {}) } as never).evaluate(createArraySource(rows, { isolation: 'immutable' }), {}, options)).rows[0] as Record<string, unknown>;
+  const rows = (values: unknown[]) => values.map((v, id) => ({ id, v }));
+  it('count distinct values with the equality of group keys and keep the first of each', async () => {
+    const bytes = new Uint8Array([1, 2]), date = new Date(5), object = { x: 1 };
+    const values = [1, '1', 1n, true, NaN, NaN, 0, -0, null, undefined, new Date(5), date, bytes, new Uint8Array([1, 2]), object, { x: 1 }, object];
+    const value = await aggregate({ n: m.countDistinct(v), all: m.distinct(v) }, rows(values));
+    expect(value.n).toBe(10);
+    expect((value.all as unknown[]).slice(0, 7)).toEqual([1, '1', 1n, true, NaN, 0, new Date(5)]);
+    expect((value.all as unknown[])[7]).not.toBe(bytes);
+    expect((value.all as unknown[])[8]).toBe(object);
+    expect((await aggregate({ n: m.countDistinct(v) }, rows([date, new Date(5), bytes, new Uint8Array([1, 2])]), { equality: 'identity' })).n).toBe(4);
+    expect(await aggregate({ n: m.countDistinct(v), all: m.distinct(v), p: m.median(v as never) }, [])).toEqual({ n: 0, all: [], p: null });
+    await expect(aggregate({ n: m.countDistinct(v) }, rows([() => 1]))).rejects.toThrow(TypeError);
+  });
+  it('interpolate percentiles between the closest ranks and validate p', async () => {
+    const value = await aggregate({ p0: m.percentile(v as never, 0), p25: m.percentile(v as never, 0.25), median: m.median(v as never), p1: m.percentile(v as never, 1), even: m.median(v as never, { where: m.neq(v, m.literal(40)) }) }, rows([40, 10, null, 30, 20, 1e9]));
+    expect(value).toEqual({ p0: 10, p25: 20, median: 30, p1: 1e9, even: 25 });
+    expect((await aggregate({ m: m.median(v as never) }, rows([Number.MAX_VALUE, -Number.MAX_VALUE]))).m).toBe(0);
+    for (const p of [-0.1, 1.1, NaN, '0.5']) expect(() => m.aggregate({ measures: { x: m.percentile(v as never, p as never) } })).toThrow(TypeError);
+    expect(() => m.aggregate({ measures: { x: { ...m.median(v as never), p: 0.2 } as never } })).toThrow(/unexpected property/);
+    await expect(aggregate({ m: m.median(v as never) }, rows(['x']))).rejects.toThrow(TypeError);
+  });
+  it('reserve every kept value in working memory and reset it between ordered groups', async () => {
+    const many = rows(Array.from({ length: 2000 }, (_, i) => `value ${i}`));
+    await expect(aggregate({ n: m.countDistinct(v) }, many, undefined, { maxWorkingBytes: 64 * 1024 })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    await expect(aggregate({ p: m.median(m.literal(1)) }, many, undefined, { maxWorkingBytes: 8 * 1024 })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    const data = [...'aabbbc'].map((k, id) => ({ id, k, v: id % 2 }));
+    const ordered = createImmutableArraySource(data, { keyCache: {}, ordering: compileQuery({ sorters: [{ field: 'k' }] }).ordering });
+    await ordered.prepareKeys(['k']);
+    const plan = m.aggregate({ groupBy: { k: m.field('k') }, measures: { n: m.countDistinct(v), all: m.distinct(v), median: m.median(v as never) } });
+    const result = await plan.evaluate(ordered);
+    expect(result.summary.strategy).toBe('ordered-groups');
+    expect(result.rows).toEqual([{ k: 'a', n: 2, all: [0, 1], median: 0.5 }, { k: 'b', n: 2, all: [0, 1], median: 0 }, { k: 'c', n: 1, all: [1], median: 1 }]);
+  });
+  it('merge from partials, and reject identity values and malformed lists', async () => {
+    const plan = m.aggregate({ measures: { n: m.countDistinct(v), all: m.distinct(v), median: m.median(m.number(m.field('k'))) } });
+    const part = (data: Any[]) => plan.partial(createArraySource(data, { isolation: 'immutable' }));
+    const parts = [await part([{ id: 0, v: new Uint8Array([7]), k: 1 }, { id: 1, v: 'a', k: 5 }]), await part([{ id: 2, v: 'a', k: 3 }, { id: 3, v: new Date(1) }])];
+    expect((await plan.merge(parts.map(p => structuredClone(p)))).rows).toEqual([{ n: 3, all: [new Uint8Array([7]), 'a', new Date(1)], median: 3 }]);
+    await expect(part([{ id: 0, v: { x: 1 } }])).rejects.toThrow(/identity/);
+    const [good] = parts, [distinct, numbers] = good.states as [{ offsets: Float64Array; items: unknown[] }, { offsets: Float64Array; numbers: Float64Array }];
+    for (const [name, states] of [
+      ['items type', [{ ...distinct, items: 'ab' }, numbers]], ['item', [{ ...distinct, items: [null, 'a'] }, numbers]], ['object item', [{ ...distinct, items: [{}, 'a'] }, numbers]],
+      ['offsets', [{ ...distinct, offsets: new Float64Array([0, 1]) }, numbers]], ['number', [distinct, { ...numbers, numbers: new Float64Array([NaN, 5]) }]],
+      ['numbers type', [distinct, { ...numbers, numbers: [1, 5] }]],
+    ] as const) await expect(plan.merge([{ ...good, states } as never]), name).rejects.toThrow(TypeError);
+  });
+});
+
+describe('each() group keys', () => {
+  type Tagged = { id: number; k?: unknown; tags?: unknown };
+  const e = forRows<Tagged>();
+  const tags = e.field('tags');
+  it('join one group per distinct element, none for an empty array, and group other values as they are', async () => {
+    const data: Tagged[] = [{ id: 0, tags: ['a', 'b', 'a'] }, { id: 1, tags: [] }, { id: 2, tags: ['b'] }, { id: 3 }, { id: 4, tags: 'a' }, { id: 5, tags: [NaN, NaN, -0, 0] }];
+    const plan = e.aggregate({ groupBy: { tag: e.each(tags) }, measures: { n: e.count(), ids: e.distinct(e.field('id')) } });
+    expect((await plan.evaluate(createArraySource(data, { isolation: 'immutable' }))).rows).toEqual([
+      { tag: 'a', n: 2, ids: [0, 4] }, { tag: 'b', n: 2, ids: [0, 2] }, { tag: undefined, n: 1, ids: [3] }, { tag: NaN, n: 1, ids: [5] }, { tag: -0, n: 1, ids: [5] },
+    ]);
+    expect(plan.explain().operators).toContain('unwind');
+    const pairs = e.aggregate({ groupBy: { x: e.each(tags), y: e.each(e.field('k')) }, measures: { n: e.count() } });
+    expect((await pairs.evaluate(createArraySource([{ id: 0, tags: [1, 2], k: ['p', 'q'] }], { isolation: 'immutable' }))).rows)
+      .toEqual([{ x: 1, y: 'p', n: 1 }, { x: 1, y: 'q', n: 1 }, { x: 2, y: 'p', n: 1 }, { x: 2, y: 'q', n: 1 }]);
+  });
+  it('never run as ordered groups, stop early with first-seen groups and reject identity elements in partials', async () => {
+    const data = [...'aabbc'].map((k, id) => ({ id, k, tags: [k, 'z'] }));
+    const ordered = createImmutableArraySource(data, { keyCache: {}, ordering: compileQuery({ sorters: [{ field: 'tags' }] }).ordering });
+    const plan = e.aggregate({ groupBy: { t: e.each(tags) }, measures: { n: e.count() } });
+    const result = await plan.evaluate(ordered);
+    expect(result.summary.strategy).toBe('hash');
+    expect(result.rows).toEqual([{ t: 'a', n: 2 }, { t: 'z', n: 5 }, { t: 'b', n: 2 }, { t: 'c', n: 1 }]);
+    const first = await e.aggregate({ groupBy: { t: e.each(tags) }, measures: {} }).evaluate(createArraySource(data, { isolation: 'immutable' }), { limit: 2 });
+    expect(first.summary).toMatchObject({ strategy: 'first-seen', hasMore: true });
+    expect(first.rows).toEqual([{ t: 'a' }, { t: 'z' }]);
+    await expect(plan.partial(createArraySource([{ id: 0, tags: [{ x: 1 }] }], { isolation: 'immutable' }))).rejects.toThrow(/identity/);
+    await expect(plan.evaluate(createArraySource([{ id: 0, tags: [() => 1, 2] }], { isolation: 'immutable' }))).rejects.toThrow(TypeError);
+  });
+  it('are whole group keys only', () => {
+    for (const build of [
+      () => e.rows({ select: { t: e.each(tags) } }),
+      () => e.aggregate({ groupBy: { t: e.lower(e.each(tags) as never) }, measures: { n: e.count() } }),
+      () => e.aggregate({ where: e.eq(e.each(tags), e.literal('a')), measures: { n: e.count() } }),
+      () => e.aggregate({ measures: { n: e.countDistinct(e.each(tags)) } }),
+      () => e.aggregate({ groupBy: { t: { ...e.each(tags), extra: 1 } as never }, measures: {} }),
+      () => e.aggregate({ groupBy: { t: { v: 1, op: 'each', args: [] } as never }, measures: {} }),
+      () => e.aggregate({ groupBy: { t: { op: 'each', args: [tags] } as never }, measures: {} }),
+    ]) expect(build).toThrow(TypeError);
+  });
+});

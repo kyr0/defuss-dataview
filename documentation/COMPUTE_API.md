@@ -44,10 +44,21 @@ Builders return frozen plain nodes (`{ v: 1, op, ... }`). Plans also accept the 
 | `gt`, `gte`, `lt`, `lte` | Ordering comparisons with filter range semantics |
 | `isNullish(expr)` | `true` for `null` and `undefined` |
 | `and`, `or`, `not` | Short-circuit Boolean logic; operands must be Booleans |
+| `cond(test, then, otherwise)` | `then` when `test` is `true`, else `otherwise`; only the chosen branch is evaluated |
+| `floor`, `ceil`, `round`, `abs` | Integer rounding and absolute value; `round` takes halves away from zero |
+| `dateTrunc(expr, unit, { timeZone }?)` | The first instant of the `year`, `quarter`, `month`, ISO `week` (from Monday), `day`, `hour` or `minute`, as a Date |
+| `datePart(expr, part, { timeZone }?)` | `year`, `quarter` (1 to 4), `month` (1 to 12), `day`, `weekday` (1 = Monday to 7), `hour` or `minute` |
+| `lower`, `upper`, `trim` | The string in lower or upper case, or without surrounding whitespace |
+| `substring(expr, start, length?)` | `length` code points from `start`, or the rest of the string |
+| `concat(...exprs)` | The joined strings; `null` when any operand is nullish |
+| `length(expr)` | Code points of a string, or elements of an array |
+| `each(expr)` | A whole `groupBy` key: one group per distinct array element, as MongoDB's `$unwind` |
 | `count(expr?, { where })` | Rows, or rows whose operand is not nullish |
 | `sum`, `avg` | Finite number sum and mean, `null` without values |
 | `min`, `max` | Smallest or largest value in the typed order, `null` without values |
 | `sumBigInt` | Exact BigInt sum, `null` without values |
+| `countDistinct`, `distinct` | Number of distinct non-nullish values, or the values in first-encounter order (`[]` without values) |
+| `percentile(expr, p)`, `median` | Exact percentile for `p` from 0 to 1, interpolated between the closest ranks; `median` is `p` 0.5; `null` without values |
 
 Every measure takes an optional `{ where }` predicate. Field keys and path segments may not be `__proto__`, `prototype` or `constructor`; field keys may not contain dots.
 
@@ -93,7 +104,7 @@ await session.close();
 
 In a worker, each part opens its own database handle and passes `session.head` as `at` (SOURCES.md); `examples/compute-partials.mjs` runs four worker threads this way.
 
-`explain().strategies` contains `'merge'` when the plan accepts both methods. That holds for every aggregate plan without `sum` or `avg`, and for every aggregate plan under `numberMode: 'exact'`. Compensated and sequential sums depend on the order of the additions, so `partial()` and `merge()` reject them with a `TypeError`.
+`explain().strategies` contains `'merge'` when the plan accepts both methods. That holds for every aggregate plan without `sum` or `avg`, and for every aggregate plan under `numberMode: 'exact'`. Distinct values and percentiles merge in every mode, since their partials carry the values themselves. Compensated and sequential sums depend on the order of the additions, so `partial()` and `merge()` reject them with a `TypeError`.
 
 A `PartialAggregate` is plain data that survives `structuredClone()` and `postMessage()`; it is not JSON, since it holds BigInts, Dates, typed arrays and `undefined`. A worker can transfer the buffers of its typed arrays (`partial.states`). `merge()` validates every partial as untrusted input.
 
@@ -152,9 +163,9 @@ Exceeding a cap throws `DataviewError` with code `LIMIT_EXCEEDED`. Compute never
 
 | Error | Cause |
 | --- | --- |
-| `TypeError` at preparation | Malformed, cyclic, too deep or too large expressions; unsafe keys or aliases; unknown operators or descriptor properties |
-| `TypeError` at execution | A non-Boolean predicate, an invalid number under `'error'`, a non-BigInt for `sumBigInt`, an opaque object for `min`/`max`, a function or symbol group key |
-| `TypeError` in `partial()` or `merge()` | A `sum` or `avg` outside `numberMode: 'exact'`; a group key that groups by identity; an empty list; a partial of another format version or plan, or with malformed fields |
+| `TypeError` at preparation | Malformed, cyclic, too deep or too large expressions; unsafe keys or aliases; unknown operators, units, parts, time zones or descriptor properties; a percentile `p` outside 0 to 1 |
+| `TypeError` at execution | A non-Boolean predicate or `cond` test, an invalid number or date under `'error'`, a non-string for a text operator, a non-BigInt for `sumBigInt`, an opaque object for `min`/`max`, a function or symbol group key or distinct value |
+| `TypeError` in `partial()` or `merge()` | A `sum` or `avg` outside `numberMode: 'exact'`; a group key or distinct value that compares by identity; an empty list; a partial of another format version or plan, or with malformed fields |
 | `RangeError` | Arithmetic or accumulator overflow, division by zero, a count beyond `Number.MAX_SAFE_INTEGER`, also when merging |
 | `DataviewError` `LIMIT_EXCEEDED` | A row, batch, scan, group, working-memory or output cap |
 | `DataviewError` `SOURCE_CONTRACT` | Malformed batches, a source that disagrees with its exact count, or partials of different snapshot revisions |

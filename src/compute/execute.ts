@@ -6,7 +6,7 @@ import { fieldColumns } from '../stream/field-capability.js';
 import type { FieldLease } from '../stream/key-cache.js';
 import { TopK } from '../stream/heap.js';
 import type { RecordSession, RecordSource, StreamOptions } from '../stream/types.js';
-import { Ledger, retainedBytes, StateColumns } from './aggregate.js';
+import { DistinctValues, Ledger, retainedBytes, StateColumns } from './aggregate.js';
 import type { Plan } from './compile.js';
 import { instantiate, requireBoolean } from './expressions.js';
 import type { RowContext } from './expressions.js';
@@ -68,7 +68,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
       const evals = instantiate(plan.nodes, ctx, plan.ops, plan.policy, leased?.columns.size ? { begin: leased.begin, get: f => leased.columns.get(f)?.values } : undefined, reads);
       const where = plan.where === undefined ? undefined : evals[plan.where];
       const filters = plan.filters;
-      const states = plan.states.map(spec => new StateColumns(spec, ledger, plan.numberMode));
+      const states = plan.states.map(spec => new StateColumns(spec, ledger, plan.numberMode, plan.byValue));
       const updates = states.map(column => {
         const { kind, arg: argId, where: predId } = column.spec;
         const arg = argId === undefined ? undefined : evals[argId], pred = predId === undefined ? undefined : evals[predId];
@@ -77,6 +77,8 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
           : kind === 'count' ? gid => column.countValue(gid, arg!())
           : kind === 'sum' ? gid => column.addNumber(gid, arg!(), policy)
           : kind === 'sumBigInt' ? gid => column.addBigInt(gid, arg!(), policy)
+          : kind === 'distinct' ? gid => column.addDistinct(gid, arg!())
+          : kind === 'values' ? gid => column.addValue(gid, arg!(), policy)
           : gid => column.addOrdered(gid, arg!(), ops);
         // Unconditional measures skip the predicate wrapper entirely.
         return pred ? (gid: number) => { if (requireBoolean(pred(), 'measure where')) step(gid); } : step;
@@ -138,7 +140,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
       const finalize = (gid: number, keys: (k: number) => unknown): unknown[] => {
         const values = Array.from({ length: aliases.length });
         for (let k = 0; k < plan.groupBy.length; k++) values[k] = keys(k);
-        plan.measures.forEach((m, i) => { values[plan.groupBy.length + i] = states[m.state].final(gid, m.op); });
+        plan.measures.forEach((m, i) => { values[plan.groupBy.length + i] = states[m.state].final(gid, m.op, m.p); });
         return values;
       };
       const scratch: Record<string, unknown> = {};
@@ -192,6 +194,35 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
       };
       const signal = o.signal, pending: object[] = [];
       const groupWidth = groupEvals.length, grouped = groupWidth > 0, view = plan.kind === 'view';
+      // each() keys: the row joins the group of every combination of their distinct elements, in element order.
+      // Duplicates within one array are dropped under the group equality; that transient set is not working memory.
+      const unwind = plan.unwind, elements: unknown[][] = unwind.map(() => []), scratchLedger = new Ledger(Infinity);
+      const place = (): boolean => {
+        const before = table!.size, gid = table!.find(tuple);
+        if (gid === before) {
+          if (firstSeen && table!.size > end) { more = true; return false; }
+          ensure(gid);
+        }
+        update(gid);
+        return true;
+      };
+      const fanOut = (u: number): boolean => {
+        if (u === unwind.length) return place();
+        const k = unwind[u];
+        if (u === 0) for (let w = 0; w < unwind.length; w++) {
+          const value = tuple[unwind[w]];
+          if (!Array.isArray(value)) elements[w] = [value];
+          else if (value.length < 2) elements[w] = value;
+          else {
+            const seen = new DistinctValues(plan.byValue);
+            for (const item of value) seen.add(item, scratchLedger);
+            scratchLedger.release(seen.bytes - DistinctValues.BYTES);
+            elements[w] = seen.items;
+          }
+        }
+        for (const item of elements[u]) { tuple[k] = item; if (!fanOut(u + 1)) return false; }
+        return true;
+      };
       // The per-batch kernel is a plain synchronous function, so the engine optimizes it apart from the async
       // generator around it. Unsorted row output is queued in `pending` (at most one input batch) and emitted after.
       const consume = (rows: readonly object[], start: number, length: number, size: (index: number) => number): boolean => {
@@ -231,6 +262,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
             update(0);
             continue;
           }
+          if (unwind.length) { if (!fanOut(0)) return false; continue; }
           const before = table!.size, gid = table!.find(tuple);
           if (gid === before) {
             if (firstSeen && table!.size > end) { more = true; return false; }
@@ -264,7 +296,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
           }
         }
         if (exhausted) totalResultRows = matched;
-        if (plan.kind === 'view') totals = Object.fromEntries(plan.measures.map(m => [m.alias, states[m.state].final(0, m.op)]));
+        if (plan.kind === 'view') totals = Object.fromEntries(plan.measures.map(m => [m.alias, states[m.state].final(0, m.op, m.p)]));
       } else if (partial) {
         exported = exportPartial(plan, session!.revision, scanned, matched, table, states, ledger);
       } else {

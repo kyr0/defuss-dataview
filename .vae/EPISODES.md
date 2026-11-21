@@ -42,27 +42,15 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-16T21:55:47Z s=9ef67782 FINDING DBSJONL_HANDOFF.md learn=none: documentation for another repository's agent
 2026-11-16T21:58:18Z s=9ef67782 FINDING docs/index.html hero + nav learn=none: copy and navigation change
 2026-11-17T01:32:09Z s=9ef67782 FINDING branch release/0.5.0 diff against origin/main; SHA256SUMS learn=none: review of already tested code plus a file deletion; no new defect found
-2026-11-17T01:34:12Z s=9ef67782 DONE fp=6352023ebad6 cov=99.0% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+119)
-2026-11-17T01:34:12Z s=9ef67782 FINDING .github/workflows/ci.yml learn=verifier: .vae/VERIFY.py rule ci.bun-only (not_regex over .github/workflows/*.yml) matches all four npm uses in the old ci.yml; a temporary 'npm ci' line made the gate fa
-2026-11-17T03:00:56Z s=9ef67782 DONE fp=ce532d60b2e6 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+149)
-2026-11-17T03:00:56Z s=9ef67782 FINDING src/compute/compile.ts:record learn=test: src/compute/compute.test.ts 'rejects unsafe paths, aliases, malformed and cyclic trees' cases 3 and 4
-2026-11-17T03:00:56Z s=9ef67782 FINDING src/compute/execute.ts:consume (top-k branch) learn=test: src/compute/operators.test.ts 'never evaluates sort keys when the page is empty'
 2026-11-17T03:00:56Z s=9ef67782 FINDING src/stream/key-cache.ts:build learn=none: a timing ratio is machine-dependent and not a reliable test or verifier rule; documentation/COMPUTE_PERFORMANCE.md records the measurement and key-cache.ts carr
 2026-11-17T03:00:56Z s=9ef67782 FINDING src/compute/execute.ts:run learn=none: performance structure, measured once on one machine; recorded in documentation/COMPUTE_ARCHITECTURE.md and src/compute/ARCH.md
 2026-11-17T03:00:56Z s=9ef67782 FINDING src/compute/group-table.ts:has learn=none: dead code is caught by coverage review, not a rule
 2026-11-17T03:00:56Z s=9ef67782 FINDING .gitignore learn=none: a one-off local layout choice
 2026-11-17T03:00:56Z s=9ef67782 FINDING documentation/COMPUTE_ARCHITECTURE.md:30 B (evidence), CHANGELOG.md:20, src/compute/ARCH.md:5 learn=none: a claim about which module imports what is checked by review, not by a mechanical rule
-2026-11-17T03:00:56Z s=9ef67782 FINDING src/compute/compute.test.ts:'aborts while finalizing groups' learn=test: the test itself
-2026-11-17T03:19:14Z s=9ef67782 DONE fp=ce801663832b cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+153)
-2026-11-17T03:19:14Z s=9ef67782 FINDING scripts/browser.mjs (browser-compute.mjs entry) learn=test: tests/e2e/stream.spec.ts 'built compute module runs under a CSP' asserts leased: true
-2026-11-17T03:19:14Z s=9ef67782 FINDING docs/assets/compute.js (size/columns toggles) learn=test: tests/e2e/docs.spec.ts 'the compute panel runs every preset' clicks both switches and checks the runs they start
-2026-11-17T03:19:14Z s=9ef67782 FINDING docs/index.html compute controls / docs/assets/site.js:485 learn=test: tests/e2e/docs.spec.ts 'the compute comparison shows mongodb-compute.json' switches sizes and asserts no panel run starts
 2026-11-17T03:19:14Z s=9ef67782 FINDING docs/index.html:653 'Late projection' card; documentation/COMPUTE_SEMANTICS.md:13 B (evidence) learn=none: prose accuracy is a review check, not a mechanical rule
 2026-11-17T03:19:14Z s=9ef67782 FINDING documentation/MONGODB.md 'Projection and aggregation' B (evidence) learn=none: prose accuracy is a review check
 2026-11-17T03:19:14Z s=9ef67782 FINDING docs/assets/site.css header container query; docs/index.html nav learn=none: a layout measurement on one browser; the header test now clicks every section link including Compute
 2026-11-17T03:19:14Z s=9ef67782 FINDING docs/assets/compute.js showVersus / docs/index.html comparison table learn=none: visual layout, checked by screenshot
-2026-11-17T03:19:14Z s=9ef67782 FINDING bun run check while the gate ran learn=memory: .vae/MEMORY.md check-gate line
-2026-11-17T11:24:00Z s=9ef67782 DONE fp=f9dbe9f45696 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
 2026-11-17T11:24:00Z s=9ef67782 FINDING docs/demo/app.js:runReport learn=test: tests/e2e/docs.spec.ts 'Reports: compute plans aggregate and project the orders into a Data Grid'
 2026-11-17T11:24:00Z s=9ef67782 FINDING docs/assets/site.js:applyPlan learn=test: tests/e2e/docs.spec.ts 'the explorer runs JSON compute plans' opens plan.explain() and reads it
 2026-11-17T12:10:44Z s=9ef67782 DONE fp=decccda24c43 cov=98.9% paths=.github/workflows/ci.yml,.github/workflows/verify.yml,.oxlintrc.json,AGENTS.md(+154)
@@ -104,3 +92,15 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-20T19:06:50Z s=8029794f FINDING CHANGELOG.md:32 B09; RELEASE.md:3 B09; .vae/MEMORY.md:10 learn=memory: MEMORY.md versions line updated from the registry.
 2026-11-20T19:06:50Z s=8029794f FINDING RELEASE.md:3 T03 learn=none: Prose fixed on the page.
 2026-11-20T19:06:50Z s=8029794f FINDING README.md:77,565|CDN URL learn=none: Release timing, not a defect: the README documents the version it ships with, as it did for 0.6.0.
+2026-11-20T19:07:58Z s=8029794f DONE fp=9519d9d1f604 cov=99.0% paths=CHANGELOG.md,README.md,RELEASE.md,bun.lock(+51)
+2026-11-20T19:17:57Z s=8029794f DONE fp=25ca518079bd cov=99.0% paths=CHANGELOG.md,README.md,RELEASE.md,bun.lock(+51)
+2026-11-20T19:17:57Z s=8029794f FINDING docs/assets/metrics.json|re-measured outside this session learn=none: Which process re-ran the metrics is not established; the user decides whether to commit the new measurement.
+2026-11-21T14:33:43Z s=19560c1d DONE fp=73622d12094b cov=99.1% paths=CHANGELOG.md,README.md,RELEASE.md,docs/assets/defuss-dataview@0.7.0/browser-compute.mjs(+35)
+2026-11-21T14:33:43Z s=19560c1d FINDING src/compute/dates.ts:NamedZone.exact learn=test: src/compute/dates.test.ts 'read Dates and epoch milliseconds...' evaluates both ends of the Date range in Asia/Tokyo
+2026-11-21T14:33:43Z s=19560c1d FINDING src/compute/dates.ts:truncate|part; src/compute/aggregate.ts:final learn=none: A measured optimization, not a defect; timing ratios are machine-dependent and not a test or verifier rule (EPISODES precedent for key-cache.ts).
+2026-11-21T14:33:43Z s=19560c1d FINDING CHANGELOG.md:13 B09; src/compute/ARCH.md:11 B03 learn=none: Prose fixed on the page.
+2026-11-21T14:33:43Z s=19560c1d FINDING documentation/COMPUTE_SEMANTICS.md:41 P08 learn=none: Prose fixed on the page.
+2026-11-21T14:33:43Z s=19560c1d FINDING docs/assets/defuss-dataview@0.8.0/*, docs/assets/metrics.json, docs/index.html, docs/demo/*.js, docs/stream.html learn=none: Release build outputs, checked by the e2e suite.
+2026-11-21T14:33:43Z s=19560c1d FINDING src/compute/aggregate.ts:final (percentile) learn=none: Comment corrected to the measurement.
+2026-11-21T15:29:20Z s=19560c1d DONE fp=172cf33b1299 cov=99.1% paths=CHANGELOG.md,README.md,RELEASE.md,docs/assets/defuss-dataview@0.7.0/browser-compute.mjs(+35)
+2026-11-21T15:29:20Z s=19560c1d FINDING src/compute/compile.ts:compilePlan (groupBy each) learn=test: src/compute/operators.test.ts 'are whole group keys only' (node without v), 'each() group keys' and the oracle's unwind plan merged from 1, 2 and 5 parts

@@ -1,8 +1,25 @@
 # Changelog
 
+## 0.8.0
+
+Prepared on 2026-11-21; not yet on npm. It follows 0.7.0, published on npm on 2026-11-20.
+
+### Calendar, text and conditional expressions
+
+- `dateTrunc(expr, unit, { timeZone }?)` gives the first instant of a year, quarter, month, ISO week, day, hour or minute as a Date; `datePart(expr, part, { timeZone }?)` gives the year, quarter, month, day, ISO weekday, hour or minute. They read Dates and epoch milliseconds, in UTC by default or in an IANA time zone, and follow Temporal at DST gaps and repeated hours.
+- Time zones go through `Intl.DateTimeFormat`, since Node.js 20 to 24 lack Temporal (20.20.2 and 24.22.3 checked). Offsets are cached per UTC day, which is exact because no zone has two transitions less than a day apart: over every zone from 1850 to 2100, the closest two were 167 hours apart. A row allocates no Date until its result.
+- `each(expr)` as a whole `groupBy` key unwinds arrays, as MongoDB's `$unwind`: a row joins one group per distinct element and none for an empty array. Its groups hold the elements, so the plan still merges from partials.
+- `lower`, `upper`, `trim`, `substring` and `length` (in code points), `concat`, `cond` (only the chosen branch is evaluated), and `floor`, `ceil`, `round` (halves away from zero) and `abs`.
+
+### Measures
+
+- `countDistinct(expr)` and `distinct(expr)` count or list distinct non-nullish values under the equality of group keys. `percentile(expr, p)` and `median(expr)` are exact, interpolated linearly between the closest ranks: the default method of R and NumPy, and Excel's `PERCENTILE.INC`.
+- All four merge from partials in every number mode; their partial states carry the values, packed with offsets. Distinct values that compare by identity are rejected in `partial()`, as identity group keys are.
+- `bun run benchmark:compute` adds B34 to B36. VERIFIED: medians of 9 rounds over 200,000 rows in memory, Apple M5 Max, Node.js 26.13.1, 2026-11-21, on a host with load 6 to 8. Counting by UTC day with `dateTrunc` took 61 ms, against 56 ms with a numeric day key (`floor(ms / day)`), and by Europe/Berlin day 68 ms. `countDistinct` plus `median` over 1,000 groups took 57 ms.
+
 ## 0.7.0
 
-Prepared on 2026-11-20; not yet tagged or on npm. It follows 0.6.0, published on npm on 2026-11-17.
+Published on npm on 2026-11-20. It follows 0.6.0, published on npm on 2026-11-17.
 
 ### Partial aggregation
 

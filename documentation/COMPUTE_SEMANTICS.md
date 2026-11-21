@@ -22,6 +22,32 @@ Per row, a plan evaluates `filters`, then `where`, then the expressions the row'
 
 `sumBigInt` sums BigInts exactly at any magnitude; a nullish operand is skipped, another type throws under `'error'` and is skipped under `'skip'`.
 
+`floor`, `ceil` and `abs` are `Math.floor`, `Math.ceil` and `Math.abs`. `round` rounds to the nearest integer and takes halves away from zero: 2.5 gives 3, -2.5 gives -3. They apply the invalid-number policy and give `null` for a nullish operand.
+
+## Dates and time zones
+
+`dateTrunc` and `datePart` read a valid Date or a number of epoch milliseconds within the Date range. Nullish operands and invalid Dates give `null`, as does a truncation whose period starts before the first valid Date. Any other value is invalid: under `invalidNumbers: 'error'` it throws a `TypeError`, under `'skip'` it reads as `null`.
+
+They work in UTC unless the expression names an IANA time zone, such as `{ timeZone: 'Europe/Berlin' }`; an unknown zone throws a `TypeError` when the plan is prepared. UTC is the default so that one plan gives the same groups in every process; pass the viewer's zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) to bucket by local calendar days. A truncated value is the first instant of the period, as Temporal defines it:
+
+- A day, ISO week, month, quarter or year starts at the first instant of its first local day. When a transition skips midnight, that is the transition; when midnight occurs twice, it is the earlier one. Every instant of one local date therefore truncates to the same Date, and grouping by it groups by local date.
+- An hour or minute keeps the instant's own UTC offset where the truncated wall time has it. In a repeated hour, the instants of each pass truncate to their own hour.
+- `datePart` reads the local wall time: `weekday` is ISO, 1 for Monday to 7 for Sunday, and `quarter` counts from 1.
+
+VERIFIED: `src/compute/dates.test.ts` compares every unit and part with Temporal around every transition from 2010 to 2026 and at random instants from 1900 to 2150, in eight zones: UTC, Europe/Berlin, America/New_York, America/Sao_Paulo (midnight skipped), America/Havana (midnight repeated), Australia/Lord_Howe (a 30-minute shift), Asia/Kathmandu (+05:45) and Pacific/Apia, which skipped 30 December 2011. The comparison runs where the runtime has Temporal (Node.js 26, Bun); fixed cases from the same zones run everywhere.
+
+## Text
+
+`lower`, `upper`, `trim`, `substring`, `concat` and `length` take strings and give `null` for a nullish operand; any other value throws a `TypeError`. `length` also counts the elements of an array. Case mapping is the locale-independent `toLowerCase` and `toUpperCase`. `substring` and `length` count code points, so an emoji counts once and is never split; a lone surrogate counts as one code point. `concat` gives `null` as soon as one operand is nullish.
+
+## Distinct values and percentiles
+
+`countDistinct(x)` and `distinct(x)` skip nullish values and compare the rest as group keys compare: `NaN` equals `NaN`, `+0` equals `-0`, `1`, `1n` and `'1'` differ, Dates compare by timestamp and binary values by bytes (value equality), other objects by identity. `distinct` returns the first occurrence of each value, in first-encounter order, and a private copy of each binary value. Functions and symbols throw a `TypeError`.
+
+`percentile(x, p)` keeps every number of its group and sorts them at the end. With `n` values, the result is at rank `h = (n - 1) * p` from 0, interpolated linearly between the values below and above `h`. This is the default method of R and NumPy, and Excel's `PERCENTILE.INC`. `median` is `percentile(x, 0.5)`, so an even count gives the mean of the two middle values. Nullish operands are skipped and other values follow the invalid-number policy; `-0` counts as `0`. `p` must be a number from 0 to 1 when the plan is prepared.
+
+Both keep their values in working memory, about 8 bytes per number and 48 bytes plus the value per distinct value, so `maxWorkingBytes` bounds them as it bounds groups. Percentiles and medians of one operand and predicate share their values, as do `countDistinct` and `distinct`.
+
 ## Minimum and maximum
 
 `min` and `max` accept Booleans, numbers, BigInts, strings, Dates and binary values, ordered by the plan's semantics. They skip values that range filters also skip (nullish, `NaN`, invalid Dates). Any other object throws a `TypeError`. On ties they keep the first value seen.
@@ -40,6 +66,8 @@ Two rows share a group when every key component is equal under the plan's equali
 - With value equality (the default), Dates group by timestamp and binary values by their visible bytes. With `equality: 'identity'`, every object is its own group.
 - Functions and symbols throw a `TypeError`.
 
+A `groupBy` key `each(x)` unwinds arrays: a row joins one group per distinct element of `x`, the first occurrence of each under the same equality, and no group when `x` is an empty array. A value that is no array groups as it is, so a missing array groups as `undefined`. With two `each` keys a row joins every combination of their elements. Every measure counts the row once in each group it joins. `each` must be a whole key: nested in another expression, in `where`, in a measure or in a row plan it throws a `TypeError` when the plan is prepared. An `each` plan never runs as ordered groups.
+
 A group keeps the key values of its first row. Value-mode binary keys are copied, so a group never retains a large buffer that a small view points into. Locale collation does not merge groups: strings group by exact value even when their locale order ties.
 
 Groups appear in first-encounter order unless `orderBy` sorts them; ties in `orderBy` keep first-encounter order.
@@ -57,10 +85,10 @@ A view's totals cover every row that passed `filters` and `where`, including row
 `merge()` over partials of disjoint parts of one snapshot, given in source order, returns what `evaluate()` returns over the union of the parts. The parts must cover the scope once each; `merge()` cannot detect overlapping or missing parts. It checks that every partial has the same snapshot revision and the same `signature`, the fingerprint of the plan's descriptor.
 
 - Groups appear in first-encounter order across the parts, and a group keeps the key values of the earliest part that has it.
-- Counts and `sumBigInt` add exactly. `min` and `max` keep the first of equal values, from the earliest part. Exact sums add the parts' exact terms, so their result is the single-pass result.
+- Counts and `sumBigInt` add exactly. `min` and `max` keep the first of equal values, from the earliest part. Exact sums add the parts' exact terms, so their result is the single-pass result. Distinct values and percentile values are carried in full, so their results equal the single-pass results.
 - HAVING, `orderBy` and paging apply to the merged groups. A group that would fail HAVING within one part can pass after merging.
 - Binary `min` and `max` values in a partial are copies of their visible bytes, and every value in a partial that crossed a worker boundary is a structured clone: merged results equal the single-pass values without being the same objects.
-- Group keys that group by identity cannot be copied without changing which rows they group: plain objects and arrays, and every object under `equality: 'identity'`. `partial()` rejects them with a `TypeError`.
+- Group keys and distinct values that compare by identity cannot be copied without changing which rows they group: plain objects and arrays, and every object under `equality: 'identity'`. `partial()` rejects them with a `TypeError`.
 
 Given out of source order, the merged rows hold the same groups and the same counts, sums and `sumBigInt` values. Group order without `orderBy`, representative keys and the choice between equal `min`/`max` values then follow the given order.
 

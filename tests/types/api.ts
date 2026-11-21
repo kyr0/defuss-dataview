@@ -87,6 +87,25 @@ const honest = cq.rows({ select: dynamic });
 const honestRow: Record<string, unknown> = {} as Awaited<ReturnType<typeof honest.evaluate>>['rows'][number];
 const noAnyHonest: IsAny<Awaited<ReturnType<typeof honest.evaluate>>['rows'][number][string]> = false;
 void [exactBack, noAnyGroup, narrowed, shownRow, shownTotals, honestRow, noAnyHonest];
+type Sale = { id: number; at: Date; customer: string; amount: number | null; tags?: string[] };
+const sq = forRows<Sale>();
+const calendar = sq.aggregate({
+  groupBy: { week: sq.dateTrunc(sq.field('at'), 'week', { timeZone: 'Europe/Berlin' }), weekday: sq.datePart(sq.field('at'), 'weekday'), name: sq.lower(sq.field('customer')) },
+  measures: { buyers: sq.countDistinct(sq.field('customer')), names: sq.distinct(sq.field('customer')), median: sq.median(sq.field('amount')), p95: sq.percentile(sq.field('amount'), 0.95) },
+});
+const calendarRow: { week: Date | null; weekday: number | null; name: string | null; buyers: number; names: string[]; median: number | null; p95: number | null } = {} as Awaited<ReturnType<typeof calendar.evaluate>>['rows'][number];
+const banded = sq.rows({ select: { band: sq.cond(sq.gt(sq.field('amount'), sq.literal(10)), sq.literal('big' as const), sq.literal(0)), cents: sq.round(sq.mul(sq.field('amount'), sq.literal(100))), tags: sq.length(sq.field('tags')) } });
+const bandedRow: { band: 'big' | number; cents: number | null; tags: number | null } = {} as Awaited<ReturnType<typeof banded.evaluate>>['rows'][number];
+// @ts-expect-error dateTrunc takes a calendar unit.
+sq.dateTrunc(sq.field('at'), 'decade');
+// @ts-expect-error Percentiles are numeric.
+sq.percentile(sq.field('customer'), 0.5);
+// @ts-expect-error cond tests a Boolean.
+sq.cond(sq.field('amount'), sq.literal(1), sq.literal(2));
+const tagged = sq.aggregate({ groupBy: { tag: sq.each(sq.field('tags')) }, measures: { n: sq.count() } });
+const taggedRow: { tag: string | undefined; n: number } = {} as Awaited<ReturnType<typeof tagged.evaluate>>['rows'][number];
+const taggedBack: string | undefined = taggedRow.tag;
+void [calendarRow, bandedRow, taggedBack];
 import type { PartialAggregate } from 'defuss-dataview/compute';
 const exactPlan = cq.aggregate({ groupBy: { country: cq.field('country') }, measures: { revenue: cq.sum(revenue) }, numberMode: 'exact' });
 const orderSource = createImmutableArraySource<Order>([]);

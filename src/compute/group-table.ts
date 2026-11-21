@@ -1,6 +1,6 @@
 import { DataviewError } from '../stream/common.js';
 import { bytesOf } from '../values.js';
-import { ownBytes, retainedBytes } from './aggregate.js';
+import { ENTRY_BYTES, latin1, ownBytes, retainedBytes } from './aggregate.js';
 import type { Ledger } from './aggregate.js';
 
 /**
@@ -13,8 +13,6 @@ import type { Ledger } from './aggregate.js';
  * (documentation/COMPUTE_PERFORMANCE.md records the measurement and the decision).
  */
 interface Level { p?: Map<unknown, Level | number>; d?: Map<number, Level | number>; b?: Map<string, Level | number>; o?: Map<object, Level | number> }
-// Rough per-entry cost of a Map slot plus its key, charged so the cap tracks table growth.
-const ENTRY_BYTES = 48;
 export const MAX_GROUP_ID = 2 ** 32 - 2;
 
 export class GroupTable {
@@ -74,9 +72,4 @@ export class GroupTable {
     }
     return (level.o ??= new Map()) as Map<unknown, Level | number>;
   }
-}
-function latin1(bytes: Uint8Array): string {
-  let text = '';
-  for (let i = 0; i < bytes.length; i += 8192) text += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  return text;
 }

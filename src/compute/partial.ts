@@ -80,6 +80,13 @@ export class MergeInput {
 
 const count = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0;
 const column = (value: unknown, length: number) => value instanceof Float64Array && value.length === length;
+/**
+ * Offsets of `groups` lists packed into `items`: one more offset than groups, from 0 to the last item. Exact sums,
+ * distinct values and percentile numbers share this layout, so one check covers all three.
+ * VERIFIED: src/compute/operators.test.ts 'merge from partials, and reject identity values and malformed lists'.
+ */
+const packed = (offsets: unknown, groups: number, items: { length: number } | undefined) =>
+  items !== undefined && column(offsets, groups + 1) && (offsets as Float64Array)[0] === 0 && (offsets as Float64Array)[groups] === items.length;
 
 /**
  * Validates envelopes and column shapes of every partial before any state is allocated, so a wrong format, plan or
@@ -110,8 +117,9 @@ export function mergeInput(plan: Plan, partials: unknown): MergeInput {
       const state = states[s] as Record<string, unknown> | null;
       if (typeof state !== 'object' || state === null) throw malformed(`${at}.states[${s}]`);
       const ok = kind === 'rows' || kind === 'count' ? column(state.counts, groups)
-        : kind === 'sum' ? column(state.counts, groups) && column(state.offsets, groups + 1) && state.terms instanceof Float64Array
-          && (state.offsets as Float64Array)[0] === 0 && (state.offsets as Float64Array)[groups] === state.terms.length
+        : kind === 'sum' ? column(state.counts, groups) && packed(state.offsets, groups, state.terms instanceof Float64Array ? state.terms : undefined)
+        : kind === 'distinct' ? packed(state.offsets, groups, Array.isArray(state.items) ? state.items : undefined)
+        : kind === 'values' ? packed(state.offsets, groups, state.numbers instanceof Float64Array ? state.numbers : undefined)
         : Array.isArray(state.values) && state.values.length === groups;
       if (!ok) throw malformed(`${at}.states[${s}] does not match a ${kind} state of ${groups} groups`);
     });

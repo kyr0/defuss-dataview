@@ -30,6 +30,8 @@ export interface Plan {
   /** Set when every row sort key is a plain field: a source ordering that satisfies it lets the scan stop early. */
   readonly rowOrdering: QueryOrdering | undefined;
   readonly groupBy: readonly { alias: string; id: number }[];
+  /** Positions of the groupBy keys that each() unwinds. */
+  readonly unwind: readonly number[];
   /** Field names of a groupBy made only of plain fields, for the ordered-groups certificate. */
   readonly groupFields: readonly string[] | undefined;
   readonly states: readonly StateSpec[];
@@ -79,7 +81,20 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
     const id = table.add(raw, `${name}.${alias}`); table.nodes[id].refs++; return { alias, id };
   });
   const select = kind === 'aggregate' ? [] : named(d.select, 'select');
-  const groupBy = kind === 'aggregate' && d.groupBy !== undefined ? named(d.groupBy, 'groupBy') : [];
+  // each() is a whole group key: the plan groups by its operand and unwinds arrays while grouping, so groups hold
+  // elements and partials can carry them. VERIFIED: operators.test.ts 'each() group keys' and the oracle's unwind plan.
+  const unwind: number[] = [];
+  const groupBy = kind === 'aggregate' && d.groupBy !== undefined ? Object.entries(record(d.groupBy, 'groupBy')).map(([alias, raw], k) => {
+    const node = raw as { v?: unknown; op?: unknown; args?: unknown } | null;
+    if (typeof node === 'object' && node !== null && node.op === 'each') {
+      if (node.v !== 1) throw new TypeError(`groupBy.${alias} must be an expression built by forRows() (an object with v: 1 and op).`);
+      for (const key of Object.keys(node)) if (!['v', 'op', 'args'].includes(key)) throw new TypeError(`groupBy.${alias}: unexpected property ${JSON.stringify(key)}.`);
+      if (!Array.isArray(node.args) || node.args.length !== 1) throw new TypeError(`groupBy.${alias}: each takes 1 operand.`);
+      unwind.push(k);
+      raw = node.args[0];
+    }
+    const id = table.add(raw, `groupBy.${alias}`); table.nodes[id].refs++; return { alias, id };
+  }) : [];
   const rowOrder: { id: number; sign: number; field?: string }[] = [];
   const outputOrder: { alias: string; sign: number }[] = [];
   if (d.orderBy !== undefined) {
@@ -99,17 +114,19 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
       }
     });
   }
-  // States: count(), count(x), sum/avg(x) shared, min, max, sumBigInt; deduplicated by kind, operand and predicate.
+  // States: count(), count(x), sum/avg(x) shared, min, max, sumBigInt, distinct values, percentile values; deduplicated
+  // by kind, operand and predicate.
   const states: StateSpec[] = [], measures: MeasureSpec[] = [];
   const stateIds = new Map<string, number>();
   const measureSource = kind === 'aggregate' ? d.measures : kind === 'view' ? d.totals : undefined;
   if (measureSource !== undefined) for (const [alias, raw] of Object.entries(record(measureSource, kind === 'view' ? 'totals' : 'measures'))) {
     const m = table.measure(raw, `${kind === 'view' ? 'totals' : 'measures'}.${alias}`);
-    const stateKind: StateKind = m.op === 'count' ? (m.arg === undefined ? 'rows' : 'count') : m.op === 'avg' ? 'sum' : m.op as StateKind;
+    const stateKind: StateKind = m.op === 'count' ? (m.arg === undefined ? 'rows' : 'count') : m.op === 'avg' ? 'sum'
+      : m.op === 'countDistinct' || m.op === 'distinct' ? 'distinct' : m.op === 'percentile' || m.op === 'median' ? 'values' : m.op as StateKind;
     const key = `${stateKind}:${m.arg ?? ''}:${m.where ?? ''}`;
     let state = stateIds.get(key);
     if (state === undefined) { state = states.length; states.push({ kind: stateKind, arg: m.arg, where: m.where }); stateIds.set(key, state); }
-    measures.push({ alias, op: m.op, state });
+    measures.push({ alias, op: m.op, state, ...(m.p !== undefined ? { p: m.p } : {}) });
   }
   if (kind === 'aggregate' && !measures.length && !groupBy.length) throw new TypeError('A global aggregate needs at least one measure.');
   if (kind === 'view' && !measures.length) throw new TypeError('A view needs at least one total.');
@@ -128,7 +145,7 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
   for (const order of outputOrder) if (!outputs.has(order.alias)) throw new TypeError(`orderBy refers to ${JSON.stringify(order.alias)}, which is not an output alias.`);
   const plainOrder = rowOrder.length && rowOrder.every(o => o.field !== undefined && table.nodes[o.id].op !== 'literal')
     ? compileQuery({ sorters: rowOrder.map(o => ({ field: o.field!, direction: o.sign < 0 ? 'desc' : 'asc' as const })), semantics }).ordering : undefined;
-  const groupFields = groupBy.length && groupBy.every(g => table.nodes[g.id].field !== undefined) ? groupBy.map(g => table.nodes[g.id].field!) : undefined;
+  const groupFields = groupBy.length && !unwind.length && groupBy.every(g => table.nodes[g.id].field !== undefined) ? groupBy.map(g => table.nodes[g.id].field!) : undefined;
   const fields = table.fields();
   const mergeable = kind === 'aggregate' && (numberMode === 'exact' || states.every(s => s.kind !== 'sum'));
   const strategies: ComputeStrategy[] = kind === 'rows' || kind === 'view'
@@ -142,12 +159,13 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
     ...(kind === 'aggregate' ? [mergeable ? 'partial() and merge() accept this plan.' : "partial() and merge() need numberMode: 'exact' for sum and avg."] : []),
     ...(kind === 'view' ? ['Totals cover every input match, not only the returned page.'] : []),
     ...(kind === 'aggregate' && groupBy.length ? ['Ordered groups need a source ordering on the group fields and prepared homogeneous columns; otherwise hash grouping runs.'] : []),
+    ...(unwind.length ? ['each() keys: a row joins one group per distinct array element and none for an empty array.'] : []),
   ];
   const explain: Explain = Object.freeze({
     kind, requiredFields: Object.freeze([...fields]),
     operators: Object.freeze([
       'source', ...(filters ? ['filters'] : []), ...(where !== undefined ? ['where'] : []),
-      ...(kind === 'aggregate' ? [groupBy.length ? 'group' : 'global', ...(having ? ['having'] : []), ...(outputOrder.length ? ['order'] : []), 'page', 'output']
+      ...(kind === 'aggregate' ? [...(unwind.length ? ['unwind'] : []), groupBy.length ? 'group' : 'global', ...(having ? ['having'] : []), ...(outputOrder.length ? ['order'] : []), 'page', 'output']
         : [...(kind === 'view' ? ['totals'] : []), ...(rowOrder.length ? ['order'] : []), 'page', 'project']),
     ]),
     measures: Object.freeze(measures.map(m => Object.freeze({ alias: m.alias, op: m.op, state: m.state }))),
@@ -159,6 +177,6 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
     kind, nodes: Object.freeze(table.nodes.map(n => Object.freeze(n))), fields, ops, byValue: ops.equality === 'value',
     numberMode, mergeable, signature: kind === 'aggregate' ? fingerprint(descriptor) : '', policy: { invalidNumbers: (d.invalidNumbers ?? 'error') as 'error' | 'skip' },
     filters, where, select, rowOrder: rowOrder.map(({ id, sign }) => ({ id, sign })), rowOrdering: plainOrder,
-    groupBy, groupFields, states, measures, having, outputOrder, explain,
+    groupBy, unwind, groupFields, states, measures, having, outputOrder, explain,
   });
 }

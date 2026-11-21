@@ -1,6 +1,9 @@
 import type { DataviewFilter } from '../types.js';
 import type { QuerySemantics } from '../values.js';
 import type { CancellationSignal } from '../stream/types.js';
+import type { DatePart, DateUnit } from './dates.js';
+
+export type { DatePart, DateUnit };
 
 // Expressions carry their value type in a phantom property, so outputs are inferred from the descriptor itself
 // instead of from a separately declared result type that could drift from it. A dynamic descriptor widens to
@@ -13,16 +16,19 @@ export interface Expr<V> {
   readonly op: string;
   readonly [valueType]?: V;
 }
-/** An aggregate measure: count, sum, avg, min, max or sumBigInt over an optional operand and predicate. */
+/** An aggregate measure over an optional operand and predicate; `p` is percentile()'s fraction. */
 export interface AggregateExpr<V> {
   readonly v: 1;
-  readonly op: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'sumBigInt';
+  readonly op: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'sumBigInt' | 'countDistinct' | 'distinct' | 'percentile' | 'median';
   readonly arg?: Expr<unknown>;
   readonly where?: Expr<boolean>;
+  readonly p?: number;
   readonly [valueType]?: V;
 }
 export type ExprValue<E> = E extends Expr<infer V> ? V : E extends AggregateExpr<infer V> ? V : never;
 export interface MeasureOptions { where?: Expr<boolean> }
+/** IANA time zone of a date expression, such as 'Europe/Berlin'; default 'UTC'. */
+export interface ZoneOptions { timeZone?: string }
 type Numeric = number | null | undefined;
 
 export interface ComputeBuilders<T> {
@@ -48,6 +54,31 @@ export interface ComputeBuilders<T> {
   and(...exprs: Expr<boolean>[]): Expr<boolean>;
   or(...exprs: Expr<boolean>[]): Expr<boolean>;
   not(expr: Expr<boolean>): Expr<boolean>;
+  /** `then` when `test` is true, else `otherwise`; only the chosen branch is evaluated. */
+  cond<A, B>(test: Expr<boolean>, then: Expr<A>, otherwise: Expr<B>): Expr<A | B>;
+  floor(expr: Expr<Numeric>): Expr<number | null>;
+  ceil(expr: Expr<Numeric>): Expr<number | null>;
+  /** To the nearest integer, halves away from zero. */
+  round(expr: Expr<Numeric>): Expr<number | null>;
+  abs(expr: Expr<Numeric>): Expr<number | null>;
+  /** The start of the instant's year, quarter, month, ISO week (Monday), day, hour or minute, as a Date. */
+  dateTrunc(expr: Expr<unknown>, unit: DateUnit, options?: ZoneOptions): Expr<Date | null>;
+  /** year, quarter (1-4), month (1-12), day (1-31), weekday (ISO, 1 = Monday), hour (0-23) or minute. */
+  datePart(expr: Expr<unknown>, part: DatePart, options?: ZoneOptions): Expr<number | null>;
+  lower(expr: Expr<unknown>): Expr<string | null>;
+  upper(expr: Expr<unknown>): Expr<string | null>;
+  trim(expr: Expr<unknown>): Expr<string | null>;
+  /** Code points from `start`, `length` of them or to the end. */
+  substring(expr: Expr<unknown>, start: number, length?: number): Expr<string | null>;
+  /** Joined strings; null when any operand is nullish. */
+  concat(...exprs: Expr<unknown>[]): Expr<string | null>;
+  /** Code points of a string, or elements of an array. */
+  length(expr: Expr<unknown>): Expr<number | null>;
+  /**
+   * A whole groupBy key only: a row joins one group per distinct element of the array, as MongoDB's `$unwind`, and
+   * no group for an empty array; any other value groups as it is.
+   */
+  each<V>(expr: Expr<readonly V[] | V>): Expr<V>;
   /** count() counts matching rows; count(expr) counts non-nullish values. */
   count(expr?: Expr<unknown>, options?: MeasureOptions): AggregateExpr<number>;
   sum(expr: Expr<Numeric>, options?: MeasureOptions): AggregateExpr<number | null>;
@@ -55,6 +86,14 @@ export interface ComputeBuilders<T> {
   min<V>(expr: Expr<V>, options?: MeasureOptions): AggregateExpr<NonNullable<V> | null>;
   max<V>(expr: Expr<V>, options?: MeasureOptions): AggregateExpr<NonNullable<V> | null>;
   sumBigInt(expr: Expr<bigint | null | undefined>, options?: MeasureOptions): AggregateExpr<bigint | null>;
+  /** Distinct non-nullish values, under the equality of group keys. */
+  countDistinct(expr: Expr<unknown>, options?: MeasureOptions): AggregateExpr<number>;
+  /** The distinct non-nullish values in first-encounter order; [] without values. */
+  distinct<V>(expr: Expr<V>, options?: MeasureOptions): AggregateExpr<NonNullable<V>[]>;
+  /** Exact percentile, `p` from 0 to 1, interpolated linearly between the closest ranks; null without values. */
+  percentile(expr: Expr<Numeric>, p: number, options?: MeasureOptions): AggregateExpr<number | null>;
+  /** percentile(expr, 0.5). */
+  median(expr: Expr<Numeric>, options?: MeasureOptions): AggregateExpr<number | null>;
 }
 
 /**
@@ -163,9 +202,11 @@ export type MergeOptions = Pick<ComputeOptions<object>, 'batchSize' | 'maxBatchB
 /**
  * One measure state of a partial, by group: `counts` for count measures; `counts`, `offsets` and `terms` for exact
  * sums (group g's terms are terms[offsets[g]] up to terms[offsets[g + 1]]); `values` for min, max and sumBigInt,
- * `undefined` where a group has none. Treat it as opaque: its layout belongs to the partial format version.
+ * `undefined` where a group has none; `offsets` and `items` for distinct values; `offsets` and `numbers` for
+ * percentiles. Treat it as opaque: its layout belongs to the partial format version.
  */
-export type PartialState = { readonly counts: Float64Array } | { readonly counts: Float64Array; readonly offsets: Float64Array; readonly terms: Float64Array } | { readonly values: readonly unknown[] };
+export type PartialState = { readonly counts: Float64Array } | { readonly counts: Float64Array; readonly offsets: Float64Array; readonly terms: Float64Array }
+  | { readonly values: readonly unknown[] } | { readonly offsets: Float64Array; readonly items: readonly unknown[] } | { readonly offsets: Float64Array; readonly numbers: Float64Array };
 /**
  * The mergeable state of one aggregate plan over one part of a snapshot. Plain data that survives structuredClone and
  * postMessage (BigInts, Dates, typed arrays, undefined), not JSON. merge() validates it as untrusted input.
