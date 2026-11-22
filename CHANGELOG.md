@@ -2,7 +2,7 @@
 
 ## 0.10.0
 
-Prepared on 2026-11-22; not yet on npm. It follows 0.9.0, published on npm on 2026-11-21.
+Published on npm on 2026-11-22. It follows 0.9.0, published on npm on 2026-11-21.
 
 ### Lists are values
 
