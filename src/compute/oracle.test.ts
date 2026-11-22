@@ -71,13 +71,53 @@ const plans = {
   },
   unwind: {
     groupBy: { tag: q.each(q.field('tags')), flag: q.field('flag') },
-    measures: { n: q.count(), total: q.sum(amount), labels: q.countDistinct(q.field('label')), median: q.median(qty) },
+    measures: { n: q.count(), total: q.sum(amount), labels: q.countDistinct(q.field('label')), median: q.median(qty), sd: q.stdDevPop(amount) },
     having: [{ field: 'n', op: 'gte' as const, value: 2 }],
     numberMode: 'exact' as const,
   },
-  labels: { groupBy: { label: q.upper(q.field('label')) }, measures: { cats: q.distinct(q.field('cat'), { where: q.gt(qty, q.literal(1)) }), days: q.countDistinct(q.dateTrunc(q.field('when'), 'day')), p75: q.percentile(qty, 0.75) } },
+  labels: { groupBy: { label: q.upper(q.field('label')) }, measures: {
+    cats: q.distinct(q.field('cat'), { where: q.gt(qty, q.literal(1)) }), days: q.countDistinct(q.dateTrunc(q.field('when'), 'day')), p75: q.percentile(qty, 0.75),
+    spread: q.stdDevSamp(amount), varQty: q.varPop(qty), sdTotal: q.stdDevPop(q.mul(amount, qty)), varFlagged: q.varSamp(amount, { where: q.field('flag') }),
+  } },
+  predicates: {
+    select: {
+      id: q.field('id'), anyA: q.some(q.field('tags'), t => q.eq(t, q.literal('a'))), allSmall: q.every(q.field('tags'), t => q.in(t, q.literal([0, 1, -0, null]))),
+      twin: q.some(q.field('tags'), t => q.some(q.field('tags'), u => q.and(q.neq(t, u), q.eq(q.typeOf(t), q.typeOf(u))))),
+      has1: q.contains(q.field('tags'), q.literal(1)), starts: q.startsWith(q.field('label'), q.literal('x1')), ends: q.endsWith(q.field('label'), q.literal('3')),
+      kind: q.typeOf(q.field('tags')), first: q.get(q.field('tags'), '0'), inCats: q.in(q.field('cat'), q.literal(['a', 1, null, NaN])),
+    },
+    where: q.not(q.every(q.field('tags'), t => q.isNullish(t))),
+    orderBy: [{ expr: q.field('tags'), direction: 'desc' as const }, { expr: q.field('id') }],
+  },
+  math: {
+    select: {
+      id: q.field('id'), mod: q.mod(qty, q.literal(3)), pow: q.pow(qty, q.literal(2)), sqrt: q.sqrt(qty), ln: q.ln(q.add(qty, q.literal(1))), exp: q.exp(qty),
+      and: q.bitAnd(q.field('id'), q.literal(11)), or: q.bitOr(qty, q.literal(2 ** 40)), xor: q.bitXor(q.field('id'), qty, q.literal(-5)), not: q.bitNot(qty),
+      bigAnd: q.bitAnd(q.coalesce(q.field('big'), q.literal(0n)), q.literal(0xffffn)), least: q.least(amount, qty), greatest: q.greatest(q.field('label'), q.field('cat')),
+      text: q.toText(amount), back: q.parseNumber(q.toText(amount)), parts: q.split(q.field('label'), q.literal('x')),
+      swapped: q.replaceAll(q.field('label'), q.literal('x'), q.literal('$&')), at: q.indexOf(q.concat(q.literal('😀'), q.field('label')), q.literal('3')),
+    },
+    orderBy: [{ expr: q.least(amount, qty) }, { expr: q.field('id') }],
+  },
+  spans: {
+    select: {
+      id: q.field('id'), bins: q.dateTrunc(q.field('when'), 'day', { binSize: 3 }), sunday: q.dateTrunc(q.field('when'), 'week', { startOfWeek: 'sunday', binSize: 2 }),
+      hours: q.dateTrunc(q.field('when'), 'hour', { binSize: 5 }), second: q.dateTrunc(q.toDate(q.add(q.epochMs(q.field('when')), q.mul(q.field('id'), q.literal(777)))), 'second'),
+      later: q.dateAdd(q.field('when'), 'month', qty), back: q.dateAdd(q.field('when'), 'hour', q.mul(qty, q.literal(-7))),
+      weeks: q.dateDiff(q.field('when'), q.dateAdd(q.field('when'), 'day', q.mul(qty, q.literal(3))), 'week', { startOfWeek: 'sunday' }),
+      months: q.dateDiff(q.literal(new Date(Date.UTC(2023, 0, 31))), q.field('when'), 'month'), quarters: q.dateDiff(q.field('when'), q.literal(new Date(Date.UTC(2021, 5, 1))), 'quarter'),
+      iso: q.datePart(q.field('when'), 'isoWeek'), isoYear: q.datePart(q.field('when'), 'isoWeekYear'), doy: q.datePart(q.field('when'), 'dayOfYear'),
+      ms: q.datePart(q.toDate(q.add(q.epochMs(q.field('when')), q.field('id'))), 'millisecond'),
+    },
+  },
+  lists: {
+    groupBy: { tags: q.field('tags') },
+    measures: { n: q.count(), labels: q.distinct(q.field('label')), tagSets: q.countDistinct(q.field('tags')), low: q.min(q.field('tags')), high: q.max(q.field('tags')) },
+    orderBy: [{ field: 'n', direction: 'desc' as const }],
+  },
 } as const;
-const kinds = { rows: 'rows', grouped: 'aggregate', exact: 'aggregate', composite: 'aggregate', scalar: 'aggregate', distinct: 'aggregate', view: 'view', functions: 'rows', calendar: 'aggregate', labels: 'aggregate', unwind: 'aggregate' } as const;
+const kinds = { rows: 'rows', grouped: 'aggregate', exact: 'aggregate', composite: 'aggregate', scalar: 'aggregate', distinct: 'aggregate', view: 'view', functions: 'rows', calendar: 'aggregate', labels: 'aggregate', unwind: 'aggregate',
+  predicates: 'rows', math: 'rows', spans: 'rows', lists: 'aggregate' } as const;
 const prepare = (name: keyof typeof plans) => kinds[name] === 'rows' ? q.rows(plans[name] as never) : kinds[name] === 'view' ? q.view(plans.view) : q.aggregate(plans[name] as never);
 async function sources(data: Row[]): Promise<Array<[string, RecordSource<Row>]>> {
   const cached = createImmutableArraySource(data, { keyCache: { maxBytes: 64 * 1024 * 1024 } });
@@ -112,6 +152,7 @@ describe('partials merged in source order match the oracle', () => {
     calendar: plans.calendar,
     labels: plans.labels,
     unwind: plans.unwind,
+    lists: plans.lists,
   };
   for (const seed of [1, 7]) for (const [name, descriptor] of Object.entries(mergeable)) {
     it(`${name} plan, seed ${seed}, split into 1, 2 and 5 parts`, async () => {

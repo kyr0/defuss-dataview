@@ -275,7 +275,7 @@ export class KeyCache {
         for (let i = 0; i < sorters.length; i++) { const result = details.compareValues(access[i](a), access[i](b)); if (result) return sorters[i].direction === 'desc' ? -result : result; }
         return 0;
       } : undefined;
-      const codeUnit = query.ordering.comparisonId === 'dataview-order-v1:code-unit';
+      const codeUnit = query.ordering.comparisonId === 'dataview-order-v2:code-unit';
       const indexed = details?.filters.flatMap(filter => {
         const blocks = lease.entries.get(filter.field)?.blocks;
         const test = blocks ? compileBlockFilter(filter, codeUnit) : undefined;

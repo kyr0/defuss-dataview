@@ -1,18 +1,18 @@
 import { DataviewError } from '../stream/common.js';
-import { bytesOf } from '../values.js';
+import { bytesOf, listKey } from '../values.js';
 import { ENTRY_BYTES, latin1, ownBytes, retainedBytes } from './aggregate.js';
 import type { Ledger } from './aggregate.js';
 
 /**
  * Exact grouping on native Maps: a trie with one level per key component, each level split into maps per key family.
  * SameValueZero on primitives already gives the documented equality (NaNs together, +0 with -0, null apart from
- * undefined, 1 apart from 1n and '1'). Value-mode Dates key on their timestamp and binary values on their visible
- * bytes, each in its own map, so a Date never meets a number and bytes never meet a string. Other objects key on
- * identity. No delimiter concatenation or JSON tuple can merge distinct typed tuples.
+ * undefined, 1 apart from 1n and '1'). Value-mode Dates key on their timestamp, binary values on their visible
+ * bytes and arrays on listKey(), each in its own map, so a Date never meets a number and bytes never meet a string.
+ * Other objects key on identity. No delimiter concatenation or JSON tuple can merge distinct typed tuples.
  * HYPOTHESIS: a custom open-addressed table beats Map only for some single numeric keys; falsifier: scripts/benchmark-compute.mjs
  * (documentation/COMPUTE_PERFORMANCE.md records the measurement and the decision).
  */
-interface Level { p?: Map<unknown, Level | number>; d?: Map<number, Level | number>; b?: Map<string, Level | number>; o?: Map<object, Level | number> }
+interface Level { p?: Map<unknown, Level | number>; d?: Map<number, Level | number>; b?: Map<string, Level | number>; l?: Map<string, Level | number>; o?: Map<object, Level | number> }
 export const MAX_GROUP_ID = 2 ** 32 - 2;
 
 export class GroupTable {
@@ -69,6 +69,7 @@ export class GroupTable {
       if (value instanceof Date) { this.key = value.getTime(); return (level.d ??= new Map()) as Map<unknown, Level | number>; }
       const bytes = bytesOf(value);
       if (bytes) { this.key = latin1(bytes); return (level.b ??= new Map()) as Map<unknown, Level | number>; }
+      if (Array.isArray(value)) { this.key = listKey(value); return (level.l ??= new Map()) as Map<unknown, Level | number>; }
     }
     return (level.o ??= new Map()) as Map<unknown, Level | number>;
   }

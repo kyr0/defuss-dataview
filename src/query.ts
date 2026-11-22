@@ -2,7 +2,7 @@ import { compileAccessor } from './fields.js';
 import { registerQueryDetails } from './query-internals.js';
 import type { CapturedFilter } from './query-internals.js';
 import { createDataview } from './normalize.js';
-import { bytesOf, createValueOperations, invalidValue } from './values.js';
+import { createValueOperations, invalidValue, snapshot } from './values.js';
 import type { DataviewFilter, DataviewRow, DataviewSorter } from './types.js';
 import type { QuerySemantics } from './values.js';
 export { compareValues, createValueOperations } from './values.js';
@@ -24,12 +24,7 @@ export interface CompiledQuery {
   compare(left: DataviewRow, right: DataviewRow): number;
 }
 /** Capture mutable value operands; opaque object equality keeps identity. */
-function operand(value: unknown, byValue: boolean): unknown {
-  if (!byValue) return value;
-  if (value instanceof Date) return new Date(value.getTime());
-  const bytes = bytesOf(value);
-  return bytes ? bytes.slice() : value;
-}
+const operand = snapshot;
 /** Compile once per execution. Closures capture descriptor configuration. */
 export function compileQuery(request: QueryDescriptor = {}): CompiledQuery {
   const view = createDataview({ filters: request.filters as DataviewFilter[] | undefined, sorters: request.sorters as DataviewSorter[] | undefined });

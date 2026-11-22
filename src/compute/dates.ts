@@ -5,12 +5,21 @@
  * VERIFIED: src/compute/dates.test.ts compares every unit and part with Temporal in zones with DST gaps and repeated
  * hours at midnight, a 30-minute DST shift and a 45-minute offset.
  */
-export type DateUnit = 'year' | 'quarter' | 'month' | 'week' | 'day' | 'hour' | 'minute';
-export type DatePart = 'year' | 'quarter' | 'month' | 'day' | 'weekday' | 'hour' | 'minute';
-export const DATE_UNITS: ReadonlySet<string> = new Set<DateUnit>(['year', 'quarter', 'month', 'week', 'day', 'hour', 'minute']);
-export const DATE_PARTS: ReadonlySet<string> = new Set<DatePart>(['year', 'quarter', 'month', 'day', 'weekday', 'hour', 'minute']);
+export type DateUnit = 'year' | 'quarter' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
+export type DatePart = 'year' | 'quarter' | 'month' | 'day' | 'weekday' | 'hour' | 'minute' | 'second' | 'millisecond' | 'dayOfYear' | 'isoWeek' | 'isoWeekYear';
+/** dateAdd() and dateDiff() take the units of dateTrunc(). */
+export type SpanUnit = DateUnit;
+export type Weekday = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export const DATE_UNITS: ReadonlySet<string> = new Set<DateUnit>(['year', 'quarter', 'month', 'week', 'day', 'hour', 'minute', 'second', 'millisecond']);
+/** dateAdd() and dateDiff() take the units of dateTrunc(). */
+export const SPAN_UNITS = DATE_UNITS;
+export const DATE_PARTS: ReadonlySet<string> = new Set<DatePart>(['year', 'quarter', 'month', 'day', 'weekday', 'hour', 'minute', 'second', 'millisecond', 'dayOfYear', 'isoWeek', 'isoWeekYear']);
+/** Index 0 is Monday, the default start of a week. */
+export const WEEKDAYS: readonly Weekday[] = Object.freeze(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
 
 const MINUTE = 60_000, HOUR = 3_600_000, DAY = 86_400_000;
+/** Milliseconds of the units below a day; days and longer follow the local calendar instead. */
+const SIZE: Partial<Record<string, number>> = { millisecond: 1, second: 1000, minute: MINUTE, hour: HOUR };
 /** The largest distance of a valid Date from the epoch, in milliseconds. */
 export const DATE_RANGE = 8.64e15;
 const mod = (a: number, b: number) => ((a % b) + b) % b;
@@ -144,26 +153,108 @@ function resolve(zone: Zone, w: number, offset: number): number {
   return found.length ? found[0] : w - zone.offset(w - DAY);
 }
 
-export function truncate(t: number, unit: DateUnit, zone: Zone): number {
+/** Day number of 2000-01-01, where MongoDB starts counting bins. */
+const REF_DAY = days(2000, 1, 1);
+/** Weekday index of a day number, 0 = Monday: day 0 (1970-01-01) was a Thursday. */
+const weekday = (day: number) => mod(day + 3, 7);
+
+/**
+ * The start of the unit containing `t`. A bin of `bin` units counts from 2000-01-01 as MongoDB's $dateTrunc does:
+ * units below a day in elapsed time from that day's local midnight, days and weeks in local days (weeks from the
+ * first `weekStart` day on or after it), months, quarters and years in local months from January 2000.
+ * VERIFIED: MongoDB 9.0.8 on this host, 2026-11-22, for every unit with and without binSize in UTC, Europe/Berlin
+ * (also on DST days), Asia/Kolkata, America/Caracas and Asia/Kathmandu; src/compute/calendar.test.ts replays them.
+ * A single unit below a day stays the wall-clock unit of 0.8.0, which agrees with MongoDB except in zones whose
+ * offset differs from their offset of 2000-01-01 by part of the unit (Australia/Lord_Howe in winter).
+ */
+export function truncate(t: number, unit: DateUnit, zone: Zone, bin = 1, weekStart = 0): number {
+  const size = SIZE[unit];
+  if (size !== undefined && bin > 1) {
+    const ref = zone.dayStart(REF_DAY), span = size * bin;
+    return ref + Math.floor((t - ref) / span) * span;
+  }
+  if (unit === 'millisecond') return t;
+  // Offsets are whole seconds, so local seconds start where UTC seconds do.
+  if (unit === 'second') return t - mod(t, 1000);
   const offset = zone.offset(t), local = t + offset;
   if (unit === 'minute' || unit === 'hour') {
-    const size = unit === 'minute' ? MINUTE : HOUR, w = local - mod(local, size);
+    const w = local - mod(local, size!);
     return zone === UTC ? w : resolve(zone, w, offset);
   }
   let day = Math.floor(local / DAY);
-  // Day 0 (1970-01-01) was a Thursday: ISO weekday index 3, Monday 0.
-  if (unit === 'week') day -= mod(day + 3, 7);
-  else if (unit !== 'day') { civil(day); day = days(Y, unit === 'year' ? 1 : unit === 'quarter' ? M - (M - 1) % 3 : M, 1); }
+  if (unit === 'day') { if (bin > 1) day = REF_DAY + Math.floor((day - REF_DAY) / bin) * bin; }
+  else if (unit === 'week') {
+    day -= mod(weekday(day) - weekStart, 7);
+    if (bin > 1) { const ref = REF_DAY + mod(weekStart - weekday(REF_DAY), 7), span = 7 * bin; day = ref + Math.floor((day - ref) / span) * span; }
+  } else {
+    civil(day);
+    const span = (unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1) * bin, index = Math.floor(((Y - 2000) * 12 + M - 1) / span) * span;
+    day = days(2000 + Math.floor(index / 12), mod(index, 12) + 1, 1);
+  }
   return zone.dayStart(day);
+}
+
+const monthDays = (year: number, month: number) => (month === 12 ? days(year + 1, 1, 1) : days(year, month + 1, 1)) - days(year, month, 1);
+/**
+ * `t` plus `n` units, as MongoDB's $dateAdd: units below a day add elapsed time; days and weeks keep the local wall
+ * clock; months, quarters and years keep it too and clamp the day to the end of a shorter month (Jan 31 + 1 month is
+ * Feb 28 or 29). A wall time keeps the offset `t` had when it can, else takes the earlier instant, or the time past a
+ * gap. VERIFIED: MongoDB 9.0.8, 2026-11-22: in Europe/Berlin adding a day from 02:30 CEST into the repeated hour gave
+ * 02:30 CEST and from 02:30 CET gave 02:30 CET; into the spring gap it gave 03:30 CEST.
+ */
+export function add(t: number, unit: DateUnit, n: number, zone: Zone): number {
+  const size = SIZE[unit];
+  if (size !== undefined) return t + n * size;
+  const offset = zone.offset(t), local = t + offset, day = Math.floor(local / DAY), time = local - day * DAY;
+  let target: number;
+  if (unit === 'day' || unit === 'week') target = day + n * (unit === 'week' ? 7 : 1);
+  else {
+    civil(day);
+    const index = Y * 12 + M - 1 + n * (unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1), year = Math.floor(index / 12), month = mod(index, 12) + 1;
+    target = days(year, month, Math.min(D, monthDays(year, month)));
+  }
+  const w = target * DAY + time;
+  return zone === UTC ? w : resolve(zone, w, offset);
+}
+
+/**
+ * Units from `s` to `e`, negative when `e` is earlier, as MongoDB's $dateDiff counts them: boundaries crossed, not
+ * whole units elapsed. Days and longer compare local calendar dates (weeks from `weekStart`); smaller units compare
+ * local wall times less the whole units of an offset change, so a repeated hour still counts.
+ * VERIFIED: MongoDB 9.0.8, 2026-11-22: Jan 31 23:00 to Feb 1 00:00 is 1 month and 1 day; 02:30 CEST to 02:30 CET in
+ * Europe/Berlin is 1 hour; in Australia/Lord_Howe, whose offset changes by 30 minutes, 01:50 (+11) to 01:40 (+10:30)
+ * is 0 hours and 01:50 (+10:30) to 02:40 (+11) is 1.
+ */
+export function diff(s: number, e: number, unit: DateUnit, zone: Zone, weekStart = 0): number {
+  const size = SIZE[unit];
+  if (size === 1) return e - s;
+  const os = zone.offset(s), oe = zone.offset(e);
+  if (size !== undefined) return Math.floor((e + oe) / size) - Math.floor((s + os) / size) - Math.trunc((oe - os) / size);
+  const ds = Math.floor((s + os) / DAY), de = Math.floor((e + oe) / DAY);
+  if (unit === 'day') return de - ds;
+  if (unit === 'week') return (de - mod(weekday(de) - weekStart, 7) - (ds - mod(weekday(ds) - weekStart, 7))) / 7;
+  civil(ds); const is = Y * 12 + M - 1;
+  civil(de); const ie = Y * 12 + M - 1;
+  const span = unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1;
+  return Math.floor(ie / span) - Math.floor(is / span);
 }
 
 export function part(t: number, which: DatePart, zone: Zone): number {
   const local = t + zone.offset(t), day = Math.floor(local / DAY);
   switch (which) {
-    case 'weekday': return mod(day + 3, 7) + 1;
+    case 'weekday': return weekday(day) + 1;
     case 'hour': return Math.floor(mod(local, DAY) / HOUR);
     case 'minute': return Math.floor(mod(local, HOUR) / MINUTE);
+    case 'second': return Math.floor(mod(local, MINUTE) / 1000);
+    case 'millisecond': return mod(local, 1000);
+    case 'isoWeek': case 'isoWeekYear': {
+      // An ISO week belongs to the year of its Thursday; week 1 holds the year's first Thursday.
+      const thursday = day - weekday(day) + 3;
+      civil(thursday);
+      return which === 'isoWeekYear' ? Y : Math.floor((thursday - days(Y, 1, 1)) / 7) + 1;
+    }
   }
   civil(day);
+  if (which === 'dayOfYear') return day - days(Y, 1, 1) + 1;
   return which === 'year' ? Y : which === 'month' ? M : which === 'day' ? D : Math.floor((M - 1) / 3) + 1;
 }

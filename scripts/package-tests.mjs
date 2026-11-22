@@ -79,6 +79,9 @@ assert.equal(applyDataview([{id:1,parentId:2},{id:2,parentId:1}],createDataview(
   assert.deepEqual((await q.rows({select:{double:q.mul(q.field('n'),q.literal(2))},orderBy:[{expr:q.field('n'),direction:'desc'}]}).evaluate(orders,{limit:1})).rows,[{double:8}]);
   const spans = streaming.createImmutableArraySource([{from:new Date(0),to:new Date(7200000)},{from:new Date(0),to:new Date(3600000)}]);
   assert.deepEqual((await q.aggregate({measures:{mean:q.avg(q.sub(q.epochMs(q.field('to')),q.epochMs(q.field('from'))))}}).evaluate(spans)).rows,[{mean:5400000}]);
+  const tagged = streaming.createImmutableArraySource([{tags:['a','b'],at:new Date(Date.UTC(2026,0,31,12)),x:2},{tags:['a','b'],at:new Date(Date.UTC(2026,2,1)),x:4},{tags:[],at:new Date(0),x:6}]);
+  assert.deepEqual((await q.aggregate({groupBy:{tags:q.field('tags')},measures:{n:q.count(),sd:q.stdDevPop(q.field('x'))}}).evaluate(tagged)).rows,[{tags:['a','b'],n:2,sd:1},{tags:[],n:1,sd:0}]);
+  assert.deepEqual((await q.rows({select:{b:q.some(q.field('tags'),t=>q.eq(t,q.literal('b'))),later:q.dateAdd(q.field('at'),'month',q.literal(1)),flags:q.bitAnd(q.field('x'),q.literal(3))}}).evaluate(tagged,{limit:1})).rows,[{b:true,later:new Date(Date.UTC(2026,1,28,12)),flags:2}]);
   const exactPlan = q.aggregate({groupBy:{c:q.field('c')},measures:{n:q.count(),total:q.sum(q.field('n')),big:q.sumBigInt(q.field('big'))},numberMode:'exact'});
   const parts = await Promise.all([[{c:'de',n:2,big:1n}],[{c:'fr',n:3,big:2n},{c:'de',n:4,big:3n}]].map(rows => exactPlan.partial(streaming.createArraySource(rows,{isolation:'immutable'}))));
   assert.deepEqual((await exactPlan.merge(parts.map(part => structuredClone(part)))).rows,[{c:'de',n:2,total:6,big:4n},{c:'fr',n:1,total:3,big:2n}]);

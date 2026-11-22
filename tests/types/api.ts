@@ -109,7 +109,24 @@ sq.cond(sq.field('amount'), sq.literal(1), sq.literal(2));
 const tagged = sq.aggregate({ groupBy: { tag: sq.each(sq.field('tags')) }, measures: { n: sq.count() } });
 const taggedRow: { tag: string | undefined; n: number } = {} as Awaited<ReturnType<typeof tagged.evaluate>>['rows'][number];
 const taggedBack: string | undefined = taggedRow.tag;
-void [calendarRow, bandedRow, durationRow, taggedBack];
+// 0.10.0: quantifiers type their element from the list; the rest keeps the usual nullable results.
+const lists = sq.rows({ select: {
+  vip: sq.some(sq.field('tags'), tag => sq.eq(sq.lower(tag), sq.literal('vip'))), all: sq.every(sq.field('tags'), tag => sq.startsWith(tag, sq.literal('a'))),
+  kind: sq.typeOf(sq.field('tags')), flags: sq.bitAnd(sq.literal(6), sq.literal(3)), wide: sq.bitOr(sq.literal(1n), sq.literal(2n)), low: sq.least(sq.field('amount'), sq.literal(0)),
+  later: sq.dateAdd(sq.field('at'), 'month', sq.literal(1), { timeZone: 'Europe/Berlin' }), weeks: sq.dateDiff(sq.field('at'), sq.literal(new Date()), 'week', { startOfWeek: 'sunday' }),
+  bins: sq.dateTrunc(sq.field('at'), 'minute', { binSize: 15 }), parts: sq.split(sq.field('customer'), sq.literal(' ')), n: sq.parseNumber(sq.field('customer')),
+} });
+const listRow: { vip: boolean; all: boolean; kind: string; flags: number | null; wide: bigint | null; low: number | null; later: Date | null; weeks: number | null; bins: Date | null; parts: string[] | null; n: number | null }
+  = {} as Awaited<ReturnType<typeof lists.evaluate>>['rows'][number];
+const spread = sq.aggregate({ measures: { sd: sq.stdDevSamp(sq.field('amount')), v: sq.varPop(sq.field('amount')) } });
+const spreadRow: { sd: number | null; v: number | null } = {} as Awaited<ReturnType<typeof spread.evaluate>>['rows'][number];
+// @ts-expect-error A predicateFn returns a Boolean expression.
+sq.some(sq.field('tags'), tag => tag);
+// @ts-expect-error startOfWeek names a weekday.
+sq.dateTrunc(sq.field('at'), 'week', { startOfWeek: 'mon' });
+// @ts-expect-error Variance is numeric.
+sq.varPop(sq.field('customer'));
+void [calendarRow, bandedRow, durationRow, taggedBack, listRow, spreadRow];
 import type { PartialAggregate } from 'defuss-dataview/compute';
 const exactPlan = cq.aggregate({ groupBy: { country: cq.field('country') }, measures: { revenue: cq.sum(revenue) }, numberMode: 'exact' });
 const orderSource = createImmutableArraySource<Order>([]);

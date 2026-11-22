@@ -6,7 +6,44 @@ import { compileQuery, createValueOperations } from '../../src/query.js';
 import { bytesOf, invalidValue } from '../../src/values.js';
 import type { DataviewFilter } from '../../src/types.js';
 
-type Node = { v: 1; op: string; key?: string; path?: string; value?: unknown; args?: Node[]; arg?: Node; where?: Node; unit?: string; part?: string; timeZone?: string; start?: number; length?: number; p?: number };
+type Node = { v: 1; op: string; key?: string; path?: string; value?: unknown; args?: Node[]; arg?: Node; where?: Node; unit?: string; part?: string; timeZone?: string; start?: number; length?: number; p?: number;
+  level?: number; binSize?: number; startOfWeek?: string };
+const DAY = 86_400_000, WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const SIZES: Record<string, number> = { millisecond: 1, second: 1000, minute: 60_000, hour: 3_600_000 };
+const REF = Date.UTC(2000, 0, 1);
+// UTC calendar reference built on Date's own UTC fields, apart from src/compute/dates.ts. Weekday index 0 is Monday.
+const mondayIndex = (t: number) => (new Date(t).getUTCDay() + 6) % 7;
+const dayStart = (t: number) => Math.floor(t / DAY) * DAY;
+const monthIndex = (t: number) => { const d = new Date(t); return (d.getUTCFullYear() - 2000) * 12 + d.getUTCMonth(); };
+const fromMonthIndex = (i: number) => Date.UTC(2000 + Math.floor(i / 12), ((i % 12) + 12) % 12, 1);
+function utcTrunc(t: number, unit: string, bin: number, week: number): number {
+  if (SIZES[unit] !== undefined) { const size = SIZES[unit] * bin; return REF + Math.floor((t - REF) / size) * size; }
+  if (unit === 'day') return REF + Math.floor((dayStart(t) - REF) / (bin * DAY)) * bin * DAY;
+  if (unit === 'week') {
+    const start = dayStart(t) - ((mondayIndex(t) - week + 7) % 7) * DAY, ref = REF + ((week - mondayIndex(REF) + 7) % 7) * DAY;
+    return ref + Math.floor((start - ref) / (7 * bin * DAY)) * 7 * bin * DAY;
+  }
+  const span = (unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1) * bin;
+  return fromMonthIndex(Math.floor(monthIndex(t) / span) * span);
+}
+function utcAdd(t: number, unit: string, n: number): number {
+  if (SIZES[unit] !== undefined) return t + n * SIZES[unit];
+  if (unit === 'day' || unit === 'week') return t + n * DAY * (unit === 'week' ? 7 : 1);
+  const d = new Date(t), months = n * (unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1);
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + months, last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return Date.UTC(y, m, Math.min(d.getUTCDate(), last), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds());
+}
+function utcDiff(s: number, e: number, unit: string, week: number): number {
+  if (SIZES[unit] !== undefined) return Math.floor(e / SIZES[unit]) - Math.floor(s / SIZES[unit]);
+  if (unit === 'day') return (dayStart(e) - dayStart(s)) / DAY;
+  if (unit === 'week') return (utcTrunc(e, 'week', 1, week) - utcTrunc(s, 'week', 1, week)) / (7 * DAY);
+  const span = unit === 'year' ? 12 : unit === 'quarter' ? 3 : 1;
+  return Math.floor(monthIndex(e) / span) - Math.floor(monthIndex(s) / span);
+}
+function isoWeek(t: number): [number, number] {
+  const thursday = dayStart(t) + (3 - mondayIndex(t)) * DAY, year = new Date(thursday).getUTCFullYear();
+  return [year, Math.floor((thursday - Date.UTC(year, 0, 1)) / (7 * DAY)) + 1];
+}
 type Descriptor = Record<string, any>;
 export type OracleResult = { rows: Record<string, unknown>[]; totals?: Record<string, unknown>; total: number; matches: number };
 
@@ -31,6 +68,31 @@ export function exactSum(values: readonly number[]): number {
   const result = sign * Number(kept) * 2 ** (shift - 1074);
   if (!Number.isFinite(result)) throw new RangeError('overflow');
   return result;
+}
+
+/** x as an integer multiple of 2^-1074. */
+function scaled(x: number): bigint {
+  let m = Math.abs(x), e = 0;
+  while (!Number.isInteger(m)) { m *= 2; e++; }
+  return (x < 0 ? -1n : 1n) * (BigInt(m) << BigInt(1074 - e));
+}
+/** a * 2^-k rounded once to the nearest double, ties to even; normal results only, as the tests use. */
+function roundScaled(a: bigint, k: number): number {
+  if (a === 0n) return 0;
+  const sign = a < 0n ? -1 : 1, abs = a < 0n ? -a : a, bits = abs.toString(2).length;
+  if (bits <= 53) return sign * Number(abs) * 2 ** -k;
+  const shift = bits - 55;
+  let kept = abs >> BigInt(shift);
+  if (abs & ((1n << BigInt(shift)) - 1n)) kept |= 1n;
+  return sign * Number(kept) * 2 ** (shift - k);
+}
+/** Variances from exact BigInt sums: n * sum(x^2) - sum(x)^2 rounded once, then divided as src/compute does. */
+export function variance(xs: readonly number[], sample: boolean): number | null {
+  const n = xs.length;
+  if (n < (sample ? 2 : 1)) return null;
+  let sum = 0n, squares = 0n;
+  for (const x of xs) { const X = scaled(x); sum += X; squares += X * X; }
+  return roundScaled(BigInt(n) * squares - sum * sum, 2148) / n / (sample ? n - 1 : n);
 }
 
 function own(value: unknown, key: string): unknown {
@@ -66,18 +128,104 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
     return new Date(`${iso.slice(0, 4)}-01-01T00:00:00Z`);
   };
   const datePart = (d: Date, part: string): number => {
-    const iso = d.toISOString(), month = Number(iso.slice(5, 7));
+    const iso = d.toISOString(), month = Number(iso.slice(5, 7)), t = d.getTime();
+    if (part === 'second') return d.getUTCSeconds();
+    if (part === 'millisecond') return d.getUTCMilliseconds();
+    if (part === 'dayOfYear') return (dayStart(t) - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY + 1;
+    if (part === 'isoWeek' || part === 'isoWeekYear') return isoWeek(t)[part === 'isoWeek' ? 1 : 0];
     return part === 'year' ? Number(iso.slice(0, 4)) : part === 'quarter' ? Math.ceil(month / 3) : part === 'month' ? month : part === 'day' ? Number(iso.slice(8, 10))
       : part === 'weekday' ? (d.getUTCDay() || 7) : part === 'hour' ? Number(iso.slice(11, 13)) : Number(iso.slice(14, 16));
   };
+  const integer = (value: unknown): number | bigint | null => {
+    if (value == null) return null;
+    if (typeof value === 'bigint' || Number.isSafeInteger(value)) return value as number | bigint;
+    if (skip) return null;
+    throw new TypeError('not an integer');
+  };
+  const type = (value: unknown) => value === null ? 'null' : value instanceof Date ? 'date' : value instanceof ArrayBuffer || ArrayBuffer.isView(value) ? 'binary'
+    : Array.isArray(value) ? 'array' : typeof value;
   const copy = (value: unknown) => {
     if (ops.equality !== 'value') return value;
     if (value instanceof Date) return new Date(value.getTime());
     const bytes = bytesOf(value); return bytes ? bytes.slice() : value;
   };
-  const evaluate = (node: Node, row: object): unknown => {
-    const arg = (i: number) => evaluate(node.args![i], row);
+  const evaluate = (node: Node, row: object, env: unknown[] = []): unknown => {
+    const arg = (i: number) => evaluate(node.args![i], row, env);
     switch (node.op) {
+      case 'element': return env[node.level!];
+      case 'some': case 'every': {
+        const list = arg(0);
+        if (!Array.isArray(list)) return false;
+        const test = (item: unknown) => { const inner = [...env]; inner[node.level!] = item; return bool(evaluate(node.args![1], row, inner)); };
+        return node.op === 'some' ? list.some(test) : list.every(test);
+      }
+      case 'get': return node.path!.split('.').reduce<unknown>((value, part) => own(value, part), arg(0));
+      case 'in': { const value = arg(0), list = arg(1); return Array.isArray(list) && list.some(item => ops.equal(value, item)); }
+      case 'contains': { const a = arg(0), b = arg(1); return typeof a === 'string' && typeof b === 'string' ? a.includes(b) : Array.isArray(a) && a.some(item => ops.equal(item, b)); }
+      case 'startsWith': case 'endsWith': { const a = arg(0), b = arg(1); return typeof a === 'string' && typeof b === 'string' && (node.op === 'startsWith' ? a.startsWith(b) : a.endsWith(b)); }
+      case 'typeOf': return type(arg(0));
+      case 'mod': case 'pow': {
+        if (node.op === 'mod') { const a = arg(0), b = arg(1); if (typeof a === 'bigint' && typeof b === 'bigint') { if (b === 0n) throw new RangeError('mod by zero'); return a % b; } }
+        const l = num(arg(0)); if (l === null) return null;
+        const r = num(arg(1)); if (r === null) return null;
+        if (node.op === 'mod') { if (r === 0) throw new RangeError('mod by zero'); return l % r; }
+        const v = Math.pow(l, r); if (!Number.isFinite(v)) throw new RangeError('pow'); return v;
+      }
+      case 'sqrt': { const x = num(arg(0)); if (x === null) return null; if (x < 0) throw new RangeError('sqrt'); return Math.sqrt(x); }
+      case 'ln': { const x = num(arg(0)); if (x === null) return null; if (x <= 0) throw new RangeError('ln'); return Math.log(x); }
+      case 'exp': { const x = num(arg(0)); if (x === null) return null; const v = Math.exp(x); if (!Number.isFinite(v)) throw new RangeError('exp'); return v; }
+      case 'bitAnd': case 'bitOr': case 'bitXor': {
+        const values = node.args!.map(child => integer(evaluate(child, row, env)));
+        if (values.some(v => v === null)) return null;
+        const big = typeof values[0] === 'bigint';
+        if (values.some(v => (typeof v === 'bigint') !== big)) { if (skip) return null; throw new TypeError('mixed'); }
+        const words = values.map(v => BigInt(v as number | bigint));
+        const out = words.reduce((x, y) => node.op === 'bitAnd' ? x & y : node.op === 'bitOr' ? x | y : x ^ y);
+        return big ? out : Number(BigInt.asIntN(64, out));
+      }
+      case 'bitNot': { const v = integer(arg(0)); return v === null ? null : typeof v === 'bigint' ? ~v : Number(BigInt.asIntN(64, ~BigInt(v))); }
+      case 'least': case 'greatest': {
+        let best: unknown = null, seen = false;
+        for (const child of node.args!) { const v = evaluate(child, row, env); if (invalidValue(v)) continue; if (!seen || (node.op === 'least' ? ops.compare(v, best) < 0 : ops.compare(v, best) > 0)) { best = v; seen = true; } }
+        return best;
+      }
+      case 'split': { const s = str(arg(0)); if (s === null) return null; const sep = str(arg(1)); if (sep === null) return null; if (!sep) throw new TypeError('empty'); return s.split(sep); }
+      case 'replaceAll': {
+        const s = str(arg(0)); if (s === null) return null;
+        const find = str(arg(1)); if (find === null) return null;
+        const by = str(arg(2)); if (by === null) return null;
+        if (!find) throw new TypeError('empty');
+        let out = '', from = 0;
+        for (let at = s.indexOf(find); at >= 0; at = s.indexOf(find, from)) { out += s.slice(from, at) + by; from = at + find.length; }
+        return out + s.slice(from);
+      }
+      case 'indexOf': { const s = str(arg(0)); if (s === null) return null; const find = str(arg(1)); if (find === null) return null; const at = s.indexOf(find); return at < 0 ? -1 : Array.from(s.slice(0, at)).length; }
+      case 'toText': {
+        const v = arg(0);
+        if (v == null) return null;
+        if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+        if (['string', 'number', 'bigint', 'boolean'].includes(typeof v)) return `${v as string}`;
+        throw new TypeError('toText');
+      }
+      case 'parseNumber': {
+        const v = arg(0);
+        if (v == null) return null;
+        const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?\s*$/.test(v) ? Number(v) : NaN;
+        if (Number.isFinite(n)) return n;
+        if (skip) return null;
+        throw new TypeError('parseNumber');
+      }
+      case 'toDate': { const d = when(arg(0)); return d === null ? null : new Date(d.getTime()); }
+      case 'dateAdd': case 'dateDiff': {
+        if (node.timeZone !== undefined && node.timeZone !== 'UTC') throw new TypeError('oracle: UTC only');
+        const d = when(arg(0)); if (d === null) return null;
+        if (node.op === 'dateDiff') { const e = when(arg(1)); return e === null ? null : utcDiff(d.getTime(), e.getTime(), node.unit!, WEEK.indexOf(node.startOfWeek ?? 'monday')); }
+        const n = num(arg(1)); if (n === null) return null;
+        if (!Number.isSafeInteger(n)) { if (skip) return null; throw new TypeError('amount'); }
+        const t = utcAdd(d.getTime(), node.unit!, n);
+        if (!(Math.abs(t) <= 8.64e15)) throw new RangeError('range');
+        return new Date(t);
+      }
       case 'field': return own(row, node.key!);
       case 'path': return node.path!.split('.').reduce<unknown>((value, part) => own(value, part), row);
       case 'literal': return copy(node.value);
@@ -90,7 +238,7 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
         if (!Number.isFinite(result)) throw new RangeError('overflow');
         return result;
       }
-      case 'coalesce': { let value: unknown; for (const child of node.args!) { value = evaluate(child, row); if (value != null) return value; } return value; }
+      case 'coalesce': { let value: unknown; for (const child of node.args!) { value = evaluate(child, row, env); if (value != null) return value; } return value; }
       case 'eq': return ops.equal(arg(0), arg(1));
       case 'neq': return !ops.equal(arg(0), arg(1));
       case 'gt': case 'gte': case 'lt': case 'lte': {
@@ -100,8 +248,8 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
         return node.op === 'gt' ? c > 0 : node.op === 'gte' ? c >= 0 : node.op === 'lt' ? c < 0 : c <= 0;
       }
       case 'isNullish': return arg(0) == null;
-      case 'and': for (const child of node.args!) if (!bool(evaluate(child, row))) return false; return true;
-      case 'or': for (const child of node.args!) if (bool(evaluate(child, row))) return true; return false;
+      case 'and': for (const child of node.args!) if (!bool(evaluate(child, row, env))) return false; return true;
+      case 'or': for (const child of node.args!) if (bool(evaluate(child, row, env))) return true; return false;
       case 'not': return !bool(arg(0));
       case 'cond': return bool(arg(0)) ? arg(1) : arg(2);
       case 'floor': case 'ceil': case 'round': case 'abs': {
@@ -113,13 +261,17 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
       case 'dateTrunc': case 'datePart': {
         if (node.timeZone !== undefined && node.timeZone !== 'UTC') throw new TypeError('oracle: UTC only');
         const d = when(arg(0)); if (d === null) return null;
+        if (node.op === 'dateTrunc' && (node.binSize !== undefined || node.startOfWeek !== undefined || node.unit === 'second' || node.unit === 'millisecond')) {
+          const start = utcTrunc(d.getTime(), node.unit!, node.binSize ?? 1, WEEK.indexOf(node.startOfWeek ?? 'monday'));
+          return Math.abs(start) <= 8.64e15 ? new Date(start) : null;
+        }
         return node.op === 'dateTrunc' ? trunc(d, node.unit!) : datePart(d, node.part!);
       }
       case 'lower': return str(arg(0))?.toLowerCase() ?? null;
       case 'upper': return str(arg(0))?.toUpperCase() ?? null;
       case 'trim': return str(arg(0))?.trim() ?? null;
       case 'substring': { const s = str(arg(0)); if (s === null) return null; const points = [...s]; return points.slice(node.start!, node.length === undefined ? undefined : node.start! + node.length).join(''); }
-      case 'concat': { const parts = []; for (const child of node.args!) { const s = str(evaluate(child, row)); if (s === null) return null; parts.push(s); } return parts.join(''); }
+      case 'concat': { const parts = []; for (const child of node.args!) { const s = str(evaluate(child, row, env)); if (s === null) return null; parts.push(s); } return parts.join(''); }
       case 'length': { const value = arg(0); if (value == null) return null; if (Array.isArray(value)) return value.length; if (typeof value !== 'string') throw new TypeError('no length'); return [...value].length; }
     }
     throw new TypeError(`oracle: unknown op ${node.op}`);
@@ -176,6 +328,12 @@ export function oracle(kind: 'rows' | 'aggregate' | 'view', d: Descriptor, input
       xs.sort((a, b) => a - b);
       const rank = (xs.length - 1) * (m.op === 'median' ? 0.5 : m.p!), below = Math.floor(rank), above = Math.ceil(rank);
       return xs[below] + (rank - below) * (xs[above] - xs[below]);
+    }
+    if (m.op === 'varPop' || m.op === 'varSamp' || m.op === 'stdDevPop' || m.op === 'stdDevSamp') {
+      const xs: number[] = [];
+      for (const row of accepted) { const x = num(evaluate(m.arg!, row)); if (x !== null) xs.push(x); }
+      const v = variance(xs, m.op.endsWith('Samp'));
+      return v === null || m.op.startsWith('var') ? v : Math.sqrt(v);
     }
     if (m.op === 'sumBigInt') {
       let total: bigint | null = null;

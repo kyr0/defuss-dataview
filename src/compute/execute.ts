@@ -79,6 +79,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
           : kind === 'sumBigInt' ? gid => column.addBigInt(gid, arg!(), policy)
           : kind === 'distinct' ? gid => column.addDistinct(gid, arg!())
           : kind === 'values' ? gid => column.addValue(gid, arg!(), policy)
+          : kind === 'moments' ? gid => column.addMoment(gid, arg!(), policy)
           : gid => column.addOrdered(gid, arg!(), ops);
         // Unconditional measures skip the predicate wrapper entirely.
         return pred ? (gid: number) => { if (requireBoolean(pred(), 'measure where')) step(gid); } : step;
@@ -115,7 +116,7 @@ export function execute<T extends object>(plan: Plan, input: RecordSource<T> | M
       const columnsFor = plan.groupFields?.map(field => lease?.columns.get(field));
       // A partial keeps every group for the merge, so it never runs the one-live-group strategy.
       const orderedGroups = !partial && plan.kind === 'aggregate' && !!plan.groupFields && !!columnsFor?.every(c => c && c.domain !== 'mixed')
-        && session?.ordering?.comparisonId === 'dataview-order-v1:code-unit'
+        && session?.ordering?.comparisonId === 'dataview-order-v2:code-unit'
         && sameFields(session.ordering.sorters.slice(0, plan.groupFields.length).map(s => s.field), plan.groupFields);
       const firstSeen = !merging && plan.kind === 'aggregate' && plan.groupBy.length > 0 && !plan.measures.length && !plan.having && !plan.outputOrder.length && o.count !== 'exact' && limit !== undefined;
       const strategy: ComputeStrategy = rowsLike ? (sortRows ? (limit === undefined ? 'sort' : 'top-k') : plan.rowOrder.length ? 'ordered' : 'scan')

@@ -1,5 +1,5 @@
 import { DataviewError, estimateRowBytes } from '../stream/common.js';
-import { bytesOf, invalidValue } from '../values.js';
+import { bytesOf, cloneKeepsEquality, invalidValue, latin1, listKey } from '../values.js';
 import { describe, numeric } from './expressions.js';
 import type { NumericPolicy, ValueOps } from './expressions.js';
 import type { NumberMode, PartialState } from './types.js';
@@ -44,20 +44,15 @@ export function ownBytes(value: unknown): unknown {
   if (ArrayBuffer.isView(value)) return sliceTyped.call(value);
   return value;
 }
-/** Binary bytes as a string key, one char per byte, so equal bytes give equal keys and nothing else does. */
-export function latin1(bytes: Uint8Array): string {
-  let text = '';
-  for (let i = 0; i < bytes.length; i += 8192) text += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  return text;
-}
+export { latin1 };
 // Rough per-entry cost of a Map or Set slot plus its key, charged so the cap tracks table growth.
 export const ENTRY_BYTES = 48;
 
 /**
  * Distinct values of one group, in first-encounter order, under the equality of group keys: SameValueZero on
- * primitives; in value mode Dates by timestamp and binary values by their visible bytes (a private copy is kept), each
- * in its own set so a Date never meets a number; other objects by identity. Sets per family, not a string key per
- * value, because no delimiter or JSON encoding keeps 1, 1n, '1' and a Date at 1 apart.
+ * primitives; in value mode Dates by timestamp, binary values by their visible bytes (a private copy is kept) and
+ * arrays by listKey(), each in its own set so a Date never meets a number; other objects by identity. Sets per family,
+ * not one string key per value, because no delimiter or JSON encoding keeps 1, 1n, '1' and a Date at 1 apart.
  * VERIFIED: src/compute/operators.test.ts 'count distinct values with the equality of group keys', and the oracle's
  * linear search in tests/compute/oracle.ts.
  */
@@ -68,6 +63,7 @@ export class DistinctValues {
   private primitives?: Set<unknown>;
   private dates?: Set<number>;
   private binary?: Set<string>;
+  private lists?: Set<string>;
   private objects?: Set<object>;
   constructor(private readonly byValue: boolean) {}
   add(value: unknown, ledger: Ledger): void {
@@ -79,6 +75,7 @@ export class DistinctValues {
     else {
       const bytes = this.byValue ? bytesOf(value) : undefined;
       if (bytes) { set = (this.binary ??= new Set()) as Set<unknown>; key = latin1(bytes); keyBytes = 16 + bytes.length * 2; }
+      else if (this.byValue && Array.isArray(value)) { set = (this.lists ??= new Set()) as Set<unknown>; key = listKey(value); keyBytes = 16 + (key as string).length * 2; }
       else set = (this.objects ??= new Set()) as Set<unknown>;
     }
     if (set.has(key)) return;
@@ -93,10 +90,10 @@ function bigintBytes(value: bigint): number {
   return 16 + Math.ceil(value.toString(16).replace('-', '').length / 2);
 }
 
-export type StateKind = 'rows' | 'count' | 'sum' | 'min' | 'max' | 'sumBigInt' | 'distinct' | 'values';
+export type StateKind = 'rows' | 'count' | 'sum' | 'min' | 'max' | 'sumBigInt' | 'distinct' | 'values' | 'moments';
 /**
  * One deduplicated state: sum(x) and avg(x) with the same operand and predicate share it, as do countDistinct(x) and
- * distinct(x), and every percentile and median of x.
+ * distinct(x), every percentile and median of x, and the four variance and standard deviation measures of x.
  */
 export interface StateSpec { readonly kind: StateKind; readonly arg: number | undefined; readonly where: number | undefined }
 /** `p` is the fraction of a percentile or median. */
@@ -128,6 +125,14 @@ function roundTerms(terms: readonly number[]): number {
     if (y === x - hi) hi = x;
   }
   return hi;
+}
+
+// Veltkamp's splitter for doubles: 2^27 + 1.
+const SPLIT = 134_217_729;
+/** a * b as hi + lo exactly (Dekker's TwoProduct), for products that neither overflow nor underflow. */
+function twoProduct(a: number, b: number): [number, number] {
+  const p = a * b, t = SPLIT * a, ah = t - (t - a), al = a - ah, u = SPLIT * b, bh = u - (u - b), bl = b - bh;
+  return [p, ((ah * bh - p) + ah * bl + al * bh) + al * bl];
 }
 
 /**
@@ -167,6 +172,7 @@ export class StateColumns {
       case 'sum': return this.compensated ? 24 : 16;
       case 'min': case 'max': return 9;
       case 'sumBigInt': case 'distinct': case 'values': return 8;
+      case 'moments': return 16;
     }
   }
   ensure(gid: number): void {
@@ -184,6 +190,7 @@ export class StateColumns {
         break;
       case 'min': case 'max': this.seen = grow(this.seen, n => new Uint8Array(n)); (this.values ??= []).length = capacity; break;
       case 'sumBigInt': case 'distinct': case 'values': (this.values ??= []).length = capacity; break;
+      case 'moments': this.counts = grow(this.counts, n => new Float64Array(n)); (this.values ??= []).length = capacity; break;
     }
     this.ledger.release(this.bytes); this.bytes = bytes; this.capacity = capacity;
   }
@@ -199,6 +206,7 @@ export class StateColumns {
   private slotBytes(value: unknown): number {
     const { kind } = this.spec;
     if (kind === 'distinct') return (value as DistinctValues).bytes;
+    if (kind === 'moments') { const [sums, squares] = value as [number[], number[]]; return termBytes(sums) + termBytes(squares); }
     return kind === 'values' || (this.exact && kind === 'sum') ? termBytes(value as number[]) : retainedBytes(value);
   }
   countRow(gid: number): void {
@@ -234,6 +242,10 @@ export class StateColumns {
   private addExact(gid: number, value: number): void {
     const values = this.values!, terms = values[gid] as number[] | undefined;
     if (terms === undefined) { this.ledger.reserve(termBytes([value])); values[gid] = [value]; return; }
+    this.grow(terms, value);
+  }
+  /** Adds one double to a nonoverlapping expansion in place, reserving its growth first. */
+  private grow(terms: number[], value: number): void {
     this.ledger.reserve(8);
     const length = terms.length;
     let x = value, i = 0;
@@ -249,12 +261,50 @@ export class StateColumns {
     terms[i] = x; terms.length = i + 1;
     this.ledger.release(8 * (length - i));
   }
-  /** min/max over DataView's typed order; invalid values skipped, opaque values rejected; ties keep the first. */
+  /**
+   * varPop, varSamp, stdDevPop, stdDevSamp: the exact sums of x and of x squared (each square split into two doubles by
+   * TwoProduct), so the result does not depend on order, batch size or partitioning, and partials merge exactly.
+   * VERIFIED: src/compute/oracle.test.ts compares them, also merged from 1, 2 and 5 parts, with exact BigInt arithmetic
+   * in tests/compute/oracle.ts.
+   */
+  addMoment(gid: number, raw: unknown, policy: NumericPolicy): void {
+    const x = numeric(raw, policy, 'variance operand');
+    if (x === null) return;
+    const [hi, lo] = twoProduct(x, x);
+    if (!Number.isFinite(hi)) throw new RangeError(`A variance overflowed squaring ${x}.`);
+    this.addMoments(gid, [x], [hi, lo]);
+    this.countRow(gid);
+  }
+  private addMoments(gid: number, sums: readonly number[], squares: readonly number[]): void {
+    const values = this.values!;
+    let pair = values[gid] as [number[], number[]] | undefined;
+    if (pair === undefined) { this.ledger.reserve(64); pair = [[], []]; values[gid] = pair; }
+    for (const term of sums) this.grow(pair[0], term);
+    for (const term of squares) this.grow(pair[1], term);
+  }
+  /** n * sum(x^2) - sum(x)^2, exactly, then rounded once: n^2 times the population variance. */
+  private spread(gid: number, n: number): number {
+    const [sums, squares] = this.values![gid] as [number[], number[]];
+    const terms: number[] = [];
+    this.ledger.reserve(termBytes(sums) * sums.length + termBytes(squares) * 2);
+    const add = (a: number, b: number, sign: number) => {
+      const [hi, lo] = twoProduct(a, b);
+      if (!Number.isFinite(hi)) throw new RangeError('A variance overflowed when finalized.');
+      this.grow(terms, sign * hi); this.grow(terms, sign * lo);
+    };
+    for (const q of squares) add(n, q, 1);
+    for (const a of sums) for (const b of sums) add(a, b, -1);
+    const total = roundTerms(terms);
+    this.ledger.release(termBytes(sums) * sums.length + termBytes(squares) * 2 + 8 * terms.length);
+    // Exact arithmetic cannot go negative; a square below the subnormal range can, by one rounding.
+    return Math.max(0, total);
+  }
+  /** min/max over DataView's typed order; invalid values skipped, opaque objects rejected; ties keep the first. */
   addOrdered(gid: number, value: unknown, ops: ValueOps): void {
     if (invalidValue(value)) return;
     const type = typeof value;
-    if (type === 'object' ? !(value instanceof Date) && !bytesOf(value) : type !== 'boolean' && type !== 'number' && type !== 'bigint' && type !== 'string')
-      throw new TypeError(`min/max accept Booleans, numbers, BigInts, strings, Dates and binary values; got ${describe(value)}.`);
+    if (type === 'object' ? !(value instanceof Date) && !bytesOf(value) && !Array.isArray(value) : type !== 'boolean' && type !== 'number' && type !== 'bigint' && type !== 'string')
+      throw new TypeError(`min/max accept Booleans, numbers, BigInts, strings, Dates, binary values and arrays; got ${describe(value)}.`);
     const values = this.values!, seen = this.seen!;
     if (seen[gid]) {
       const c = ops.compare(value, values[gid]);
@@ -333,6 +383,12 @@ export class StateColumns {
       }
       case 'min': case 'max': return this.seen![gid] ? this.values![gid] : null;
       case 'sumBigInt': return this.values![gid] ?? null;
+      case 'varPop': case 'varSamp': case 'stdDevPop': case 'stdDevSamp': {
+        const n = this.counts![gid], sample = op === 'varSamp' || op === 'stdDevSamp';
+        if (n < (sample ? 2 : 1)) return null;
+        const variance = this.spread(gid, n) / n / (sample ? n - 1 : n);
+        return op.startsWith('std') ? Math.sqrt(variance) : variance;
+      }
     }
     throw new TypeError(`Unknown measure ${op}.`);
   }
@@ -350,6 +406,22 @@ export class StateColumns {
     if (kind === 'rows' || kind === 'count') return { counts };
     const values = this.values ?? [];
     if (kind === 'distinct' || kind === 'values') return this.exportLists(groups, values);
+    if (kind === 'moments') {
+      const pack = (which: 0 | 1) => {
+        let size = 0;
+        for (let g = 0; g < groups; g++) size += (values[g] as [number[], number[]] | undefined)?.[which].length ?? 0;
+        this.ledger.reserve(8 * (groups + 1) + 8 * size);
+        const offsets = new Float64Array(groups + 1), terms = new Float64Array(size);
+        for (let g = 0, at = 0; g < groups; g++) {
+          const own = (values[g] as [number[], number[]] | undefined)?.[which];
+          if (own) { terms.set(own, at); at += own.length; }
+          offsets[g + 1] = at;
+        }
+        return [offsets, terms] as const;
+      };
+      const [offsets, terms] = pack(0), [squareOffsets, squares] = pack(1);
+      return { counts, offsets, terms, squareOffsets, squares };
+    }
     if (kind === 'sum') {
       let size = 0;
       for (let g = 0; g < groups; g++) size += (values[g] as number[] | undefined)?.length ?? 0;
@@ -381,8 +453,8 @@ export class StateColumns {
     for (let g = 0, at = 0; g < groups; g++) {
       for (const item of list(g)) {
         // Identity-equal objects cannot keep their equality through a structured clone.
-        if (distinct && typeof item === 'object' && !(this.byValue && (item instanceof Date || bytesOf(item))))
-          throw new TypeError('Partial aggregation cannot carry distinct values that compare by identity: objects other than value-mode Dates and binary values.');
+        if (distinct && !cloneKeepsEquality(item, this.byValue))
+          throw new TypeError('Partial aggregation cannot carry distinct values that compare by identity: objects other than value-mode Dates, binary values and arrays of such values.');
         packed[at++] = item as number;
       }
       offsets[g + 1] = at;
@@ -409,6 +481,20 @@ export class StateColumns {
       this.addCount(gid, n);
       return;
     }
+    if (kind === 'moments') {
+      const { counts, offsets, terms, squareOffsets, squares } = state as { counts: Float64Array; offsets: Float64Array; terms: Float64Array; squareOffsets: Float64Array; squares: Float64Array };
+      const n = counts[index], slice = (at: Float64Array, of: Float64Array) => {
+        const start = at[index], end = at[index + 1];
+        if (!Number.isInteger(start) || !(start <= end && end <= of.length) || (n === 0) !== (start === end)) throw malformed('variance term offsets');
+        const out = Array.from(of.subarray(start, end));
+        if (!out.every(Number.isFinite)) throw malformed('a variance term is not finite');
+        return out;
+      };
+      const sums = slice(offsets, terms), sq = slice(squareOffsets, squares);
+      if (n) this.addMoments(gid, sums, sq);
+      this.addCount(gid, n);
+      return;
+    }
     if (kind === 'distinct' || kind === 'values') {
       const { offsets } = state as { offsets: Float64Array }, start = offsets[index], end = offsets[index + 1];
       const items = kind === 'distinct' ? (state as { items: readonly unknown[] }).items : (state as { numbers: Float64Array }).numbers;
@@ -416,8 +502,7 @@ export class StateColumns {
       for (let i = start; i < end; i++) {
         const item = items[i];
         if (kind === 'values') { if (!Number.isFinite(item)) throw malformed('a percentile value is not finite'); this.addValue(gid, item, STRICT); continue; }
-        if (item === null || item === undefined || typeof item === 'function' || typeof item === 'symbol'
-          || (typeof item === 'object' && !(this.byValue && (item instanceof Date || bytesOf(item))))) throw malformed('a distinct value');
+        if (item === null || item === undefined || !cloneKeepsEquality(item, this.byValue)) throw malformed('a distinct value');
         this.addDistinct(gid, item);
       }
       return;

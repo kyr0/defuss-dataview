@@ -139,10 +139,14 @@ describe('optimized execution invariants', () => {
   });
   it('preserves all filter operators and mixed-type ordering across specialization guards', () => {
     const binary = new Uint8Array([1, 2]), opaque = {}, invalid = new Date(NaN);
-    const values: unknown[] = [false, true, -Infinity, -0, 1, Infinity, NaN, -2n, 42n, 'Z', 'ab', '', new Date(1), invalid, binary, new DataView(binary.buffer), binary.buffer, opaque, {}, [], [1, 2], Symbol('x'), null, undefined];
+    // No array cells: since 0.10.0 arrays compare element by element and sort before opaque objects, which the
+    // pre-optimization reference does not; src/compute/lists.test.ts specifies them. An array operand stays for the
+    // operators whose result that change cannot affect: membership, equality with non-arrays and contains.
+    const values: unknown[] = [false, true, -Infinity, -0, 1, Infinity, NaN, -2n, 42n, 'Z', 'ab', '', new Date(1), invalid, binary, new DataView(binary.buffer), binary.buffer, opaque, {}, Symbol('x'), null, undefined];
     const ops: DataviewFilterOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'startsWith', 'endsWith'];
+    const ordering = new Set<DataviewFilterOperator>(['gt', 'gte', 'lt', 'lte']);
     for (const semantics of [{}, { equality: 'identity' as const }, { strings: 'locale' as const, locale: 'en' }]) {
-      for (const op of ops) for (const value of [...values, values]) {
+      for (const op of ops) for (const value of ordering.has(op) ? values : [...values, values]) {
         const request = { filters: [{ field: 'v', op, value }], semantics };
         const actual = compileQuery(request), expected = baselineQuery(request);
         for (const v of values) expect(actual.matches({ v })).toBe(expected.matches({ v }));

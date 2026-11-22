@@ -51,7 +51,7 @@ Measure state lives in columns indexed by group id: typed arrays for counts and 
 
 Ordered groups need a certificate, because a wrong one would silently split a group:
 
-- the source ordering is code-unit ordering (`dataview-order-v1:code-unit`);
+- the source ordering is code-unit ordering (`dataview-order-v2:code-unit`);
 - its leading sorters are exactly the plain group fields;
 - every group field has a leased column whose values are all Booleans, all finite numbers, all BigInts or all strings.
 

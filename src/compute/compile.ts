@@ -122,7 +122,8 @@ export function compilePlan(kind: PlanKind, descriptor: unknown): Plan {
   if (measureSource !== undefined) for (const [alias, raw] of Object.entries(record(measureSource, kind === 'view' ? 'totals' : 'measures'))) {
     const m = table.measure(raw, `${kind === 'view' ? 'totals' : 'measures'}.${alias}`);
     const stateKind: StateKind = m.op === 'count' ? (m.arg === undefined ? 'rows' : 'count') : m.op === 'avg' ? 'sum'
-      : m.op === 'countDistinct' || m.op === 'distinct' ? 'distinct' : m.op === 'percentile' || m.op === 'median' ? 'values' : m.op as StateKind;
+      : m.op === 'countDistinct' || m.op === 'distinct' ? 'distinct' : m.op === 'percentile' || m.op === 'median' ? 'values'
+        : m.op === 'varPop' || m.op === 'varSamp' || m.op === 'stdDevPop' || m.op === 'stdDevSamp' ? 'moments' : m.op as StateKind;
     const key = `${stateKind}:${m.arg ?? ''}:${m.where ?? ''}`;
     let state = stateIds.get(key);
     if (state === undefined) { state = states.length; states.push({ kind: stateKind, arg: m.arg, where: m.where }); stateIds.set(key, state); }

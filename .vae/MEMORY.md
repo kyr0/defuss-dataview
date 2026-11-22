@@ -7,7 +7,8 @@
 Replace stale lines instead of appending. Mechanizable lessons belong in tests or .vae/VERIFY.py.
 Budget 4 KiB (`vae.py doctor --repo .`); entries are injected at session start. -->
 
-- VERIFIED[versions] npm has 0.1.0 to 0.6.0 (0.5.0 and 0.6.0 on 2026-11-17) 0.7.0 (2026-11-20) and 0.8.0 (2026-11-21; main pushed, tag v0.8.0 only local); 0.9.0 (epochMs) is prepared, not tagged or published BC `npm view defuss-dataview time` 2026-11-21.
+- VERIFIED[versions] npm has 0.1.0 to 0.9.0 (0.8.0 and 0.9.0 on 2026-11-21; tags v0.8.0 and v0.9.0 pushed); 0.10.0 (lists as values, some/every, calendar arithmetic) is prepared, not tagged or published BC `npm view defuss-dataview time` 2026-11-22.
 - VERIFIED[bench] compare speed only within one machine/run: the 0.4.0 README table (M4, Node 24) is faster on trees than an M5 Max/Node 26 run of the same code BC `npm run benchmark:paired` 2026-11-15 ratios 0.88–1.01 for trees.
 - VERIFIED[toolchain] bun 1.4.3 is the package manager (bun.lock, packageManager); Node.js stays the runtime for tests, scripts and consumers BC maintainer decision 2026-11-16.
 - VERIFIED[check-gate] never run `bun run check` in the background while the vae gate may run: the gate rebuilds dist/ (clean first), and the check then fails with ERR_MODULE_NOT_FOUND dist/index.mjs in site-metrics BC 2026-11-17 collision; a lone rerun passed.
+- VERIFIED[tzdata@Bun 1.4.3] Bun's ICU time zone data still has older America/Havana rules (UTC-4 in January 2027) where Node.js 26.13.1 (tz 2026e) and MongoDB 9.0.8 agree on UTC-5, so date tests run under vitest (Node) and the MongoDB fixture skips cases whose offsets differ BC probe 2026-11-22.

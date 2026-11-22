@@ -36,23 +36,35 @@ Builders return frozen plain nodes (`{ v: 1, op, ... }`). Plans also accept the 
 | --- | --- |
 | `field(key)` | Own top-level property `key`, or `undefined` when missing |
 | `path('a.b.c')` | Own-property path; `unknown` until narrowed |
+| `get(expr, 'a.b')` | The same path read from any value, such as an element of `some()`; array indexes are path segments |
 | `literal(value)` | A constant |
 | `number(expr)` | Narrows to `number \| null` under the plan's invalid-number policy |
-| `add`, `sub`, `mul`, `div` | Finite arithmetic on numbers; nullish operands give `null` |
+| `add`, `sub`, `mul`, `div`, `mod` | Finite arithmetic on numbers; nullish operands give `null`; `mod` keeps the sign of the dividend and also takes two BigInts |
+| `pow`, `sqrt`, `ln`, `exp` | Powers, square root, natural logarithm and exponential; a result that is not a finite real number throws a `RangeError` |
+| `bitAnd`, `bitOr`, `bitXor`, `bitNot` | Bitwise operations on safe integers as 64-bit two's complement, or on BigInts at full width |
+| `least(...exprs)`, `greatest(...exprs)` | The smallest or largest operand in the typed order, skipping nullish and invalid ones |
 | `coalesce(...exprs)` | First non-nullish operand, else the last operand's value |
 | `eq`, `neq` | Value equality of the plan's semantics |
 | `gt`, `gte`, `lt`, `lte` | Ordering comparisons with filter range semantics |
+| `in`, `contains`, `startsWith`, `endsWith` | The filter operators as expressions, with the same results; `in` takes any expression as its list |
+| `some(list, predicateFn)`, `every(list, predicateFn)` | Whether the predicate holds for one or for every element of an array; a value that is no array gives `false` |
+| `typeOf(expr)` | `'undefined'`, `'null'`, `'boolean'`, `'number'`, `'bigint'`, `'string'`, `'date'`, `'binary'`, `'array'` or `'object'` |
 | `isNullish(expr)` | `true` for `null` and `undefined` |
 | `and`, `or`, `not` | Short-circuit Boolean logic; operands must be Booleans |
 | `cond(test, then, otherwise)` | `then` when `test` is `true`, else `otherwise`; only the chosen branch is evaluated |
 | `floor`, `ceil`, `round`, `abs` | Integer rounding and absolute value; `round` takes halves away from zero |
 | `epochMs(expr)` | Epoch milliseconds of a Date, for durations: `sub(epochMs(end), epochMs(start))` |
-| `dateTrunc(expr, unit, { timeZone }?)` | The first instant of the `year`, `quarter`, `month`, ISO `week` (from Monday), `day`, `hour` or `minute`, as a Date |
-| `datePart(expr, part, { timeZone }?)` | `year`, `quarter` (1 to 4), `month` (1 to 12), `day`, `weekday` (1 = Monday to 7), `hour` or `minute` |
+| `toDate(expr)` | The Date of epoch milliseconds |
+| `dateTrunc(expr, unit, { timeZone, binSize, startOfWeek }?)` | The first instant of the `year`, `quarter`, `month`, `week` (from Monday unless `startOfWeek`), `day`, `hour`, `minute`, `second` or `millisecond`, as a Date; `binSize` units per bin |
+| `datePart(expr, part, { timeZone }?)` | `year`, `quarter` (1 to 4), `month` (1 to 12), `day`, `weekday` (1 = Monday to 7), `hour`, `minute`, `second`, `millisecond`, `dayOfYear`, `isoWeek` or `isoWeekYear` |
+| `dateAdd(expr, unit, amount, { timeZone }?)` | The date plus an integer number of units, as MongoDB's `$dateAdd` |
+| `dateDiff(start, end, unit, { timeZone, startOfWeek }?)` | Unit boundaries from `start` to `end`, as MongoDB's `$dateDiff` |
 | `lower`, `upper`, `trim` | The string in lower or upper case, or without surrounding whitespace |
 | `substring(expr, start, length?)` | `length` code points from `start`, or the rest of the string |
 | `concat(...exprs)` | The joined strings; `null` when any operand is nullish |
 | `length(expr)` | Code points of a string, or elements of an array |
+| `split(expr, separator)`, `replaceAll(expr, find, replacement)`, `indexOf(expr, search)` | Parts between separators, every occurrence replaced (no `$` patterns), the code-point index of the first occurrence or -1 |
+| `toText(expr)`, `parseNumber(expr)` | A string, number, BigInt, Boolean or Date as text; a decimal string as a number |
 | `each(expr)` | A whole `groupBy` key: one group per distinct array element, as MongoDB's `$unwind` |
 | `count(expr?, { where })` | Rows, or rows whose operand is not nullish |
 | `sum`, `avg` | Finite number sum and mean, `null` without values |
@@ -60,6 +72,7 @@ Builders return frozen plain nodes (`{ v: 1, op, ... }`). Plans also accept the 
 | `sumBigInt` | Exact BigInt sum, `null` without values |
 | `countDistinct`, `distinct` | Number of distinct non-nullish values, or the values in first-encounter order (`[]` without values) |
 | `percentile(expr, p)`, `median` | Exact percentile for `p` from 0 to 1, interpolated between the closest ranks; `median` is `p` 0.5; `null` without values |
+| `varPop`, `varSamp`, `stdDevPop`, `stdDevSamp` | Population and sample variance and standard deviation from exact sums; `null` without values, or with one value for the sample measures |
 
 Every measure takes an optional `{ where }` predicate. Field keys and path segments may not be `__proto__`, `prototype` or `constructor`; field keys may not contain dots.
 

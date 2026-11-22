@@ -1,8 +1,34 @@
 # Changelog
 
+## 0.10.0
+
+Prepared on 2026-11-22; not yet on npm. It follows 0.9.0, published on npm on 2026-11-21.
+
+### Lists are values
+
+- Under the default `equality: 'value'`, arrays are equal when their elements are pairwise equal, and sort element by element with a proper prefix first, after binary values and before other objects. Filters, sorters, `eq`, `in`, grouping, `distinct`, `countDistinct`, `min`, `max` and `each` all follow; group keys and distinct values that are arrays of primitives, Dates and binary values merge from partials. Before, every array was equal only to itself and tied with every other array, so a stored array never matched a literal one. `equality: 'identity'` keeps that behavior. Array operands of filters and literals are copied, as Dates already were. The ordering id is now `dataview-order-v2`.
+
+### Predicates over arrays
+
+- `some(list, predicateFn)` and `every(list, predicateFn)`. `predicateFn` runs once when the expression is built and receives the element as an expression, so descriptors stay plain data; quantifiers nest, and each level has its own element. A value that is no array gives `false`; an empty array gives `false` and `true`.
+- `get(expr, path)` reads a dot path from any value, such as an object element.
+- `in`, `contains`, `startsWith` and `endsWith` as expressions, with exactly the results of the filter operators; `typeOf(expr)` names a value's type.
+
+### Calendar
+
+- `dateAdd(date, unit, amount)` and `dateDiff(start, end, unit)` as MongoDB's `$dateAdd` and `$dateDiff`: days and longer keep the local wall clock, months clamp to the month's end, and differences count unit boundaries crossed.
+- `dateTrunc` takes `binSize` and `startOfWeek` with MongoDB's alignment from 2000-01-01, and the units `second` and `millisecond`. `datePart` adds `second`, `millisecond`, `dayOfYear`, `isoWeek` and `isoWeekYear`. `toDate(ms)` turns epoch milliseconds back into a Date.
+- VERIFIED: `src/compute/calendar.test.ts` replays 3,600 answers of MongoDB 9.0.8 in 11 time zones, recorded by `scripts/mongodb-calendar-fixture.mjs`; `src/compute/dates.test.ts` compares the new units, parts and calendar arithmetic with Temporal. Two documented single-unit `dateTrunc` cases keep the Temporal rule of 0.8.0 where MongoDB differs.
+
+### Numbers, bits and text
+
+- `mod`, `pow`, `sqrt`, `ln`, `exp`, `least` and `greatest`; `bitAnd`, `bitOr`, `bitXor` and `bitNot` on safe integers as 64-bit two's complement or on BigInts.
+- `varPop`, `varSamp`, `stdDevPop` and `stdDevSamp` from exact sums of the values and their squares: independent of order and partitioning in every number mode, so they merge from partials.
+- `split`, `replaceAll`, `indexOf`, `toText` and `parseNumber`.
+
 ## 0.9.0
 
-Prepared on 2026-11-21; not yet on npm. It follows 0.8.0, published on npm on 2026-11-21.
+Published on npm on 2026-11-21. It follows 0.8.0, published on npm on 2026-11-21.
 
 - `epochMs(expr)` gives the epoch milliseconds of a Date, so plans compute durations: `sub(epochMs(end), epochMs(start))`, and `avg`, `max` or `percentile` over it. It reads the operands `dateTrunc` reads: a number in the Date range passes through, nullish operands and invalid Dates give `null`, and other values follow `invalidNumbers`. `sub` and the other arithmetic operators still treat Dates as invalid numbers, so a forgotten `epochMs` throws, or gives `null` under `invalidNumbers: 'skip'`, never `NaN`.
 

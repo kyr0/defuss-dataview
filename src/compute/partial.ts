@@ -1,6 +1,6 @@
 import { abort, DataviewError, yieldToHost } from '../stream/common.js';
 import type { CancellationSignal } from '../stream/types.js';
-import { bytesOf } from '../values.js';
+import { bytesOf, cloneKeepsEquality } from '../values.js';
 import { malformed } from './aggregate.js';
 import type { Ledger, StateColumns } from './aggregate.js';
 import type { Plan } from './compile.js';
@@ -56,10 +56,8 @@ export function requireMergeable(plan: Plan): void {
 }
 
 /** A key that groups by object identity, which no copy can keep: plain objects, and every object under identity equality. */
-function identityKey(value: unknown, byValue: boolean): boolean {
-  return typeof value === 'object' && value !== null && !(byValue && (value instanceof Date || bytesOf(value) !== undefined));
-}
-const IDENTITY = 'Partial aggregation cannot carry group keys that group by identity: objects other than value-mode Dates and binary values.';
+const identityKey = (value: unknown, byValue: boolean): boolean => !cloneKeepsEquality(value, byValue);
+const IDENTITY = 'Partial aggregation cannot carry group keys that group by identity: objects other than value-mode Dates, binary values and arrays of such values.';
 
 /**
  * A finished partial scan as plain data. The group table's key arrays are handed over, not copied: the execution ends
@@ -120,6 +118,8 @@ export function mergeInput(plan: Plan, partials: unknown): MergeInput {
         : kind === 'sum' ? column(state.counts, groups) && packed(state.offsets, groups, state.terms instanceof Float64Array ? state.terms : undefined)
         : kind === 'distinct' ? packed(state.offsets, groups, Array.isArray(state.items) ? state.items : undefined)
         : kind === 'values' ? packed(state.offsets, groups, state.numbers instanceof Float64Array ? state.numbers : undefined)
+        : kind === 'moments' ? column(state.counts, groups) && packed(state.offsets, groups, state.terms instanceof Float64Array ? state.terms : undefined)
+          && packed(state.squareOffsets, groups, state.squares instanceof Float64Array ? state.squares : undefined)
         : Array.isArray(state.values) && state.values.length === groups;
       if (!ok) throw malformed(`${at}.states[${s}] does not match a ${kind} state of ${groups} groups`);
     });
